@@ -31,19 +31,16 @@ __all__ = ['curvilinear_grid', 'physical_derivative']
 def curvilinear_grid(deriv):
     """
     The CurvilinearGrid whose metric terms `deriv` is evaluated with, None if the
-    chain rule does not apply: on any other grid, for a derivative w.r.t. the
-    computational coordinates, or for one along no Dimension of the grid.
+    chain rule does not apply: for a derivative w.r.t. the computational
+    coordinates, on any other grid, or along no Dimension of the grid.
     """
-    if deriv.computational:
-        return None
     grid = getattr(deriv.expr, 'grid', None)
-    if grid is None or not grid.root.is_Curvilinear:
+    if deriv.computational or grid is None or not grid.root.is_Curvilinear:
         return None
-    grid = grid.root
-    if not any(d in grid.dimensions and o > 0
-               for d, o in zip(deriv.dims, deriv.deriv_order, strict=True)):
-        return None
-    return grid
+    if any(o > 0 and d in grid.root.dimensions
+           for d, o in zip(deriv.dims, deriv.deriv_order, strict=True)):
+        return grid.root
+    return None
 
 
 def physical_derivative(deriv, expr, grid, **kwargs):
