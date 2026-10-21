@@ -360,11 +360,14 @@ def traction_free_update(v, tau, buoyancy, lam, mu, damp=1):
     operators along the vertical axis (see `examples.seismic.elastic.sbp`), whose
     interior stencils, fourth order, are also used laterally. The traction-free
     condition is imposed weakly, by dropping the flux through the surface from
-    the vertical derivative of the momentum equation, `D - H^-1 B`. The
-    semi-discrete system conserves the elastic energy, so the scheme is stable
-    over any smooth topography, accurate to fourth order in the interior and
-    second order at the surface, and the adjoint propagation is its exact
-    transpose.
+    the vertical derivative of the momentum equation, `D - H^-1 B`. With the
+    vertical closures and the surface, the semi-discrete system conserves the
+    elastic energy over any smooth topography: the velocity and stress
+    operators are minus each other's adjoints in the energy inner product. The
+    estimate does not cover the truncation of the domain: the lateral edges
+    and the bottom are interior stencils over a zero halo, and `damp` acts
+    outside it. The scheme is accurate to fourth order in the interior and
+    second order at the surface.
 
     The fields are on the usual staggered grid, `v[i]` half a cell along `x_i`
     and `tau[i, j]` along `x_i` and `x_j`, apart from the vertical grid of the
