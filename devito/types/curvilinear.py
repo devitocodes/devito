@@ -709,24 +709,31 @@ class CurvilinearGrid(Grid):
     @cached_property
     def min_spacing(self):
         """
-        Smallest physical distance between two neighbouring nodes of the domain,
-        over all ranks. It plays the role of the grid spacing in a stability
-        condition, e.g. a CFL time step `dt <= c * min_spacing / vmax`, since the
-        map shrinks some cells below the computational spacing.
+        The smallest physical length of the cells of the domain, over all ranks,
+        in the sense of a stability condition: it plays the role of the grid
+        spacing in a CFL time step, e.g. `dt <= c * min_spacing / vmax`.
+
+        At each node, it is `1/sqrt(l)`, with `l` the largest eigenvalue of the
+        metric tensor scaled by the spacing, `G_jk = sum_i (d xi_j/d x_i)
+        (d xi_k/d x_i) / (h_j h_k)`, the largest inverse squared length a
+        stencil sees there. On a Cartesian grid it is the smallest spacing; it
+        accounts for cells shrunk by the map, and for skewed ones, whose height
+        across their longest edges is smaller than any of their edges.
         """
-        domain = tuple(v[self.space_order:-self.space_order] for v in self._local_vectors)
         if self.distributor.loc_empty:
             minimum = np.inf
         else:
-            mesh = np.meshgrid(*domain, indexing='ij')
-            physical = [np.broadcast_to(c, mesh[0].shape)
-                        for c in self.mapping.forward(self, mesh)]
-            minimum = np.inf
-            for axis in range(self.dim):
-                if mesh[0].shape[axis] < 2:
-                    continue
-                distance = np.sqrt(sum(np.diff(c, axis=axis)**2 for c in physical))
-                minimum = min(minimum, distance.min())
+            domain = tuple(v[self.space_order:-self.space_order]
+                           for v in self._local_vectors)
+            shape = tuple(v.size for v in domain)
+            metrics = self.mapping.metrics(self, domain)
+            spacing = np.array([np.float64(h) for h in self.spacing])
+            # M[..., j, i] = d xi_j / d x_i / h_j
+            matrix = np.empty(shape + (self.dim, self.dim))
+            for (i, j), value in metrics.items():
+                matrix[..., j, i] = np.broadcast_to(value, shape)/spacing[j]
+            tensor = matrix @ np.swapaxes(matrix, -1, -2)
+            minimum = 1/np.sqrt(np.linalg.eigvalsh(tensor)[..., -1].max())
         if self.distributor.is_parallel:
             minimum = self.comm.allreduce(minimum, op=MPI.MIN)
         return self.dtype(minimum)

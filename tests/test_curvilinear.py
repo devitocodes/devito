@@ -171,12 +171,37 @@ class TestGrid:
         assert np.allclose(grid.to_computational(nodes)[:, 1], 800., atol=1e-9)
 
     def test_min_spacing(self):
-        """The smallest physical cell size of a tilted plane over a deeper bottom."""
+        """
+        The smallest length of the cells in the sense of a stability condition,
+        `1/sqrt` of the largest eigenvalue of the metric tensor scaled by the
+        spacing: the spacing over a flat surface, and below the shortest edge
+        of skewed cells.
+        """
+        flat = CurvilinearGrid(shape=(21, 41), extent=(200., 800.),
+                               mapping=TerrainFollowing(surface=np.zeros(21)))
+        assert np.isclose(flat.min_spacing, 10., rtol=1e-6)
+
+        # x = xi + eta/10, z = eta: every edge is at least 10 m long, the metric
+        # tensor is [[1.01, -0.1], [-0.1, 1]]/100
+        lean = CurvilinearGrid(shape=(21, 21), extent=(200., 200.), mapping=Lean(),
+                               dtype=np.float64)
+        expected = 1/np.sqrt(np.linalg.eigvalsh([[1.01, -.1], [-.1, 1.]])[-1]/100)
+        assert np.isclose(lean.min_spacing, expected, rtol=1e-10)
+        assert lean.min_spacing < 10.
+
+        # A tilted plane over a deeper bottom, from its closed-form metric terms
         slope, bottom = 0.1, 400.
         grid = CurvilinearGrid(shape=(21, 41), extent=(200., bottom),
-                               mapping=TerrainFollowing(surface=lambda x: slope*x))
-        # Columns are shortest where the surface is deepest, at x = 200
-        expected = (bottom - slope*200.)/40
+                               mapping=TerrainFollowing(surface=lambda x: slope*x),
+                               dtype=np.float64)
+        xi, eta = np.meshgrid(10.*np.arange(21), 10.*np.arange(41), indexing='ij')
+        z_xi, z_eta = slope*(1 - eta/bottom), (bottom - slope*xi)/bottom
+        metrics = np.zeros(xi.shape + (2, 2))
+        metrics[..., 0, 0] = 1
+        metrics[..., 1, 0] = -z_xi/z_eta
+        metrics[..., 1, 1] = 1/z_eta
+        tensor = metrics @ np.swapaxes(metrics, -1, -2)/100
+        expected = 1/np.sqrt(np.linalg.eigvalsh(tensor)[..., -1].max())
         assert np.isclose(grid.min_spacing, expected, rtol=1e-6)
 
     def test_invalid(self):
