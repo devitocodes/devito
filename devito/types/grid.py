@@ -579,6 +579,15 @@ class SubGrid(Grid):
         """The subsampling factor along each Dimension."""
         return DimensionTuple(*self._factors, getters=self.dimensions)
 
+    @property
+    def root(self):
+        # A SubGrid is a view of its parent, not a Grid in its own right, just
+        # as a SubDomain is. `Operator._prepare_arguments` collapses the
+        # discretizations it finds by `root` to tell "several views of one
+        # Grid" apart from "several unrelated Grids", and rejects the latter
+        # under MPI
+        return self._parent.root
+
     def __repr__(self):
         return f"SubGrid[shape={self.shape}, factor={tuple(self._factors)}]"
 

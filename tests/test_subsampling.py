@@ -813,3 +813,105 @@ class TestSubGrid:
         sub = SubGrid(grid, factor=2, name='c')
 
         assert [d.name for d in sub.dimensions] == ['xc', 'yc']
+
+
+class TestMPI:
+
+    """
+    Subsampling under domain decomposition. The subsampled Dimension's bounds
+    are derived per rank from the parent's, so each rank writes exactly its own
+    share of the subgrid.
+    """
+
+    @pytest.mark.parallel(mode=[2, 4])
+    @pytest.mark.parametrize('factor', [2, 3, 4])
+    def test_copy_from_parent(self, mode, factor):
+        """A strided copy must agree with numpy slicing on every rank."""
+        n = 24
+        grid = Grid(shape=(n, n))
+        sub = SubGrid(grid, factor=factor)
+
+        u = Function(name='u', grid=grid)
+        g = Function(name='g', grid=sub, space_order=0)
+
+        glob = np.arange(n*n, dtype=u.dtype).reshape(n, n)
+        u.data[:] = glob
+
+        Operator(Eq(g, u)).apply()
+
+        expected = glob[::factor, ::factor][g.local_indices]
+        assert np.array_equal(np.asarray(g.data), expected)
+
+    @pytest.mark.parallel(mode=[2, 4])
+    def test_strided_codegen(self, mode):
+        """The guard still becomes a unit-stride subgrid loop under MPI."""
+        n = 24
+        grid = Grid(shape=(n, n))
+        sub = SubGrid(grid, factor=3)
+
+        u = Function(name='u', grid=grid)
+        g = Function(name='g', grid=sub, space_order=0)
+
+        op = Operator(Eq(g, u))
+
+        assert not FindNodes(Conditional).visit(op)
+        for d in sub.dimensions:
+            assert iteration(op, d.name).limits[2] == 1
+
+    @pytest.mark.parallel(mode=[2, 4])
+    def test_bounds_partition_the_subgrid(self, mode):
+        """
+        Every subgrid point is written exactly once across all ranks: the
+        per-rank bounds must tile the global subgrid with no gaps or overlap.
+        Checked with a sentinel, since a reduction into a subsampled Function
+        is not supported under MPI.
+        """
+        n, factor = 24, 3
+        grid = Grid(shape=(n, n))
+        sub = SubGrid(grid, factor=factor)
+
+        u = Function(name='u', grid=grid)
+        g = Function(name='g', grid=sub, space_order=0)
+        u.data[:] = 1.
+        g.data[:] = -7.                     # sentinel: never written
+
+        Operator(Eq(g, u)).apply()
+
+        # No gaps: this rank's whole slice was written
+        assert not np.any(np.asarray(g.data) == -7.)
+        assert np.all(np.asarray(g.data) == 1.)
+
+        # No overlap: the local sizes sum to the global count
+        local = int(np.asarray(g.data).size)
+        total = grid.distributor.comm.allreduce(local)
+        assert total == sub.shape[0]*sub.shape[1]
+
+    @pytest.mark.parallel(mode=[2, 4])
+    def test_subgrid_shares_parent_decomposition(self, mode):
+        """
+        The SubGrid must decompose along the same axes as its parent, so that
+        a rank's subgrid points come from its own parent points.
+        """
+        grid = Grid(shape=(24, 24))
+        sub = SubGrid(grid, factor=3)
+
+        assert sub.root is grid.root
+        assert sub.distributor.nprocs == grid.distributor.nprocs
+        assert sub.distributor.topology == grid.distributor.topology
+
+    @pytest.mark.parallel(mode=[2, 4])
+    def test_time_subsampling(self, mode):
+        """Saving a wavefield every `factor` steps, decomposed in space."""
+        nt, factor = 9, 4
+        grid = Grid(shape=(16, 16))
+        ts = ConditionalDimension(name='ts', parent=grid.time_dim,
+                                  factor=factor)
+
+        v = TimeFunction(name='v', grid=grid)
+        vsave = TimeFunction(name='vsave', grid=grid, time_dim=ts,
+                             save=(nt + factor - 1)//factor)
+
+        Operator([Eq(v.forward, v + 1.), Eq(vsave, v)]).apply(time_M=nt-2)
+
+        for i in range((nt - 2)//factor + 1):
+            assert np.allclose(vsave.data[i], i*factor)
