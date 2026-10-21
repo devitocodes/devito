@@ -17,7 +17,7 @@ from devito.passes.iet.engine import iet_pass
 from devito.passes.iet.langbase import (
     DeviceAwareMixin, LangBB, LangTransformer, ShmTransformer, make_sections_from_imask
 )
-from devito.symbolics import INT, as_long, retrieve_indexed
+from devito.symbolics import INT, as_long
 from devito.tools import as_tuple, flatten, is_integer, prod
 from devito.types import Symbol
 
@@ -247,18 +247,8 @@ class PragmaShmTransformer(ShmTransformer, PragmaSimdTransformer):
             reductions.append((e.output, imask, e.operation))
 
         test0 = all(not i.is_Indexed for i, _, _ in reductions)
-        # Each thread reduces into a private copy of an array, initialized to the
-        # identity, so the array must not be read in the loop nest, other than by
-        # the read of a min or max reduction at the point it reduces into, e.g.
-        # `n[0] = max(n[0], f)`, which its lowering introduces
-        reduced = {i.function for i, _, _ in reductions if i.is_Indexed}
-        read = {i.function for e in FindNodes(Expression).visit(partree)
-                for i in retrieve_indexed(e.expr.rhs)
-                if not (e.is_reduction and e.operation is not OpInc and
-                        i == e.output)}
         test1 = (self._support_array_reduction(self.compiler) and
-                 all(i.is_Affine for i in partree.collapsed) and
-                 not reduced & read)
+                 all(i.is_Affine for i in partree.collapsed))
 
         if test0 or test1:
             # Implement reduction

@@ -41,9 +41,7 @@ def _drop_reduction_halospots(iet):
     """
     mapper = defaultdict(set)
 
-    # If all HaloSpot reads are the points the Increments update, then the
-    # HaloSpot is useless. A read of the updated Function elsewhere, e.g.
-    # `u[x] += u[x + 1]`, needs the halo
+    # If all HaloSpot reads pertain to reductions, then the HaloSpot is useless
     for hs, expressions in MapNodes(HaloSpot, Expression).visit(iet).items():
         scope = Scope(i.expr for i in expressions)
         for k, v in hs.fmapper.items():
@@ -51,8 +49,7 @@ def _drop_reduction_halospots(iet):
             if f not in scope.reads:
                 continue
             v = scope.reads[f]
-            if all(i.is_reduction and i.access == scope.exprs[i.timestamp].lhs
-                   for i in v):
+            if all(i.is_reduction for i in v):
                 mapper[hs].add(k)
 
     # Transform the IET introducing the "reduced" HaloSpots

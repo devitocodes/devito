@@ -778,7 +778,17 @@ class Dependence(Relation, CacheInstances):
 
     @cached_property
     def is_reduction(self):
-        return self.source.is_reduction or self.sink.is_reduction
+        """
+        Is it a dependence of a reduction ? Either both accesses belong to
+        reductions, e.g. two increments of the same point, or one does and the
+        other touches the same point in the same iteration, e.g. the read of an
+        accumulated scalar. A read of the reduced Function at another point,
+        e.g. in `u[x] += u[x - 1]`, is a dependence carried by the loop.
+        """
+        if self.source.is_reduction and self.sink.is_reduction:
+            return True
+        return ((self.source.is_reduction or self.sink.is_reduction) and
+                all(v == 0 for v in self.distance_mapper.values()))
 
     @cached_property
     def as_logical(self):
@@ -1078,7 +1088,10 @@ class Scope(CacheInstances):
         """
         for i, e in enumerate(self.exprs):
             for j in e.reads_explicit:
-                mode = 'RR' if j.function is e.lhs.function and e.is_Reduction else 'R'
+                # A read of the point a reduction updates belongs to it, a read
+                # of the reduced Function elsewhere, e.g. `u[x] += u[x + 1]`,
+                # does not
+                mode = 'RR' if e.is_Reduction and j == e.lhs else 'R'
                 yield TimedAccess(j, mode, i, e.ispace)
 
             # If a reduction, we got one implicit read
