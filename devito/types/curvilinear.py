@@ -26,6 +26,11 @@ __all__ = ['CurvilinearGrid', 'CurvilinearMap', 'TerrainFollowing']
 _COMPUTATIONAL_NAMES = {1: ('xi',), 2: ('xi', 'eta'), 3: ('xi', 'eta', 'zeta')}
 
 
+def _suffix(staggered):
+    """The suffix of the names of the Functions staggered along `staggered`."""
+    return f"_{''.join(d.name for d in staggered)}" if staggered else ''
+
+
 def _window(values, axis, start, stop):
     """The view of `values` from `start` to `stop` along `axis`."""
     index = [slice(None)]*values.ndim
@@ -630,11 +635,6 @@ class CurvilinearGrid(Grid):
         return self._space_order
 
     @cached_property
-    def _computational_names(self):
-        """Names of the computational coordinates, one per Dimension."""
-        return _COMPUTATIONAL_NAMES[self.dim]
-
-    @cached_property
     def _local_vectors(self):
         """
         Computational coordinates (fp64) of this rank's nodes, halo of the
@@ -662,17 +662,22 @@ class CurvilinearGrid(Grid):
             data[:] = np.broadcast_to(values, data.shape)
         return function
 
-    def _symbolic_terms(self, values, name, staggered=None):
-        """Metric terms as Functions, keeping constant entries as numbers."""
+    def _symbolic_terms(self, values, order, staggered):
+        """
+        Metric terms (`order=1`) or their second derivatives (`order=2`) as
+        Functions staggered along `staggered`, named after the computational
+        coordinate and the physical Dimension, e.g. `eta_x` and `eta_xx`, keeping
+        constant entries as numbers.
+        """
         terms = {}
         for (i, j), v in values.items():
             physical, computational = self.dimensions[i], self.dimensions[j]
             if np.isscalar(v):
                 terms[(physical, computational)] = sympy.sympify(v)
             else:
-                terms[(physical, computational)] = self._make_function(
-                    name(self._computational_names[j], physical.name), v, staggered
-                )
+                name = (f'{_COMPUTATIONAL_NAMES[self.dim][j]}_{physical.name*order}'
+                        f'{_suffix(staggered)}')
+                terms[(physical, computational)] = self._make_function(name, v, staggered)
         return terms
 
     def terms_at(self, location):
@@ -709,32 +714,24 @@ class CurvilinearGrid(Grid):
         Functions built for a staggering are kept, so each is built once.
         """
         staggered = tuple(d for d in self.dimensions if d in staggered)
-        cached = self._terms_cache.get(staggered)
-        if cached is not None and (cached[1] is not None or not derivatives):
-            return cached
+        metrics, second, jacobian = self._terms_cache.get(staggered, (None,)*3)
+        if metrics is not None and (second is not None or not derivatives):
+            return metrics, second, jacobian
 
-        vectors = self._staggered_vectors(staggered)
-        metrics, second, jacobian = self.mapping.terms(self, vectors,
-                                                       derivatives=derivatives)
-        suffix = ''.join(d.name for d in staggered)
-        suffix = f'_{suffix}' if suffix else ''
-        if cached is None:
-            metrics = self._symbolic_terms(metrics, lambda c, p: f'{c}_{p}{suffix}',
+        vectors = tuple(v + np.float64(h)/2 if d in staggered else v
+                        for v, d, h in zip(self._local_vectors, self.dimensions,
+                                           self.spacing, strict=True))
+        values, second_values, jacobian_values = self.mapping.terms(
+            self, vectors, derivatives=derivatives
+        )
+        if metrics is None:
+            metrics = self._symbolic_terms(values, 1, staggered)
+            jacobian = self._make_function(f'J{_suffix(staggered)}', jacobian_values,
                                            staggered)
-            jacobian = self._make_function(f'J{suffix}', jacobian, staggered)
-        else:
-            metrics, _, jacobian = cached
-        if second is not None:
-            second = self._symbolic_terms(second, lambda c, p: f'{c}_{p}{p}{suffix}',
-                                          staggered)
+        if second_values is not None:
+            second = self._symbolic_terms(second_values, 2, staggered)
         self._terms_cache[staggered] = (metrics, second, jacobian)
-        return self._terms_cache[staggered]
-
-    def _staggered_vectors(self, staggered):
-        """`_local_vectors` shifted by half a cell along the Dimensions `staggered`."""
-        return tuple(v + np.float64(h)/2 if d in staggered else v
-                     for v, d, h in zip(self._local_vectors, self.dimensions,
-                                        self.spacing, strict=True))
+        return metrics, second, jacobian
 
     def _staggering(self, location):
         """
