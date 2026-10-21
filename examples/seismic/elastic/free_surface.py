@@ -12,7 +12,7 @@ vertical axis as in
 import numpy as np
 import sympy
 
-from devito import Eq, SubDomain
+from devito import CustomDimension, Eq, Function, SubDomain
 from devito.finite_differences import generic_derivative
 from devito.finite_differences.differentiable import SafeInv
 from devito.symbolics import indexify, retrieve_indexed
@@ -131,8 +131,9 @@ class _ElasticSBP:
 
     Each field lives on the vertical `+` grid, the nodes from the surface down,
     or on the `-` grid, the surface and the half points below it, stored from
-    the row above the surface. Each update is one equation per row of the
-    boundary closures of its operators, then one for the rows below them.
+    the row above the surface. Each update is one equation over the rows of the
+    boundary closures of its operators, whose stencils, row by row, are the
+    weights of a coefficient Function, then one for the rows below them.
     """
 
     def __init__(self, v, tau, buoyancy, lam, mu, damp):
@@ -150,9 +151,14 @@ class _ElasticSBP:
         self.names = {'+': 'sbp_nodes', '-': 'sbp_half'}
         self.v_next = [vi.forward for vi in v]
         self.subdomains = {}
+        self.weights = {}
         # The metric terms of the `-` grid and those of its surface point, the
         # surface node, by Function
         self.surface_terms = {}
+        # 1 on the row storing the surface point of the `-` grid, 0 elsewhere
+        self.mask = Function(name='sbp_surface', dimensions=(self.vertical,),
+                             shape=(grid.shape[-1],), grid=grid, dtype=grid.dtype)
+        self.mask.data[self.bases['-']] = 1
 
     def vgrid(self, i, j=None):
         """The vertical grid of `v[i]`, or of `tau[i, j]`."""
@@ -214,6 +220,26 @@ class _ElasticSBP:
             mapper[i] = node.indexed[tuple(index[d] for d in node.dimensions)]
         return expr.xreplace(mapper)
 
+    def blend(self, expr):
+        """
+        `expr`, indexed, with each metric term of the `-` grid `m` replaced by
+        `m + S (n - m)`, `n` the term of the surface node, the row below, and
+        `S` the mask of the row storing the surface point: the surface point
+        takes the terms of the surface node, on every row an equation writes.
+        """
+        vertical, mask = self.vertical, self.mask
+        mapper = {}
+        for i in retrieve_indexed(expr):
+            node = self.surface_terms.get(i.function)
+            if node is None:
+                continue
+            index = dict(zip(i.function.dimensions, i.indices, strict=True))
+            surface = mask.indexed[index[vertical]]
+            index[vertical] += 1
+            mapper[i] = i + surface*(node.indexed[tuple(index[d] for d in
+                                                        node.dimensions)] - i)
+        return expr.xreplace(mapper)
+
     def average(self, param, i, j=None, surface=False):
         """
         A parameter given on the nodes, averaged to the points of `v[i]` or
@@ -254,24 +280,77 @@ class _ElasticSBP:
         offset = self.bases[grid_in] - self.bases[vgrid] - row
         return _closure(expr, self.vertical, matrix[row], offset)
 
+    def band_operator(self, kinds, expr, vgrid, nrows, traction_free=False):
+        """
+        The product of the vertical SBP operators `kinds` applied to `expr` over
+        the `nrows` closure rows of `vgrid`, one finite difference whose weights,
+        a coefficient Function of the row, are those of each row of the
+        product, zero past its stencil.
+        """
+        vertical = self.vertical
+        grid_in = vgrid if len(kinds) % 2 == 0 else _opposite(vgrid)
+        matrix = _vertical_matrix(kinds, vgrid, traction_free)[:nrows]
+        shift = self.bases[grid_in] - self.bases[vgrid]
+        # The offsets read from each row, and the window spanning them
+        columns = [np.flatnonzero(row) for row in matrix]
+        first = min(shift + c[0] - r for r, c in enumerate(columns))
+        last = max(shift + c[-1] - r for r, c in enumerate(columns))
+        # An odd number of points, as a finite difference centred on its `x0`
+        size = last - first + 1
+        size += 1 - size % 2
+        key = (kinds, vgrid, traction_free)
+        if key not in self.weights:
+            name = f"sbp_{''.join(kinds)}{'p' if vgrid == '+' else 'm'}" \
+                   f"{'t' if traction_free else ''}"
+            taps = CustomDimension(f'{name}_k', 0, size - 1, size)
+            weights = Function(name=name, dimensions=(vertical, taps),
+                               shape=(self.grid.shape[-1], size), grid=self.grid,
+                               dtype=self.grid.dtype)
+            table = np.zeros((self.grid.shape[-1], size))
+            for r, row in enumerate(matrix):
+                for c in np.flatnonzero(row):
+                    table[self.bases[vgrid] + r, shift + c - r - first] = row[c]
+            weights.data[:] = table
+            self.weights[key] = weights
+        weights = self.weights[key]
+        centre = first + (size - 1)//2
+        x0 = {vertical: expr.indices_ref[vertical] + centre*vertical.spacing}
+        return generic_derivative(expr, vertical, size - 1, 1, x0=x0,
+                                  weights=weights/vertical.spacing)
+
+    def rows_operator(self, kinds, expr, vgrid, nrows, traction_free=False):
+        """
+        The vertical SBP operators `kinds` applied to `expr` over the `nrows`
+        closure rows of `vgrid`, or below the closures if None.
+        """
+        if nrows is None:
+            return self.vertical_operator(kinds, expr, vgrid, None, traction_free)
+        return self.band_operator(kinds, expr, vgrid, nrows, traction_free)
+
     def closures(self, vgrid, *kinds):
         """The number of closure rows of the vertical operators `kinds` onto `vgrid`."""
         return max(_closure_rows(_vertical_matrix(k, vgrid)) for k in kinds)
 
-    def equation(self, lhs, rhs, vgrid, nrows, row):
+    def equation(self, lhs, rhs, vgrid, nrows, closures):
         """
-        The update `lhs = rhs` over the closure row `row` of `vgrid`, or over the
-        interior if None, whose first row reads no surface point.
+        The update `lhs = rhs` over the `nrows` closure rows of `vgrid` if
+        `closures`, whose surface point takes the terms of the surface node, or
+        over the rows below them, which read no surface point.
         """
-        start = self.bases[vgrid] + (nrows if row is None else row)
-        thickness = self.grid.shape[-1] - start if row is None else 1
+        start = self.bases[vgrid] + (0 if closures else nrows)
+        thickness = nrows if closures else self.grid.shape[-1] - start
         rhs = indexify(rhs.evaluate)
-        surface = self.surface(rhs, start)
-        if row is None and surface != rhs:
+        if closures:
+            rhs = self.blend(rhs)
+        elif self.surface(rhs, start) != rhs:
             raise ValueError("The interior stencils of the SBP operators read the "
                              "surface point; the closures need more rows")
         subdomain = self.rows_subdomain(self.names[vgrid], start, thickness)
-        return Eq(lhs.indexify(), surface, subdomain=subdomain)
+        return Eq(lhs.indexify(), rhs, subdomain=subdomain)
+
+    def at_surface(self, value, surface_value):
+        """`value`, or `surface_value` on the row storing the surface point."""
+        return value + self.mask*(surface_value - value)
 
     def momentum(self, i):
         """
@@ -299,33 +378,37 @@ class _ElasticSBP:
         nrows = self.closures(vgrid, ('D', 'P'), ('D',))
         dt = grid.time_dim.spacing
         eqns = []
-        for row in list(range(nrows)) + [None]:
+        for closures in (True, False):
+            rows = nrows if closures else None
             divergence = (lateral +
-                          self.vertical_operator(('D', 'P'), tangential, vgrid, row,
-                                                 traction_free=True) +
-                          self.vertical_operator(('D',), normal, vgrid, row,
-                                                 traction_free=True))
-            buoyancy = self.average(self.buoyancy, i, surface=row == 0)
+                          self.rows_operator(('D', 'P'), tangential, vgrid, rows,
+                                             traction_free=True) +
+                          self.rows_operator(('D',), normal, vgrid, rows,
+                                             traction_free=True))
+            buoyancy = self.average(self.buoyancy, i)
+            if closures and vgrid == '-':
+                buoyancy = self.at_surface(buoyancy, self.average(self.buoyancy, i,
+                                                                  surface=True))
             update = self.damp*(self.v[i] + dt*buoyancy/terms['J']*divergence)
-            eqns.append(self.equation(self.v_next[i], update, vgrid, nrows, row))
+            eqns.append(self.equation(self.v_next[i], update, vgrid, nrows, closures))
         return eqns
 
-    def strain(self, i, j, row):
+    def strain(self, i, j, nrows):
         """
         The derivative of the updated `v[i]` along the physical `x_j` at the
-        points of `tau[i, j]` and at the closure row `row` of their vertical grid,
-        or below the closures if None, by the chain rule.
+        points of `tau[i, j]`, over the `nrows` closure rows of their vertical
+        grid, or below the closures if None, by the chain rule.
         """
         grid, vertical = self.grid, self.vertical
         vgrid = self.vgrid(i, j)
         terms_stress = self.terms(self.lateral_half(i, j), vgrid)
         if j == self.last:
             return (terms_stress[f'eta_{vertical.name}'] *
-                    self.vertical_operator(('D',), self.v_next[i], vgrid, row))
+                    self.rows_operator(('D',), self.v_next[i], vgrid, nrows))
         d = grid.dimensions[j]
         half = self.lateral_half(i)[j]
         terms = self.terms(self.lateral_half(i), self.vgrid(i))
-        gradient = self.vertical_operator(('P', 'D'), self.v_next[i], vgrid, row)
+        gradient = self.rows_operator(('P', 'D'), self.v_next[i], vgrid, nrows)
         return (_lateral(self.v_next[i], 'D', d, half) +
                 _lateral(terms['J']*terms[f'eta_{d.name}']*gradient, 'P', d, half) /
                 terms_stress['J'])
@@ -336,17 +419,20 @@ class _ElasticSBP:
         nrows = self.closures(vgrid, ('D',), ('P', 'D'))
         dt = self.grid.time_dim.spacing
         eqns = []
-        for row in list(range(nrows)) + [None]:
+        for closures in (True, False):
+            rows = nrows if closures else None
             if i == j:
-                dilatation = sum(self.strain(k, k, row) for k in range(self.grid.dim))
+                dilatation = sum(self.strain(k, k, rows) for k in range(self.grid.dim))
                 rate = (self.average(self.lam, i, j)*dilatation +
-                        2*self.average(self.mu, i, j)*self.strain(i, i, row))
+                        2*self.average(self.mu, i, j)*self.strain(i, i, rows))
             else:
-                rate = (self.average(self.mu, i, j, surface=row == 0) *
-                        (self.strain(i, j, row) + self.strain(j, i, row)))
+                mu = self.average(self.mu, i, j)
+                if closures and vgrid == '-':
+                    mu = self.at_surface(mu, self.average(self.mu, i, j, surface=True))
+                rate = mu*(self.strain(i, j, rows) + self.strain(j, i, rows))
             update = self.damp*(self.tau[i, j] + dt*rate)
             eqns.append(self.equation(self.tau[i, j].forward, update, vgrid, nrows,
-                                      row))
+                                      closures))
         return eqns
 
     def equations(self):
