@@ -15,6 +15,7 @@ class SymbolRegistry:
     def __init__(self):
         # {name -> generator()} -- to create unique names for symbols, functions, ...
         self.counters = {}
+        self.reserved = set()
 
         # Special symbols
         self.nthreads = NThreads()
@@ -42,10 +43,15 @@ class SymbolRegistry:
             counter = self.counters.setdefault(prefix, generator())
 
             # Only increment symbol names after the first encountered
-            if not increment_first:
+            if not increment_first and prefix not in self.reserved:
+                self.reserved.add(prefix)
                 return prefix
 
-        return f'{prefix}{counter()}'
+        name = f'{prefix}{counter()}'
+        while name in self.reserved:
+            name = f'{prefix}{counter()}'
+        self.reserved.add(name)
+        return name
 
     def make_npthreads(self, size):
         name = self.make_name(prefix='npthreads')
