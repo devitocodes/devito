@@ -135,7 +135,48 @@ def laplacian(field, model, kernel):
         raise ValueError("Unrecognized kernel")
     s = model.grid.time_dim.spacing
     biharmonic = field.biharmonic(1/model.m) if kernel == 'OT4' else 0
-    return field.laplace + s**2/12 * biharmonic
+    return self_adjoint_laplacian(field, model) + s**2/12 * biharmonic
+
+
+def self_adjoint_laplacian(field, model):
+    """
+    The Laplacian of `field`. On a CurvilinearGrid, where the physical second
+    derivatives are not self-adjoint, it is the sum of pairs of staggered first
+    derivatives, each derivative back to the nodes minus the transpose of the
+    one to the half points (see `back_derivative`), so that the propagation is
+    self-adjoint in the inner product weighted by the Jacobian.
+    """
+    if not model.grid.is_Curvilinear:
+        return field.laplace
+    so = field.space_order // 2
+    return sum(back_derivative(field.diff(d, x0={d: d + d.spacing/2}, fd_order=so), d,
+                               so, model.grid)
+               for d in model.space_dimensions)
+
+
+def point_scale(model):
+    """
+    The factor a point source is injected divided by: the Jacobian on a
+    CurvilinearGrid, so that it is a point source in physical space and its
+    injection the transpose of interpolation in the inner product weighted by
+    the Jacobian, and 1 on a Grid.
+    """
+    return model.grid.jacobian if model.grid.is_Curvilinear else 1
+
+
+def back_derivative(expr, d, fd_order, grid):
+    """
+    The derivative of `expr`, at the half points after the nodes along `d`, back
+    to the nodes. On a CurvilinearGrid it is minus the transpose of the
+    derivative from the nodes to the half points in the inner product weighted
+    by the Jacobian, so that a pair of the two is exactly self-adjoint.
+    """
+    if grid.is_Curvilinear:
+        # The Jacobian at the half points, where `expr` is
+        half = grid.terms_at({d: d + d.spacing/2})[1]
+        forward = (half*expr).diff(d, x0={d: d + d.spacing/2}, fd_order=fd_order)
+        return -forward.T/grid.jacobian
+    return expr.diff(d, x0={d: d - d.spacing/2}, fd_order=fd_order)
 
 
 def iso_stencil(field, model, kernel, **kwargs):
@@ -214,7 +255,7 @@ def ForwardOperator(model, geometry, space_order=4,
     eqn = iso_stencil(u, model, kernel)
 
     # Construct expression to inject source values
-    src_term = src.inject(field=u.forward, expr=src * s**2 / m)
+    src_term = src.inject(field=u.forward, expr=src * s**2 / (m * point_scale(model)))
 
     # Create interpolation expression for receivers
     rec_term = rec.interpolate(expr=u)
@@ -252,7 +293,7 @@ def AdjointOperator(model, geometry, space_order=4,
     eqn = iso_stencil(v, model, kernel, forward=False)
 
     # Construct expression to inject receiver values
-    receivers = rec.inject(field=v.backward, expr=rec * s**2 / m)
+    receivers = rec.inject(field=v.backward, expr=rec * s**2 / (m * point_scale(model)))
 
     # Create interpolation expression for the adjoint-source
     source_a = srca.interpolate(expr=v)
@@ -299,7 +340,7 @@ def GradientOperator(model, geometry, space_order=4, save=True,
     elif kernel == 'OT4':
         gradient_update = Inc(grad, - u * v.dt2 - s**2 / 12.0 * u.biharmonic(m**(-2)) * v)
     # Add expression for receiver injection
-    receivers = rec.inject(field=v.backward, expr=rec * s**2 / m)
+    receivers = rec.inject(field=v.backward, expr=rec * s**2 / (m * point_scale(model)))
 
     # Substitute spacing terms to reduce flops
     return Operator(eqn + receivers + [gradient_update], subs=model.spacing_map,
@@ -341,7 +382,7 @@ def BornOperator(model, geometry, space_order=4,
     eqn2 = iso_stencil(U, model, kernel, q=-dm*u.dt2)
 
     # Add source term expression for u
-    source = src.inject(field=u.forward, expr=src * s**2 / m)
+    source = src.inject(field=u.forward, expr=src * s**2 / (m * point_scale(model)))
 
     # Create receiver interpolation expression from U
     receivers = rec.interpolate(expr=U)

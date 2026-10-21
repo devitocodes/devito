@@ -1671,7 +1671,11 @@ class TestSeismicModel:
     def test_free_surface(self):
         """
         The free surface of the example solvers on a flat surface, the odd mirror
-        through the surface row, is that of a Cartesian model, to roundoff.
+        through the surface row, is that of a Cartesian model: the gathers differ
+        by 0.5%, the difference between the self-adjoint pairs of first
+        derivatives of the Laplacian on a CurvilinearGrid and the second
+        derivatives of a Grid, where a surface misplaced by the mirror rows
+        changes them entirely.
         """
         x = 10.*np.arange(51)
         results = []
@@ -1684,20 +1688,24 @@ class TestSeismicModel:
             rec = AcousticWaveSolver(model, geometry, space_order=8).forward()[0]
             results.append(np.array(rec.data))
         cartesian, curvilinear = results
-        assert np.linalg.norm(curvilinear - cartesian) < 1e-5*np.linalg.norm(cartesian)
+        assert np.linalg.norm(curvilinear - cartesian) < 1e-2*np.linalg.norm(cartesian)
 
-    @pytest.mark.parametrize('solver, parameters', [
-        (AcousticWaveSolver, {}),
-        (AnisotropicWaveSolver, {'epsilon': .1, 'delta': .05, 'theta': .3}),
+    @pytest.mark.parametrize('solver, parameters, height', [
+        (AcousticWaveSolver, {}, 0.),
+        (AcousticWaveSolver, {}, 60.),
+        (AnisotropicWaveSolver, {'epsilon': .1, 'delta': .05, 'theta': .3}, 0.),
     ])
-    def test_free_surface_adjoint(self, solver, parameters):
+    def test_free_surface_adjoint(self, solver, parameters, height):
         """
-        Over a flat surface, where the interior operators are self-adjoint, the
-        adjoint of the example solvers, with the transpose of their free surface,
-        passes the dot test to roundoff.
+        The adjoint of the example solvers, with the transpose of their free
+        surface, passes the dot test to roundoff: the acoustic one over a hill
+        too, its Laplacian being self-adjoint pairs of first derivatives and its
+        point sources injected divided by the Jacobian, the TTI one over a flat
+        surface, where its interior operator is self-adjoint.
         """
         x = 10.*np.arange(51)
-        model = self.model(surface=0.*x, dtype=np.float64, **parameters)
+        surface = -height*np.exp(-((x - 250.)/80.)**2)
+        model = self.model(surface=surface, dtype=np.float64, **parameters)
         geometry = AcquisitionGeometry(
             model, np.stack([x, np.full_like(x, 30.)], axis=1),
             np.array([[250., 50.]]), 0., 300., f0=0.015, src_type='Ricker'

@@ -1,5 +1,7 @@
 from devito import NODE, Eq, Function, Inc, Operator, TimeFunction, cos, sin, solve, sqrt
-from examples.seismic.acoustic.operators import adjoint_update, freesurface
+from examples.seismic.acoustic.operators import (
+    adjoint_update, back_derivative, freesurface, self_adjoint_laplacian
+)
 
 
 def _subs(func, d, d0):
@@ -7,21 +9,6 @@ def _subs(func, d, d0):
         return func._subs(d, d0)
     except AttributeError:
         return func
-
-
-def _back(expr, d, fd_order, grid):
-    """
-    The derivative of `expr`, at the half points after the nodes along `d`, back
-    to the nodes. On a CurvilinearGrid it is minus the transpose of the
-    derivative from the nodes to the half points in the inner product weighted
-    by the Jacobian, so that a pair of the two is exactly self-adjoint.
-    """
-    if grid.is_Curvilinear:
-        # The Jacobian at the half points, where `expr` is
-        half = grid.terms_at({d: d + d.spacing/2})[1]
-        forward = (half*expr).diff(d, x0={d: d + d.spacing/2}, fd_order=fd_order)
-        return -forward.T/grid.jacobian
-    return expr.diff(d, x0={d: d - d.spacing/2}, fd_order=fd_order)
 
 
 def second_order_stencil(model, u, v, H0, Hz, qu, qv, forward=True):
@@ -112,13 +99,13 @@ def Gzz_centered(model, field, b=None):
           _subs(b, y, y+dy) * sintheta * sinphi * field.dy(fd_order=order1, x0=y+dy) +
           _subs(b, z, z+dz) * costheta * field.dz(fd_order=order1, x0=z+dz))
 
-    Gzz = _back(Gz * costheta, z, order1, field.grid)
+    Gzz = back_derivative(Gz * costheta, z, order1, field.grid)
     # Add rotated derivative if angles are not zero. If angles are
     # zeros then `0*Gz = 0` and doesn't have any `.dy` ....
     if sintheta != 0:
-        Gzz += _back(Gz * sintheta * cosphi, x, order1, field.grid)
+        Gzz += back_derivative(Gz * sintheta * cosphi, x, order1, field.grid)
     if sinphi != 0:
-        Gzz += _back(Gz * sintheta * sinphi, y, order1, field.grid)
+        Gzz += back_derivative(Gz * sintheta * sinphi, y, order1, field.grid)
 
     return Gzz
 
@@ -152,12 +139,12 @@ def Gzz_centered_2d(model, field, b=None):
 
     Gz = (_subs(b, x, x+dx) * sintheta * field.dx(fd_order=order1, x0=x+dx) +
           _subs(b, y, y+dy) * costheta * field.dy(fd_order=order1, x0=y+dy))
-    Gzz = _back(Gz * costheta, y, order1, field.grid)
+    Gzz = back_derivative(Gz * costheta, y, order1, field.grid)
 
     # Add rotated derivative if angles are not zero. If angles are
     # zeros then `0*Gz = 0` and doesn't have any `.dy` ....
     if sintheta != 0:
-        Gzz += _back(Gz * sintheta, x, order1, field.grid)
+        Gzz += back_derivative(Gz * sintheta, x, order1, field.grid)
     return Gzz
 
 
@@ -193,15 +180,10 @@ def Gh_centered(model, field, b=None):
         lap = 0
         for d in model.space_dimensions:
             x0 = d + d.spacing / 2
-            lap += _back(_subs(b, d, x0) * field.diff(d, x0={d: x0}, fd_order=so),
-                         d, so, field.grid)
-    elif field.grid.is_Curvilinear:
-        # The Laplacian as the self-adjoint pairs of first derivatives
-        lap = sum(_back(field.diff(d, x0={d: d + d.spacing/2}, fd_order=so), d, so,
-                        field.grid)
-                  for d in model.space_dimensions)
+            flux = _subs(b, d, x0) * field.diff(d, x0={d: x0}, fd_order=so)
+            lap += back_derivative(flux, d, so, field.grid)
     else:
-        lap = field.laplace
+        lap = self_adjoint_laplacian(field, model)
     return lap - Gzz
 
 
