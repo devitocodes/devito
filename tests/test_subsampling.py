@@ -8,7 +8,8 @@ from devito import (
     CondEq, ConditionalDimension, Constant, Eq, Function, Grid, Operator, SubGrid,
     TimeFunction, switchconfig
 )
-from devito.ir.iet import Conditional, FindNodes, Iteration
+from devito.ir.iet import Conditional, Expression, FindNodes, Iteration
+from devito.symbolics import retrieve_indexed
 from devito.tools import as_tuple
 
 
@@ -59,15 +60,28 @@ class TestStridedCodegen:
 
     @pytest.mark.parametrize('factor', [2, 3, 4, 5])
     def test_parent_access_rescaled(self, factor):
-        """Parent accesses become `cd*factor`; subgrid accesses become `cd`."""
+        """
+        Parent accesses become `cd*factor`; the subgrid access stays `cd`.
+
+        Asserted on the expressions rather than the emitted C, which renders
+        accesses as `gL0(xs, y)` macros when linearization is on.
+        """
         _, f, g, cd = subsampled((16, 8), factor)
         op = Operator(Eq(g, f))
-        ccode = str(op.ccode)
 
-        fname = cd.symbolic_factor.name
-        assert f'{cd.name}*{fname}' in ccode          # parent, rescaled
-        assert f'g[{cd.name}]' in ccode               # subgrid, direct
-        assert f'+= {fname}' not in ccode             # no strided loop
+        # Pick the Expression writing `g`; linearization adds Size/Stride
+        # setup Expressions alongside it
+        expr, = [i.expr for i in FindNodes(Expression).visit(op)
+                 if i.write is g]
+
+        # The subgrid Function is indexed by `cd` itself...
+        lhs, = retrieve_indexed(expr.lhs)
+        assert lhs.indices[0] == cd
+        # ...while the parent read is rescaled to `cd*factor`
+        rhs, = retrieve_indexed(expr.rhs)
+        assert rhs.indices[0].has(cd.symbolic_factor)
+
+        assert iteration(op, cd.name).limits[2] == 1   # no strided loop
         assert not FindNodes(Conditional).visit(op)
 
     def test_unit_stride_everywhere(self):
