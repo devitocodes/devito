@@ -15,8 +15,9 @@ from devito.ir import Expression, FindNodes, ccode
 from devito.ir.support.guards import GuardExpr, pairwise_or, simplify_and
 from devito.mpi.halo_scheme import HaloTouch
 from devito.symbolics import (  # noqa
-    INT, BaseCast, CallFromPointer, Cast, DefFunction, FieldFromComposite,
-    FieldFromPointer, IntDiv, ListInitializer, Namespace, ReservedWord, RoundUp, Rvalue,
+    INT, BaseCast, CallFromComposite, CallFromPointer, Cast, DefFunction,
+    FieldFromComposite, FieldFromPointer, IntDiv, ListInitializer, Namespace,
+    ReservedWord, RoundUp, Rvalue,
     SizeOf, VectorAccess, evalrel, pow_to_mul, q_negative, q_positive,
     retrieve_derivatives, retrieve_functions, retrieve_indexed, subs_if_composite,
     uxreplace, xreplace_indices
@@ -1133,6 +1134,34 @@ class TestUxreplace:
         rebuilt = uxreplace(expr, {a: x, b: y, c: z})
 
         assert rebuilt.args == (z, op(y, x))
+
+    @pytest.mark.parametrize('cls,converted', [(CallFromPointer, CallFromComposite),
+                                             (CallFromComposite, CallFromPointer),
+                                             (FieldFromPointer, FieldFromComposite),
+                                             (FieldFromComposite, FieldFromPointer)])
+    def test_bound_member_names(self, cls, converted):
+        a, b = [dSymbol(name=f'r{i}') for i in (9, 0)]
+        p, q = [dSymbol(name=f'p{i}') for i in (9, 0)]
+        expr = cls(a, p, [a])
+
+        assert uxreplace(expr, {a: b, p: q}) == cls(a, q, [b])
+        assert uxreplace(expr, {expr: cls(b, q, [b])}) == cls(b, q, [b])
+        assert uxreplace(expr, {cls: converted, a: b, p: q}) == converted(a, q, [b])
+
+        bound = cls(a, p)
+        assert uxreplace(bound, {a: b}) is bound
+
+    def test_findexed_strides(self):
+        grid = Grid(shape=(4, 4))
+        x, y = grid.dimensions
+        f = Function(name='f', grid=grid)
+        a, b = [dSymbol(name=f'y_stride{i}') for i in (9, 0)]
+        expr = FIndexed(f.indexed, x, y, strides_map={y: a})
+
+        rebuilt = uxreplace(expr, {a: b})
+
+        assert rebuilt.strides == (b,)
+        assert expr.strides == (a,)
 
 
 def test_minmax():
