@@ -646,6 +646,15 @@ class Scalar(Symbol, ArgProvider):
             return self._arg_defaults(**kwargs)
 
 
+def _is_index_wrapper(expr):
+    """
+    True if `expr` wraps a position into an index, a cast, an absolute value or
+    a rounding, which an index keeps around the position minus the origin.
+    """
+    return (isinstance(expr, (sympy.Abs, sympy.floor, sympy.ceiling)) or
+            getattr(expr, 'is_Cast', False))
+
+
 class AbstractFunction(sympy.Function, Basic, Pickable, Evaluable):
 
     """
@@ -1444,17 +1453,17 @@ class AbstractFunction(sympy.Function, Basic, Pickable, Evaluable):
         # Indices after substitutions
         indices = []
         for a, o, s in zip(self.args, self.origin, subs, strict=True):
-            # Strip the functions wrapping the position, e.g. INT(Abs(expr))
-            funcs = []
+            # Unwrap the index wrappers of the position, e.g. INT(Abs(expr))
+            wrappers = []
             arg = a
-            while not arg.is_Atom and len(arg.args) == 1:
-                funcs.append(arg.func)
+            while _is_index_wrapper(arg):
+                wrappers.append(arg.func)
                 arg = arg.args[0]
             # Point i sits at d = i + o, so position `arg` is index `arg - o`, also
             # when `arg` is not a unit shift of d, e.g. 7 - d or 2*d, or when the
             # Dimension has been removed, e.g. u[10]
             index = sympy.sympify(arg - o).xreplace(s)
-            for func in reversed(funcs):
+            for func in reversed(wrappers):
                 index = func(index)
             indices.append(index)
 

@@ -201,11 +201,16 @@ def test_timefunction():
     ('w.subs(y, 2*y)', 'w[x, 2*y]'),
     ('w.subs(y, 2*y + 1)', 'w[x, 2*y + 1]'),
     ('f.subs(y, 7 - y)', 'f[x, 7 - y]'),
+    ('w._subs(w.indices[1], INT(Abs(w.indices[1])))', 'w[x, (int)Abs(y)]'),
+    ('w._subs(w.indices[1], sympy.floor(w.indices[1]))', 'w[x, floor(y)]'),
+    ('w._subs(w.indices[1], sympy.sin(w.indices[1]))', 'w[x, sin(y + 1/2) - 1/2]'),
 ])
 def test_indexify_staggered(expr, expected):
     """
     The index of a staggered Function at a negated or scaled Dimension is its
     position minus the staggering, not the Dimension shifted by the staggering.
+    Index wrappers, casts, absolute values and roundings, keep wrapping it; any
+    other function is part of the position.
     """
     grid = Grid(shape=(11, 11))
     x, y = grid.dimensions
