@@ -1506,7 +1506,8 @@ class Uxreplace(Transformer):
     def visit_Dereference(self, o):
         pointee = self.mapper.get(o.pointee, o.pointee)
         pointer = self.mapper.get(o.pointer, o.pointer)
-        return reuse_if_unchanged(o, pointee=pointee, pointer=pointer)
+        offset = uxreplace(o.offset, self.mapper)
+        return reuse_if_unchanged(o, pointee=pointee, pointer=pointer, offset=offset)
 
     def visit_Pragma(self, o):
         arguments = [uxreplace(i, self.mapper) for i in o.arguments]

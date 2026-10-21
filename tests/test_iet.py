@@ -12,7 +12,7 @@ from devito.ir import SymbolRegistry
 from devito.ir.iet import (
     Call, Callable, CGen, Conditional, Definition, Dereference, DeviceCall, DummyExpr,
     ElementalFunction, FindNodes, FindSymbols, Iteration, KernelLaunch, Lambda, List,
-    Switch, Transformer, filter_iterations, make_callable, make_efunc,
+    Switch, Transformer, Uxreplace, filter_iterations, make_callable, make_efunc,
     retrieve_iteration_tree
 )
 from devito.ir.iet.visitors import sorted_efuncs
@@ -118,6 +118,20 @@ def test_nested_calls_cgen():
     code = CGen().visit(call)
 
     assert str(code) == 'foo(bar());'
+
+
+def test_uxreplace_dereference_offset():
+    d = CustomDimension(name='d', symbolic_size=4)
+    array = Array(name='a0', dimensions=(d,), shape=(4,), scope='shared')
+    pointer = Pointer(name='sm7')
+    old, new = Symbol(name='off7'), Symbol(name='off0')
+    node = Dereference(array, pointer, offset=old + 32)
+
+    replaced = Uxreplace({old: new}).visit(node)
+
+    assert replaced.offset == new + 32
+    assert replaced.pointee is array
+    assert replaced.pointer is pointer
 
 
 @pytest.mark.parametrize('mode,expected', [
