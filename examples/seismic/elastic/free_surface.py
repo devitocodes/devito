@@ -14,6 +14,7 @@ import sympy
 
 from devito import Eq, SubDomain
 from devito.finite_differences import generic_derivative
+from devito.finite_differences.differentiable import SafeInv
 from devito.symbolics import indexify, retrieve_indexed
 from examples.seismic.elastic.sbp import sbp_closure_rows, sbp_interior, sbp_matrix
 
@@ -52,6 +53,11 @@ def _lateral(expr, kind, dim, from_half):
     x0 = dim if from_half else dim + dim.spacing/2
     return expr.diff((dim, int(kind == 'D')), x0={dim: x0}, fd_order=len(weights),
                      computational=True)
+
+
+def _inverse(expr, reference, safe):
+    """The inverse of `expr`, zero where `reference` is zero if `safe`."""
+    return SafeInv(expr, reference) if safe else 1/expr
 
 
 def _opposite(vgrid):
@@ -210,14 +216,18 @@ class _ElasticSBP:
 
     def average(self, param, i, j=None, surface=False):
         """
-        A parameter given on the nodes, interpolated to the points of `v[i]` or
-        `tau[i, j]` by the average of its two neighbours along each staggered
-        Dimension, or taken on the surface node at the surface point of the `-`
-        grid.
+        A parameter given on the nodes, averaged to the points of `v[i]` or
+        `tau[i, j]` from its two neighbours along each staggered Dimension, or
+        taken on the surface node at the surface point of the `-` grid. The
+        average is that of the averaging mode of the parameter, `avg_mode`: the
+        arithmetic one, or the harmonic one, the inverse of the arithmetic
+        average of its inverse, zero where it is zero for 'safe_harmonic'.
         """
         if not isinstance(param, sympy.Basic) or param.is_Number:
             return param
-        value = param
+        harmonic = getattr(param, 'is_harmonic', False)
+        safe = getattr(param, 'is_harmonic_safe', False)
+        value = _inverse(param, param, safe) if harmonic else param
         for d, half in zip(self.grid.dimensions, self.lateral_half(i, j), strict=False):
             if half:
                 value = value.diff((d, 0), x0={d: d + d.spacing/2}, fd_order=2,
@@ -225,10 +235,11 @@ class _ElasticSBP:
         if self.vgrid(i, j) == '-':
             vertical, h = self.vertical, self.vertical.spacing
             if surface:
-                return value.evaluate.subs(vertical, vertical + h)
-            value = value.diff((vertical, 0), x0={vertical: vertical + h/2}, fd_order=2,
-                               computational=True)
-        return value
+                value = value.evaluate.subs(vertical, vertical + h)
+            else:
+                value = value.diff((vertical, 0), x0={vertical: vertical + h/2},
+                                   fd_order=2, computational=True)
+        return _inverse(value, param, safe) if harmonic else value
 
     def vertical_operator(self, kinds, expr, vgrid, row, traction_free=False):
         """

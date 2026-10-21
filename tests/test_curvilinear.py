@@ -1699,6 +1699,35 @@ class TestElastic:
         return (1/self.rho, self.rho*(self.vp**2 - 2*self.vs**2),
                 self.rho*self.vs**2)
 
+    @pytest.mark.parametrize('avg_mode', ['arithmetic', 'harmonic', 'safe_harmonic'])
+    def test_averaging(self, avg_mode):
+        """
+        The shear modulus at the points of the shear stress is the average of
+        its averaging mode over the four nodes around them: under a flat
+        surface, a velocity v_x = z has a unit shear strain rate, so the shear
+        stress after one step of `dt` is `dt` times that average.
+        """
+        grid = surface_grid((21, 21), (200., 200.), np.zeros(21), rows=1,
+                            dtype=np.float64)
+        v, tau = elastic_fields(grid)
+        v[0].data[0] = np.array(grid.coordinates[1].data)
+        rng = np.random.default_rng(9)
+        mu = Function(name='mu', grid=grid, space_order=4, avg_mode=avg_mode)
+        mu.data[:] = 1 + rng.random(grid.shape)
+        dt = 1e-3
+        Operator(traction_free_update(v, tau, 1., 2., mu)).apply(time_m=0, time_M=0,
+                                                                 dt=dt)
+        nodes = np.array(mu.data)
+        corners = [nodes[a:a + 20, b:b + 20] for a in (0, 1) for b in (0, 1)]
+        if avg_mode == 'arithmetic':
+            expected = sum(corners)/4
+        else:
+            expected = 4/sum(1/c for c in corners)
+        # tau_xz at (x + h/2, z + h/2) is stored at (x, z)
+        interior = (slice(4, 16), slice(8, 16))
+        shear = np.array(tau[0, 1].data[1])[:20, :20]
+        assert np.allclose(shear[interior]/dt, expected[interior], rtol=1e-10, atol=0)
+
     def test_sbp_properties(self):
         """The SBP operators sum by parts, and their interpolations are adjoint."""
         n, m = 20, 12
