@@ -556,14 +556,17 @@ def test_codegen_quality0():
     assert foo1.parameters[0] is a
 
 
-def test_reuse_efuncs_natural_numbering():
+@pytest.mark.parametrize('copy_symbols', [False, True])
+def test_reuse_efuncs_natural_numbering(copy_symbols):
 
-    def make_foo(name, start):
+    def make_foo(name, start, copies=False):
         pointers = [Pointer(name=f'p{i}') for i in range(start, start + 3)]
-        return make_callable(name, Call('bar', pointers))
+        aliases = [p._rebuild() for p in pointers] if copies else pointers
+        return make_callable(name, List(body=[Call('bar', pointers),
+                                             Call('bar', aliases)]))
 
     foo0 = make_foo('foo0', 0)
-    foo1 = make_foo('foo1', 9)
+    foo1 = make_foo('foo1', 9, copies=copy_symbols)
 
     root = make_callable('root', List(body=[
         Call(foo0.name, foo0.parameters),

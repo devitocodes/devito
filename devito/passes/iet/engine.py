@@ -564,6 +564,8 @@ def abstract_objects(objects0):
     mapper = {}
     sregistry = SymbolRegistry()
     for i in objects:
+        if i in mapper:
+            continue
         abstract_object(i, mapper, sregistry)
 
     return mapper
