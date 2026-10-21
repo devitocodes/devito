@@ -406,7 +406,7 @@ def traction_free_update(v, tau, buoyancy, lam, mu, damp=1):
     for f in [buoyancy, lam, mu, damp]:
         if getattr(f, 'is_Function', False) and f.grid is not grid:
             raise ValueError(f"{f} is not defined on {grid}")
-        if getattr(f, 'is_Function', False) and f.staggered:
+        if getattr(f, 'is_Function', False) and not f.staggered.on_node:
             raise ValueError(f"traction_free_update averages its parameters from the "
                              f"nodes, not from the staggered points of {f}")
     for f in list(v) + list(tau.values()):

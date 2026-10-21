@@ -5,9 +5,10 @@ import numpy as np
 import pytest
 
 from devito import (  # noqa
-    CurvilinearGrid, CurvilinearMap, Eq, Function, Grid, Inc, Operator, SparseFunction,
-    SparseTimeFunction, SubDomain, TensorFunction, TensorTimeFunction, TerrainFollowing,
-    TimeFunction, VectorFunction, VectorTimeFunction, cos, div, grad, inner, resample, sin
+    NODE, CurvilinearGrid, CurvilinearMap, Eq, Function, Grid, Inc, Operator,
+    SparseFunction, SparseTimeFunction, SubDomain, TensorFunction, TensorTimeFunction,
+    TerrainFollowing, TimeFunction, VectorFunction, VectorTimeFunction, cos, div, grad,
+    inner, resample, sin
 )
 from devito.mpi import MPI
 from examples.seismic import SeismicModel
@@ -1815,6 +1816,12 @@ class TestElastic:
         mu = Function(name='mu', grid=no_row, space_order=4)
         with pytest.raises(ValueError, match='not defined on'):
             traction_free_update(*elastic_fields(grid), 1., 1., mu)
+        x = grid.dimensions[0]
+        mu = Function(name='mu', grid=grid, space_order=4, staggered=x)
+        with pytest.raises(ValueError, match='staggered points'):
+            traction_free_update(*elastic_fields(grid), 1., 1., mu)
+        mu = Function(name='mu', grid=grid, space_order=4, staggered=NODE)
+        traction_free_update(*elastic_fields(grid), 1., 1., mu)
 
 
 class TestElasticMPI:
