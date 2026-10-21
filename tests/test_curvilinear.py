@@ -570,6 +570,153 @@ class TestDerivativesMPI:
                            serial.data[distributed.local_indices], rtol=0, atol=1e-12)
 
 
+class Skew(CurvilinearMap):
+    # x = xi + eta/10 + 5 sin(eta/150), z = eta + xi/20 + 8 cos(xi/200): grid
+    # lines neither vertical nor orthogonal, with metric terms and a Jacobian
+    # varying in both directions
+
+    def forward(self, grid, computational):
+        xi, eta = computational
+        return xi + eta/10 + 5*np.sin(eta/150), eta + xi/20 + 8*np.cos(xi/200)
+
+
+class Inverted(CurvilinearMap):
+    # z = -eta: the cells turned inside out
+
+    def forward(self, grid, computational):
+        xi, eta = computational
+        return xi, -eta
+
+
+class Integral(CurvilinearMap):
+    # The identity, returning integer coordinates on a grid of unit spacing
+
+    def forward(self, grid, computational):
+        return tuple(np.rint(c).astype(np.int64) for c in computational)
+
+
+def skew_grid(n, space_order=4, comm=None):
+    return CurvilinearGrid(shape=(n, n), extent=(1000., 800.), mapping=Skew(),
+                           space_order=space_order, dtype=np.float64, comm=comm)
+
+
+class TestGenericMap:
+
+    """A map with no special structure, its metric terms by finite differences."""
+
+    @pytest.mark.parametrize('expr, solution', [
+        ('u.dx', wave_dx), ('u.dy', wave_dz), ('u.laplace', wave_laplace),
+        ('-(J*u.dx).dx.T/J - (J*u.dy).dy.T/J', wave_laplace),
+    ])
+    def test_convergence(self, expr, solution):
+        """Physical derivatives converge at the order of the stencils."""
+        errors = []
+        sizes = [31, 61, 121]
+        for n in sizes:
+            grid = skew_grid(n)
+            J = grid.jacobian  # noqa: F841
+            u = physical_function('u', grid, 4, wave)  # noqa: F841
+            out = Function(name='out', grid=grid, space_order=4)
+            Operator(Eq(out, eval(expr))).apply()
+            x, z = (c.data for c in grid.coordinates)
+            inner = (slice(8, -8),)*2
+            errors.append(np.abs(out.data[inner] - solution(x, z)[inner]).max())
+        spacing = 1./(np.array(sizes) - 1)
+        orders = np.log(np.array(errors[:-1])/np.array(errors[1:])) / \
+            np.log(spacing[:-1]/spacing[1:])
+        assert orders[-1] > 3, orders
+
+    @pytest.mark.parametrize('expr, adjoint', [
+        ('f.dx', 'g.dx.T'), ('f.dy', 'g.dy.T'), ('f.dxdy', 'g.dxdy.T'),
+        ('f.dy(x0=y + y.spacing/2)', 'g.dy(x0=y + y.spacing/2).T'),
+    ])
+    def test_adjoint(self, expr, adjoint):
+        """The transpose of a physical derivative is its exact transpose."""
+        grid = skew_grid(41)
+        x, y = grid.dimensions  # noqa: F841
+        rng = np.random.default_rng(6)
+        f, g, f_out, g_out = (Function(name=n, grid=grid, space_order=4)
+                              for n in ('f', 'g', 'f_out', 'g_out'))
+        f.data[:] = rng.standard_normal(grid.shape)
+        g.data[:] = rng.standard_normal(grid.shape)
+        Operator([Eq(f_out, eval(expr)), Eq(g_out, eval(adjoint))]).apply()
+        forward = np.dot(f_out.data.ravel(), g.data.ravel())
+        backward = np.dot(f.data.ravel(), g_out.data.ravel())
+        assert np.isclose(forward, backward, rtol=1e-12, atol=0)
+
+    def test_symmetric(self):
+        """`-D.T(J b D u)/J` is symmetric in the inner product weighted by `J`."""
+        grid = skew_grid(41)
+        J = grid.jacobian
+        rng = np.random.default_rng(7)
+        b = Function(name='b', grid=grid, space_order=4)
+        b.data[:] = 1 + rng.random(grid.shape)
+        fields, results = [], []
+        for _ in range(2):
+            u = Function(name='u', grid=grid, space_order=4)
+            out = Function(name='out', grid=grid, space_order=4)
+            u.data[:] = rng.standard_normal(grid.shape)
+            Operator(Eq(out, J*(-(J*b*u.dx).dx.T/J - (J*b*u.dy).dy.T/J))).apply()
+            fields.append(u.data.copy())
+            results.append(out.data.copy())
+        forward = np.dot(results[0].ravel(), fields[1].ravel())
+        backward = np.dot(fields[0].ravel(), results[1].ravel())
+        assert abs(forward - backward) < 1e-10*np.linalg.norm(results[0]) * \
+            np.linalg.norm(fields[1])
+
+    def test_sparse(self):
+        """
+        A linear field is interpolated exactly at physical points, the map being
+        affine, and the coordinates are mapped with its inverse.
+        """
+        grid = CurvilinearGrid(shape=(41, 41), extent=(1000., 800.), mapping=Lean(),
+                               dtype=np.float64)
+        rng = np.random.default_rng(8)
+        computational = np.column_stack([rng.uniform(100., 900., 20),
+                                         rng.uniform(100., 700., 20)])
+        points = grid.to_physical(computational)
+        assert np.allclose(grid.to_computational(points), computational, rtol=0,
+                           atol=1e-9)
+        u = physical_function('u', grid, 8, lambda x, z: 2 + 3e-3*x - 5e-3*z)
+        rec = SparseFunction(name='rec', grid=grid, npoint=20, coordinates=points)
+        Operator(rec.interpolate(expr=u)).apply()
+        assert np.allclose(rec.data, 2 + 3e-3*points[:, 0] - 5e-3*points[:, 1],
+                           rtol=0, atol=1e-10)
+
+    def test_pickle(self):
+        """A pickled grid rebuilds its metric Functions from the map."""
+        grid = skew_grid(21)
+        copy = pickle.loads(pickle.dumps(grid))
+        for key, value in grid.metrics.items():
+            assert np.array_equal(np.array(copy.metrics[key].data), np.array(value.data))
+        assert np.array_equal(np.array(copy.jacobian.data), np.array(grid.jacobian.data))
+
+    def test_invalid(self):
+        """
+        A map turning cells inside out is refused, and one with integer
+        coordinates has floating metric terms.
+        """
+        with pytest.raises(ValueError, match='inside out'):
+            CurvilinearGrid(shape=(11, 11), mapping=Inverted())
+        grid = CurvilinearGrid(shape=(11, 11), extent=(10., 10.), mapping=Integral(),
+                               dtype=np.float64)
+        assert np.allclose(grid.jacobian.data, 1, rtol=0, atol=1e-12)
+
+    @pytest.mark.parallel(mode=[2])
+    def test_mpi(self, mode):
+        """Physical derivatives on a distributed grid match the serial ones."""
+        results = []
+        for comm in [None, MPI.COMM_SELF]:
+            grid = skew_grid(41, comm=comm)
+            u = physical_function('u', grid, 4, wave)
+            out = Function(name='out', grid=grid, space_order=4)
+            Operator(Eq(out, u.dxdy + u.laplace)).apply()
+            results.append(out)
+        distributed, serial = results
+        assert np.allclose(np.asarray(distributed.data_ro_domain._local),
+                           serial.data[distributed.local_indices], rtol=0, atol=1e-12)
+
+
 def random_points(npoint, seed=3):
     """Points below the sine surface, in physical coordinates."""
     rng = np.random.default_rng(seed)

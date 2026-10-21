@@ -38,7 +38,7 @@ def _centered_fd(values, axis, spacing, order, deriv_order=1):
     weights = sympy.finite_diff_weights(deriv_order, indices, 0)[deriv_order][-1]
     npoint = values.shape[axis]
     center = np.take(values, range(radius, npoint - radius), axis=axis)
-    derivative = np.zeros_like(center)
+    derivative = np.zeros(center.shape, dtype=np.result_type(center, np.float64))
     for i, w in zip(indices, weights, strict=True):
         if w == 0 or i == 0:
             continue
@@ -156,7 +156,15 @@ class CurvilinearMap:
         radius = grid.space_order // 2
         extended = [_extend(v, npad + radius) for v in vectors]
         mesh = np.meshgrid(*extended, indexing='ij')
-        physical = [np.broadcast_to(c, mesh[0].shape) for c in self.forward(grid, mesh)]
+        physical = self.forward(grid, mesh)
+        if len(physical) != len(vectors):
+            raise ValueError(f"{type(self).__name__}.forward returned {len(physical)} "
+                             f"coordinates for a {len(vectors)}D grid")
+        physical = [np.array(np.broadcast_to(c, mesh[0].shape), dtype=np.float64)
+                    for c in physical]
+        if not all(np.isfinite(c).all() for c in physical):
+            raise ValueError(f"{type(self).__name__}.forward returned non-finite "
+                             "coordinates")
         spacing = [v[1] - v[0] for v in vectors]
         ndim = len(vectors)
         shape = tuple(v.size + 2*npad for v in vectors)
@@ -524,10 +532,26 @@ class CurvilinearGrid(Grid):
         self._mapping = mapping
         self._space_order = space_order
         mapping.validate(self)
+        self._validate_orientation()
 
     def __repr__(self):
         return 'CurvilinearGrid' + \
             f'[extent={self.extent}, shape={self.shape}, dimensions={self.dimensions}]'
+
+    def _validate_orientation(self):
+        """
+        Raise an error unless the Jacobian of the map is finite and positive on
+        the nodes of every rank, halo included: a map that is singular or turns
+        cells inside out has no metric terms.
+        """
+        jacobian = np.asarray(self.mapping.jacobian(self, self._local_vectors))
+        valid = bool(np.all(np.isfinite(jacobian)) and np.all(jacobian > 0))
+        if self.distributor.is_parallel:
+            valid = self.comm.allreduce(valid, op=MPI.LAND)
+        if not valid:
+            raise ValueError(f"{type(self.mapping).__name__} has a Jacobian that is not "
+                             "finite and positive on the nodes of the grid: the map "
+                             "is singular or turns cells inside out")
 
     @property
     def mapping(self):
