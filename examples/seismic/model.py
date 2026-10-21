@@ -96,25 +96,21 @@ class FSDomain(SubDomain):
                 for d in dimensions}
 
 
-class SurfaceDomain(SubDomain):
+class RowsDomain(SubDomain):
 
-    """
-    The surface row of a model over a surface, below its `rows` mirror rows, of
-    a grid of `size` rows.
-    """
+    """`thickness` rows from the row `start`, across a grid of `size` rows."""
 
-    name = 'surface'
-
-    def __init__(self, rows, size):
+    def __init__(self, name, start, thickness, size):
         super().__init__()
-        self.rows = rows
+        self.name = name
+        self.start = start
+        self.thickness = thickness
         self.size = size
 
     def define(self, dimensions):
         vertical = dimensions[-1]
-        return {d: (d if d != vertical else ('middle', self.rows,
-                                             self.size - self.rows - 1))
-                for d in dimensions}
+        rows = ('middle', self.start, self.size - self.start - self.thickness)
+        return {d: (d if d != vertical else rows) for d in dimensions}
 
 
 class GenericModel:
@@ -150,8 +146,10 @@ class GenericModel:
             # The surface is the vertical origin, below the mirror rows
             origin_pml[-1] = dtype(-self._mirror_rows*spacing[-1])
             shape_pml[-1] += self._mirror_rows
-            subdomains = subdomains + (SurfaceDomain(self._mirror_rows,
-                                                     int(shape_pml[-1])),)
+            # The surface row, and the rows below it that the mirror rows mirror
+            rows, size = self._mirror_rows, int(shape_pml[-1])
+            subdomains = subdomains + (RowsDomain('surface', rows, 1, size),
+                                       RowsDomain('mirrored', rows + 1, rows, size))
 
         # Origin of the computational domain with boundary to inject/interpolate
         # at the correct index

@@ -1,5 +1,5 @@
 from devito import NODE, Eq, Function, Inc, Operator, TimeFunction, cos, sin, solve, sqrt
-from examples.seismic.acoustic.operators import freesurface
+from examples.seismic.acoustic.operators import adjoint_update, freesurface
 
 
 def _subs(func, d, d0):
@@ -40,6 +40,10 @@ def second_order_stencil(model, u, v, H0, Hz, qu, qv, forward=True):
     # Stencils
     stencilp = solve(m * u.dt2 - H0 - qu + damp * udt, unext)
     stencilr = solve(m * v.dt2 - Hz - qv + damp * vdt, vnext)
+
+    if not forward and model.fs and 'surface' in model.grid.subdomains:
+        return [*adjoint_update(model, Eq(unext, stencilp), m*u.dt2 - qu + damp*udt, H0),
+                *adjoint_update(model, Eq(vnext, stencilr), m*v.dt2 - qv + damp*vdt, Hz)]
 
     first_stencil = Eq(unext, stencilp, subdomain=model.grid.subdomains['physdomain'])
     second_stencil = Eq(vnext, stencilr, subdomain=model.grid.subdomains['physdomain'])

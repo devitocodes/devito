@@ -11,10 +11,11 @@ from devito import (  # noqa
     inner, resample, sin
 )
 from devito.mpi import MPI
-from examples.seismic import AcquisitionGeometry, SeismicModel
+from examples.seismic import AcquisitionGeometry, Receiver, SeismicModel
 from examples.seismic.acoustic import AcousticWaveSolver
 from examples.seismic.elastic import traction_free_update
 from examples.seismic.elastic.sbp import sbp_matrix, sbp_norm
+from examples.seismic.tti import AnisotropicWaveSolver
 
 # A smooth surface over a 1000 m line, in m, positive down
 _AMPLITUDE = 60.
@@ -1663,7 +1664,8 @@ class TestSeismicModel:
             10.*np.arange(cartesian.grid.shape[-1])
         assert np.allclose(z_coord[:, 8:], cartesian_z, atol=1e-4)
         assert np.allclose(z_coord[:, :8], -10.*np.arange(8, 0, -1), atol=1e-4)
-        assert set(grid.subdomains) == set(cartesian.grid.subdomains) | {'surface'}
+        assert set(grid.subdomains) == \
+            set(cartesian.grid.subdomains) | {'surface', 'mirrored'}
         assert model.critical_dt == cartesian.critical_dt
 
     def test_free_surface(self):
@@ -1683,6 +1685,32 @@ class TestSeismicModel:
             results.append(np.array(rec.data))
         cartesian, curvilinear = results
         assert np.linalg.norm(curvilinear - cartesian) < 1e-5*np.linalg.norm(cartesian)
+
+    @pytest.mark.parametrize('solver, parameters', [
+        (AcousticWaveSolver, {}),
+        (AnisotropicWaveSolver, {'epsilon': .1, 'delta': .05, 'theta': .3}),
+    ])
+    def test_free_surface_adjoint(self, solver, parameters):
+        """
+        Over a flat surface, where the interior operators are self-adjoint, the
+        adjoint of the example solvers, with the transpose of their free surface,
+        passes the dot test to roundoff.
+        """
+        x = 10.*np.arange(51)
+        model = self.model(surface=0.*x, dtype=np.float64, **parameters)
+        geometry = AcquisitionGeometry(
+            model, np.stack([x, np.full_like(x, 30.)], axis=1),
+            np.array([[250., 50.]]), 0., 300., f0=0.015, src_type='Ricker'
+        )
+        wave_solver = solver(model, geometry, space_order=8)
+        rec = wave_solver.forward()[0]
+        data = Receiver(name='data', grid=model.grid, time_range=geometry.time_axis,
+                        coordinates=geometry.rec_positions)
+        data.data[:] = np.random.default_rng(20).standard_normal(data.data.shape)
+        srca = wave_solver.adjoint(rec=data)[0]
+        forward = np.dot(rec.data.ravel(), data.data.ravel())
+        adjoint = np.dot(geometry.src.data.ravel(), srca.data.ravel())
+        assert np.isclose(forward, adjoint, rtol=1e-11, atol=0)
 
     def test_surface(self):
         """The surface is below the mirror rows, continued flat across the layers."""

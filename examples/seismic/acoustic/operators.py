@@ -1,17 +1,21 @@
+import sympy
+
 from devito import Eq, Function, Inc, Operator, TimeFunction, sign, solve
 from devito.symbolics import INT, retrieve_derivatives, retrieve_functions
 
 
-def freesurface(model, eq):
+def freesurface(model, eq, coefficient=None):
     """
     Generate the stencil that mirrors the field as a free surface modeling for
     the acoustic wave equation.
 
     On a model over a surface, the surface is the row below the mirror rows,
     the `fsdomain`: the field is zero on it and its odd mirror through it,
-    `u(z) = -u(2 s - z)`, above it. Otherwise the surface is the first row, and
-    the update of the rows below it, in the `fsdomain`, reads the odd mirror of
-    the field in place of the points above it.
+    `u(z) = -u(2 s - z)`, above it. In an adjoint update, given the
+    `coefficient` of the spatial operator in it, it is the transpose of the
+    mirror instead (see `_odd_fold`). Otherwise the surface is the first row,
+    and the update of the rows below it, in the `fsdomain`, reads the odd
+    mirror of the field in place of the points above it.
 
     Parameters
     ----------
@@ -19,9 +23,14 @@ def freesurface(model, eq):
         Physical model.
     eq : Eq
         Time-stepping stencil (time update) to mirror at the freesurface.
+    coefficient : expr-like, optional
+        On a model over a surface, the factor of the spatial operator in the
+        adjoint update `eq` (see `operator_factor`), for its transpose.
     """
     if 'surface' in model.grid.subdomains:
-        return _odd_mirror(model, eq.lhs)
+        if coefficient is None:
+            return _odd_mirror(model, eq.lhs)
+        return _odd_fold(model, eq.lhs, coefficient)
 
     lhs, rhs = eq.args
     # Get vertical dimension and corresponding subdimension
@@ -64,9 +73,48 @@ def _odd_mirror(model, field):
     """
     subdomains = model.grid.subdomains
     z = model.grid.dimensions[-1]
-    surface = subdomains['surface'].rows
+    surface = subdomains['surface'].start
     return [Eq(field, 0, subdomain=subdomains['surface']),
             Eq(field, -field.subs(z, 2*surface - z), subdomain=subdomains['fsdomain'])]
+
+
+def _odd_fold(model, field, coefficient):
+    """
+    The transpose of `_odd_mirror` in an adjoint update of `field`, e.g.
+    `v.backward`, computed in the mirror rows too, where it holds the spatial
+    operator times `coefficient`, in the inner product weighted by the Jacobian:
+    the mirror rows folded onto the rows below the surface, which they mirror,
+    `v(z) += -c/J (J v/c)(2 s - z)`, then zero, with the surface row.
+    """
+    grid = model.grid
+    subdomains = grid.subdomains
+    z = grid.dimensions[-1]
+    surface = subdomains['surface'].start
+    folded = (grid.jacobian*field/coefficient).subs(z, 2*surface - z)
+    return [Inc(field, -coefficient/grid.jacobian*folded,
+                subdomain=subdomains['mirrored']),
+            Eq(field, 0, subdomain=subdomains['fsdomain']),
+            Eq(field, 0, subdomain=subdomains['surface'])]
+
+
+def operator_factor(pde, spatial, target):
+    """
+    The factor of the spatial operator `spatial` in the update of `target`
+    solving `pde - spatial = 0`, which the transpose of the free surface of a
+    model over a surface divides out (see `_odd_fold`). The update is linear in
+    `spatial`, so it is solved with a symbol in its place.
+    """
+    operator = sympy.Dummy('spatial')
+    return sympy.expand_mul(solve(pde - operator, target)).coeff(operator)
+
+
+def adjoint_update(model, eq, pde, spatial):
+    """
+    The adjoint update `eq`, solving `pde - spatial = 0`, with the transpose of
+    the free surface of a model over a surface: the update is computed in the
+    mirror rows too, which the transpose folds onto the rows below.
+    """
+    return [eq, *freesurface(model, eq, operator_factor(pde, spatial, eq.lhs))]
 
 
 def laplacian(field, model, kernel):
@@ -119,6 +167,10 @@ def iso_stencil(field, model, kernel, **kwargs):
     q = kwargs.get('q', 0)
     # Define PDE and update rule
     eq_time = solve(model.m * field.dt2 - lap - q + model.damp * udt, unext)
+
+    if not forward and model.fs and 'surface' in model.grid.subdomains:
+        return adjoint_update(model, Eq(unext, eq_time),
+                              model.m*field.dt2 - q + model.damp*udt, lap)
 
     # Time-stepping stencil.
     eqns = [Eq(unext, eq_time, subdomain=model.grid.subdomains['physdomain'])]
