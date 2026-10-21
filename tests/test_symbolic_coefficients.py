@@ -7,7 +7,7 @@ from devito import (
 )
 from devito.finite_differences import Differentiable
 from devito.finite_differences.coefficients import Coefficient, Substitutions
-from devito.finite_differences.finite_difference import _PRECISION
+from devito.finite_differences.finite_difference import _GIVEN_PRECISION, _PRECISION
 from devito.symbolics import retrieve_derivatives
 from devito.tools import as_tuple
 
@@ -42,7 +42,8 @@ class TestSC:
 
         assert isinstance(eq.lhs, Differentiable)
         s = dim.spacing**(-dorder)
-        assert sp.simplify(eval(expected).evalf(_PRECISION) * s - eq.evaluate.lhs) == 0
+        expected = eval(expected).evalf(_GIVEN_PRECISION)
+        assert sp.simplify(expected * s - eq.evaluate.lhs) == 0
 
     def test_function_coefficients(self):
         """Test that custom function coefficients return the expected result"""
@@ -121,6 +122,21 @@ class TestSC:
         expr1 = f.dxdy(w=w).evaluate
         assert sp.simplify(expr0 - expr1) == 0
 
+    def test_coefficients_precision(self):
+        """Given weights are used as they are, the computed ones to `_PRECISION`"""
+        grid = Grid(shape=(10,))
+        x, = grid.dimensions
+        u = Function(name='u', grid=grid, space_order=2)
+        weights = [-1/3, 1/7, 2/9]
+
+        given = u.dx(weights=weights).evaluate
+        assert all(given.coeff(u._subs(x, x + i*x.spacing)) == w/x.spacing
+                   for i, w in zip((-1, 0, 1), weights, strict=True))
+
+        computed = u.dx2.evaluate
+        assert all(len(str(c).split('.')[-1].rstrip('0')) <= _PRECISION
+                   for c in computed.atoms(sp.Float))
+
     def test_coefficients_expr(self):
         p = Dimension('p')
 
@@ -152,7 +168,7 @@ class TestSC:
         s = x.spacing**(-2)
         expected = (0.1*u - 0.6*u._subs(x, x - h_x) + 0.6*u.subs(x, x + h_x)) * s + 2
 
-        assert sp.simplify(expected.evalf(_PRECISION) - eq.evaluate.lhs) == 0
+        assert sp.simplify(expected.evalf(_GIVEN_PRECISION) - eq.evaluate.lhs) == 0
 
     @pytest.mark.parametrize('order', [2, 4, 6])
     def test_staggered_array(self, order):

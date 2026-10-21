@@ -25,6 +25,9 @@ __all__ = [
 # Number of digits for FD coefficients to avoid roundup errors and non-deterministic
 # code generation
 _PRECISION = 9
+# Number of digits of the FD coefficients given by the user: 53 bits, which keep a
+# double exactly
+_GIVEN_PRECISION = 15
 
 
 @check_input
@@ -196,7 +199,8 @@ def make_derivative(expr, dim, fd_order, deriv_order, side, matvec, x0, coeffici
     indices, x0 = generate_indices(expr, dim, fd_order, side=side, matvec=matvec,
                                    x0=x0, nweights=nweights)
     # Finite difference weights corresponding to the indices. Computed via the
-    # `coefficients` method (`taylor` or `symbolic`)
+    # `coefficients` method (`taylor` or `symbolic`), unless given
+    computed = weights is None
     if weights is None:
         weights = fd_weights_registry[coefficients](expr, deriv_order, indices, x0)
         _, wdim, _ = process_weights(weights, expr, dim)
@@ -205,15 +209,18 @@ def make_derivative(expr, dim, fd_order, deriv_order, side, matvec, x0, coeffici
                 f"number of indices ({len(indices)}), reverting to Taylor")
         scale = False
         wdim = None
+        computed = True
         weights = fd_weights_registry['taylor'](expr, deriv_order, indices, x0)
 
     # Did fd_weights_registry return a new Function/Expression instead of a values?
     if wdim is not None:
         weights = [weights._subs(wdim, i) for i in range(len(indices))]
 
-    # Enforce fixed precision FD coefficients to avoid variations in results
+    # Enforce fixed precision on the computed FD coefficients to avoid variations
+    # in results; given ones keep that of a double
     scale = dim.spacing**(-deriv_order) if scale else 1
-    weights = [sympify(scale * w).evalf(_PRECISION) for w in weights]
+    precision = _PRECISION if computed else _GIVEN_PRECISION
+    weights = [sympify(scale * w).evalf(precision) for w in weights]
 
     # Transpose the FD, if necessary
     if matvec == transpose:
