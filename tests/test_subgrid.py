@@ -4,8 +4,9 @@ import pytest
 from devito import (
     Eq, Function, Grid, Operator, SubGrid, interpolated, prolong, restrict, switchconfig
 )
-from devito.ir.iet import FindNodes, Iteration
+from devito.ir.iet import Expression, FindNodes, Iteration
 from devito.operations.subgrid import SubGridTransfer
+from devito.symbolics import retrieve_indexed
 
 
 def linear_field(grid, a=3., b=2.):
@@ -309,7 +310,11 @@ class TestCodegen:
 
     @pytest.mark.parametrize('ndim,taps', [(1, 2), (2, 4), (3, 8)])
     def test_tap_count(self, ndim, taps):
-        """A linear stencil reads `2**ndim` parent points, once each."""
+        """
+        A linear stencil reads `2**ndim` parent points, once each. Counted on
+        the lowered expression rather than the emitted C, which renders the
+        accesses as macros when linearization is on.
+        """
         n = 9
         grid = Grid(shape=(n,)*ndim, extent=(float(n - 1),)*ndim)
         sub = SubGrid(grid, factor=1.5)
@@ -317,9 +322,11 @@ class TestCodegen:
         u = Function(name='u', grid=grid)
         g = Function(name='g', grid=sub, space_order=0)
 
-        ccode = str(Operator(Eq(g, restrict(u, sub))).ccode)
+        op = Operator(Eq(g, restrict(u, sub)))
+        expr, = [i.expr for i in FindNodes(Expression).visit(op) if i.write is g]
 
-        assert ccode.count('u[') == taps
+        assert len([i for i in retrieve_indexed(expr.rhs)
+                    if i.function is u]) == taps
 
     @pytest.mark.parametrize('scheme,taps', [('nearest', 1), ('linear', 2)])
     def test_radius_matches_scheme(self, scheme, taps):
@@ -415,12 +422,16 @@ class TestInterpolatedFunction:
         u = Function(name='u', grid=grid)
         vp = Function(name='vp', grid=sub, space_order=0)
 
-        ccode = str(Operator(Eq(u, interpolated(vp)*u)).ccode)
+        op = Operator(Eq(u, interpolated(vp)*u))
+        ccode = str(op.ccode)
 
         assert 'for (int r' not in ccode
         assert 'if (' not in ccode
         assert 'floor' not in ccode
-        assert ccode.count('vp[') == 4          # 2**ndim taps
+
+        expr, = [i.expr for i in FindNodes(Expression).visit(op) if i.write is u]
+        assert len([i for i in retrieve_indexed(expr.rhs)
+                    if i.function is vp]) == 4          # 2**ndim taps
 
     @pytest.mark.parametrize('scheme', ['linear', 'nearest'])
     def test_schemes(self, scheme):
