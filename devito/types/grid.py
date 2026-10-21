@@ -12,7 +12,7 @@ from devito.deprecations import deprecations
 from devito.finite_differences.elementary import Max, Min
 from devito.logger import warning
 from devito.mpi import MPI, Distributor, SubDistributor
-from devito.tools import ReducerMap, as_tuple, frozendict, is_integer
+from devito.tools import ReducerMap, as_tuple, frozendict, is_integer, is_number
 from devito.types.args import ArgProvider
 from devito.types.basic import Scalar
 from devito.types.dense import Function
@@ -36,6 +36,7 @@ class CartesianDiscretization:
     """
 
     is_Grid = False
+    is_SubGrid = False
     is_SubDomain = False
     is_MultiSubDomain = False
 
@@ -432,23 +433,28 @@ class Grid(CartesianDiscretization, ArgProvider):
 class SubGrid(Grid):
 
     """
-    A coarser Grid whose points are a subset of a parent Grid's points.
+    A Grid whose points are derived from a parent Grid's by a factor.
 
-    Along each Dimension subsampled by `factor`, the SubGrid retains every
-    `factor`-th point of the parent, so point `i` of the SubGrid sits at parent
-    index `i*factor`. The physical spacing is `factor` times the parent's, and
-    the origin is shared.
+    Along each Dimension scaled by `factor`, point `i` of the SubGrid sits at
+    parent index `i*factor`. The physical spacing is `factor` times the
+    parent's, and the origin is shared.
+
+    An **integer** factor puts SubGrid points exactly on parent points, so the
+    SubGrid is a subsample of the parent and the compiler reaches it by
+    striding. A **non-integer** factor puts them in between, so reading such a
+    Function on the parent grid interpolates; `is_interpolated` distinguishes
+    the two. A factor below 1 refines rather than coarsens.
 
     Parameters
     ----------
     parent : Grid
-        The Grid being subsampled.
-    factor : int or tuple of int
-        Subsampling factor, either one value per space Dimension of `parent`,
-        or a single value applied to all of them. A factor of 1 leaves the
-        corresponding Dimension untouched.
+        The Grid being rescaled.
+    factor : int or float or tuple
+        Scaling factor, either one value per space Dimension of `parent`, or a
+        single value applied to all of them. Must be positive. A factor of 1
+        leaves the corresponding Dimension untouched.
     name : str, optional
-        Prefix for the names of the subsampled Dimensions; each is named
+        Prefix for the names of the derived Dimensions; each is named
         `f'{parent_dimension}{name}'`. Defaults to `'s'`, giving `xs`, `ys`.
 
     Examples
@@ -483,10 +489,17 @@ class SubGrid(Grid):
 
     Notes
     -----
-    Because the subsampled points coincide with parent points, no interpolation
-    is involved: an `Eq` writing a SubGrid Function from a parent Function is a
-    strided copy, and the compiler emits a strided loop for it.
+    With an integer factor the points coincide with parent points, so no
+    interpolation is involved: an `Eq` writing a SubGrid Function from a parent
+    Function is a strided copy, and the compiler emits a strided loop for it.
+
+    With a non-integer factor, a SubGrid Function appearing in an equation is
+    read at the *left-hand side's* location, the same convention a staggered
+    Function follows. It lowers to a plain stencil whose weights come from a
+    compile-time table indexed by the phase, so the loops stay unit-stride.
     """
+
+    is_SubGrid = True
 
     def __init__(self, parent, factor, name='s', **kwargs):
         if not parent.is_Grid:
@@ -508,17 +521,31 @@ class SubGrid(Grid):
                 f"`SubGrid(parent.parent, factor={combined})`"
             )
 
-        dimensions = tuple(
-            d if f == 1 else ConditionalDimension(f'{d.name}{name}', parent=d,
-                                                  factor=f)
-            for d, f in zip(parent.dimensions, factors, strict=True)
-        )
-
-        # A subsampled axis keeps the parent's endpoints, so the number of
-        # retained points is `ceil(n/factor)` and the extent is unchanged up to
-        # the last retained point
-        shape = tuple((n + f - 1)//f
-                      for n, f in zip(parent.shape, factors, strict=True))
+        if all(is_integer(f) for f in factors):
+            # Points coincide with the parent's: derive ConditionalDimensions,
+            # so a plain `Eq` lowers to a strided copy
+            dimensions = tuple(
+                d if f == 1 else ConditionalDimension(f'{d.name}{name}',
+                                                      parent=d, factor=f)
+                for d, f in zip(parent.dimensions, factors, strict=True)
+            )
+            # A subsampled axis keeps the parent's endpoints, so exactly
+            # `ceil(n/factor)` points are retained
+            shape = tuple((n + f - 1)//f
+                          for n, f in zip(parent.shape, factors, strict=True))
+        else:
+            # Points fall between the parent's, so the axis is a Dimension in
+            # its own right and reading it on the parent interpolates
+            dimensions = tuple(
+                d if f == 1 else SpaceDimension(
+                    f'{d.name}{name}',
+                    spacing=Spacing(name=f'h_{d.name}{name}', is_const=True)
+                )
+                for d, f in zip(parent.dimensions, factors, strict=True)
+            )
+            # The last point must not overshoot the parent's domain
+            shape = tuple(int(math.floor((n - 1)/f)) + 1
+                          for n, f in zip(parent.shape, factors, strict=True))
         extent = tuple(s*(n - 1) for s, n in
                        zip(self.__spacing_setup__(parent, factors), shape,
                            strict=True))
@@ -548,22 +575,16 @@ class SubGrid(Grid):
                              f"got {len(factors)}")
 
         for f in factors:
-            if not is_integer(f):
-                # Non-integer factors place SubGrid points between parent
-                # points, which requires interpolation rather than striding
-                raise ValueError(
-                    f"Non-integer subsampling factor `{f}`. A SubGrid's points "
-                    "must coincide with its parent's, so the factor must be a "
-                    f"whole number of parent cells -- use "
-                    f"`{max(1, math.floor(f))}` or `{max(1, math.ceil(f))}`. "
-                    "Subsampling onto points that fall "
-                    "between parent points requires interpolation, which "
-                    "SubGrid does not perform"
-                )
-            if f < 1:
-                raise ValueError(f"Subsampling factor must be >= 1, got `{f}`")
+            if not is_number(f):
+                raise ValueError(f"Subsampling factor must be a number, got `{f}`")
+            if f <= 0:
+                raise ValueError(f"Subsampling factor must be > 0, got `{f}`")
 
-        return tuple(int(f) for f in factors)
+        # Integer factors place SubGrid points exactly on parent points, which
+        # the compiler can reach by striding. Anything else falls between them
+        # and is read by interpolating
+        return tuple(int(f) if is_integer(f) or float(f).is_integer()
+                     else float(f) for f in factors)
 
     @classmethod
     def __spacing_setup__(cls, parent, factors):
@@ -587,6 +608,14 @@ class SubGrid(Grid):
         # Grid" apart from "several unrelated Grids", and rejects the latter
         # under MPI
         return self._parent.root
+
+    @property
+    def is_interpolated(self):
+        """
+        True if the SubGrid's points fall between its parent's, so that reading
+        such a Function on the parent grid interpolates rather than striding.
+        """
+        return not all(is_integer(f) for f in self._factors)
 
     def __repr__(self):
         return f"SubGrid[shape={self.shape}, factor={tuple(self._factors)}]"

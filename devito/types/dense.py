@@ -15,7 +15,9 @@ from devito.data.allocators import DataReference
 from devito.deprecations import deprecations
 from devito.exceptions import InvalidArgument
 from devito.finite_differences import Differentiable, generate_fd_shortcuts
-from devito.finite_differences.interpolation import interp_mapper
+from devito.finite_differences.interpolation import (
+    SubGridInterp, interp_mapper, is_subgrid_read
+)
 from devito.finite_differences.tools import fd_weights_registry
 from devito.logger import debug, warning
 from devito.mpi import MPI
@@ -1130,6 +1132,15 @@ class Function(DiscreteFunction):
         return 1.2 if self.staggered.on_node else 1.1
 
     def _eval_at(self, func, **kwargs):
+        # A Function on a SubGrid lives on different Dimensions altogether, so
+        # relocating it onto `func` means re-expressing its indices in the
+        # parent's terms. Same convention as staggering: the RHS is evaluated
+        # at the LHS's location
+        if is_subgrid_read(self, func):
+            # The relocation depends on the iteration index, so it cannot be
+            # turned into a stencil here; defer it to the Cluster pass
+            return SubGridInterp(self, func)
+
         if self.staggered == func.staggered or self.interp_order == 0:
             return self
 
