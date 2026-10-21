@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import numpy as np
 import pytest
 import sympy
@@ -13,8 +15,9 @@ from devito.exceptions import InvalidOperator
 from devito.ir.cgen.printer import BasePrinter, get_printer
 from devito.passes.iet.langbase import LangBB
 from devito.passes.iet.languages.C import CBB, CPrinter
+from devito.passes.iet.languages.CXX import CXXPrinter
 from devito.passes.iet.languages.openacc import AccBB, AccPrinter
-from devito.passes.iet.languages.openmp import OmpBB
+from devito.passes.iet.languages.openmp import CXXOmpBB, OmpBB
 from devito.symbolics.extended_dtypes import ctypes_vector_mapper
 from devito.tools import dtype_to_cstr
 from devito.types.basic import Basic, Scalar, Symbol
@@ -25,12 +28,14 @@ from devito.types.sparse import SparseTimeFunction
 _languages: dict[str, type[LangBB]] = {
     'C': CBB,
     'openmp': OmpBB,
+    'CXXopenmp': CXXOmpBB,
     'openacc': AccBB
 }
 
 _printers: dict[str, type[BasePrinter]] = {
     'C': CPrinter,
     'openmp': CPrinter,
+    'CXXopenmp': CXXPrinter,
     'openacc': AccPrinter
 }
 
@@ -145,6 +150,30 @@ def test_complex_headers(dtype: np.dtype[np.inexact], kwargs: dict[str, str]) ->
         assert header in op._includes
     else:
         assert header not in op._includes
+
+
+@pytest.mark.parametrize('kwargs', _configs + [_config_kwargs('cpu64', 'CXXopenmp')],
+                         ids=kw_id)
+def test_complex_arith_header(kwargs: dict[str, str]) -> None:
+    """
+    Tests that the extra complex arithmetic definitions some languages need are
+    saved in full to a language-specific header the operator includes.
+    """
+    langbb = _get_language(**kwargs)
+    code = langbb.get('def-complex')
+    if code is None:
+        pytest.skip(f"`{kwargs['language']}` needs no complex arithmetic header")
+
+    # Set up an operator
+    grid = Grid(shape=(3, 3))
+    x, y = grid.dimensions
+
+    u = Function(name='u', grid=grid, dtype=np.complex64)
+    op = Operator(Eq(u, x*y + 1j), **kwargs)
+
+    hfile, = [Path(i) for i in op._includes if 'complex_arith' in i]
+    assert hfile.name == f"{langbb['name'].lower()}_complex_arith.h"
+    assert hfile.read_text() == str(code)
 
 
 @pytest.mark.parametrize('dtype', [np.complex64, np.complex128])

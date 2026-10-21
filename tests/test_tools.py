@@ -7,8 +7,8 @@ from sympy.abc import a, b, c, d, e
 
 from devito import Eq, Operator, switchenv
 from devito.tools import (
-    CacheInstances, DefaultFrozenDict, UnboundedMultiTuple, UnboundTuple, ctypes_to_cstr,
-    filter_ordered, memoized_meth, toposort, transitive_closure
+    CacheInstances, DefaultFrozenDict, UnboundedMultiTuple, UnboundTuple, atomic_write,
+    ctypes_to_cstr, filter_ordered, memoized_meth, toposort, transitive_closure
 )
 from devito.types.basic import Symbol
 
@@ -338,3 +338,16 @@ def test_switchenv_reuse():
     finally:
         os.environ.clear()
         os.environ.update(previous_environ)
+
+
+def test_atomic_write(tmp_path):
+    path = tmp_path.joinpath('data.txt')
+
+    assert atomic_write(path, 'foo') == path
+    assert path.read_text() == 'foo'
+
+    # A failed write leaves the previous file untouched and no temporary file behind
+    with pytest.raises(TypeError):
+        atomic_write(path, 1)
+    assert path.read_text() == 'foo'
+    assert list(tmp_path.iterdir()) == [path]

@@ -22,7 +22,8 @@ from devito.exceptions import CompilationError
 from devito.logger import debug, warning
 from devito.parameters import configuration
 from devito.tools import (
-    Signer, as_list, change_directory, filter_ordered, make_tempdir, memoized_func
+    Signer, as_list, atomic_write, change_directory, filter_ordered, make_tempdir,
+    memoized_func
 )
 
 __all__ = ['compiler_registry', 'sniff_mpi_distro']
@@ -316,10 +317,17 @@ class Compiler(GCCToolchain, Signer):
             The name of the header file (w/o the suffix).
         code : str
             The source code to be stored.
+
+        Returns
+        -------
+        Path
+            The path of the header file.
         """
         hfile = self.get_jit_dir().joinpath(filename).with_suffix('.h')
-        with open(str(hfile), 'w') as f:
-            f.write(code)
+        # The JIT dir is shared with other processes, e.g. the workers of a
+        # parallel test run, so the header is written atomically: a concurrent
+        # compiler never reads a truncated or half-written header
+        return atomic_write(hfile, code)
 
     def save(self, soname, binary):
         """
