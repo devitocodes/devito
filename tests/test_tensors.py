@@ -487,6 +487,22 @@ def test_rebuild(func1):
         assert j.dimensions == tuple(new_dims)
 
 
+@pytest.mark.parametrize('func1', [TensorFunction, TensorTimeFunction,
+                                   VectorFunction, VectorTimeFunction])
+@pytest.mark.parametrize('name', ['tau_s', 'my_tau_x', 'x'])
+def test_name_with_underscore(func1, name):
+    grid = Grid(tuple([5]*3))
+    f1 = func1(name=name, grid=grid)
+    assert f1.name == name
+    assert (2 * f1).name == name
+    assert (f1 + f1).name == name
+
+    f2 = f1.func(name='f2')
+    assert f2.name == 'f2'
+    for (i, j) in zip(f1.flat(), f2.flat(), strict=True):
+        assert j.name == f"f2{i.name[len(name):]}"
+
+
 @pytest.mark.parametrize('func1', [Function, TimeFunction,
                                    TensorFunction, TensorTimeFunction,
                                    VectorFunction, VectorTimeFunction])

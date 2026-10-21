@@ -1640,9 +1640,15 @@ class AbstractTensor(sympy.ImmutableDenseMatrix, Basic, Pickable, Evaluable):
 
     @property
     def name(self):
+        # `_name` may be unset if `__init_finalize__` was skipped in `_fromrep`
+        name = getattr(self, '_name', None)
+        if name is not None:
+            return name
+        # Components are named `{name}_{suffix}`, with the suffix built from
+        # the Dimension names, so the base name is everything before the last `_`
         for c in self.values():
             try:
-                return c.name.split('_')[0]
+                return c.name.rsplit('_', 1)[0]
             except AttributeError:
                 # `c` is not a devito object
                 pass
@@ -1660,7 +1666,7 @@ class AbstractTensor(sympy.ImmutableDenseMatrix, Basic, Pickable, Evaluable):
         # We need to rebuild the components with the new name then
         # rebuild the matrix
         newname = kwargs.pop('name', self.name)
-        comps = [f.func(*args, name=f.name.replace(self.name, newname), **kwargs)
+        comps = [f.func(*args, name=f"{newname}{f.name[len(self.name):]}", **kwargs)
                  for f in self.flat()]
         # Rebuild the matrix with the new components
         return self._new(*self.shape, comps)
