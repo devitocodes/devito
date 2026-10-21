@@ -423,8 +423,8 @@ class TestDerivatives:
         dy = f.dy(x0=y + y.spacing/2)
         whole, split = (Function(name=n, grid=grid, space_order=8)
                         for n in ('whole', 'split'))
-        Operator([Eq(whole, (b*(dx + dy)).dx),
-                  Eq(split, (b*dx).dx + (b*dy).dx)]).apply()
+        Operator([Eq(whole, (b*(dx + dy) + f*(dx + dy)).dx),
+                  Eq(split, (b*dx).dx + (b*dy).dx + (f*dx).dx + (f*dy).dx)]).apply()
         assert np.abs(whole.data).max() > 0
         assert np.allclose(whole.data, split.data, rtol=0, atol=1e-12)
 

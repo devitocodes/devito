@@ -189,10 +189,13 @@ def _terms_by_location(expr, held, grid):
     """
     if len({_held_location(h, grid) for h in held}) < 2:
         return [expr]
-    expanded = sympy.expand(expr, deep=False, mul=True, multinomial=False,
-                            power_exp=False, power_base=False, log=False)
+    terms = [t for a in sympy.Add.make_args(expr)
+             for t in sympy.Add.make_args(sympy.expand(a, deep=False, mul=True,
+                                                       multinomial=False,
+                                                       power_exp=False,
+                                                       power_base=False, log=False))]
     groups = {}
-    for term in sympy.Add.make_args(expanded):
+    for term in terms:
         key = frozenset(_held_location(h, grid) for h in _held_derivatives(term, grid))
         groups.setdefault(key, []).append(term)
     return [Add(*terms) for terms in groups.values()]
