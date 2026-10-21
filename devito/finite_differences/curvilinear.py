@@ -144,6 +144,12 @@ def _along(deriv, expr, grid, dim, deriv_order, **kwargs):
     docstring).
     """
     held = _held_derivatives(expr, grid)
+    terms = _terms_by_location(expr, held, grid)
+    if len(terms) > 1:
+        # Differentiation is linear, and each term is differentiated where its
+        # derivatives are evaluated
+        return Add(*[_along(deriv, t, grid, dim, deriv_order, **kwargs)
+                     for t in terms])
     staggered = (not held and deriv.x0.get(dim) == dim and
                  _location(expr, dim) != dim)
     if deriv.transpose == transpose:
@@ -169,6 +175,27 @@ def _held_derivatives(expr, grid):
                 if not d.computational and any(i in grid.dimensions for i in d.dims)}
     inner = {i for d in physical for i in physical & d.expr.find(sympy.Derivative)}
     return frozenset(physical - inner)
+
+
+def _held_location(held, grid):
+    """Where the derivative `held` is evaluated, along every Dimension of `grid`."""
+    return tuple(held.x0.get(d, _location(held.expr, d)) for d in grid.dimensions)
+
+
+def _terms_by_location(expr, held, grid):
+    """
+    `expr` as a sum of terms, one per point where the derivatives `held` by
+    `expr` are evaluated, or `expr` alone if they are all evaluated at one point.
+    """
+    if len({_held_location(h, grid) for h in held}) < 2:
+        return [expr]
+    expanded = sympy.expand(expr, deep=False, mul=True, multinomial=False,
+                            power_exp=False, power_base=False, log=False)
+    groups = {}
+    for term in sympy.Add.make_args(expanded):
+        key = frozenset(_held_location(h, grid) for h in _held_derivatives(term, grid))
+        groups.setdefault(key, []).append(term)
+    return [Add(*terms) for terms in groups.values()]
 
 
 def _location(expr, dim):

@@ -409,6 +409,26 @@ class TestDerivatives:
         backward = np.dot(f.data.ravel(), g_out.data.ravel())
         assert np.isclose(forward, backward, rtol=1e-12, atol=0)
 
+    def test_linear_in_locations(self):
+        """
+        A derivative of terms whose derivatives are evaluated at different points
+        is the sum of the derivatives of the terms, as in a rotated operator.
+        """
+        grid = sine_grid(41, dtype=np.float64)
+        x, y = grid.dimensions
+        rng = np.random.default_rng(5)
+        f, b = (Function(name=n, grid=grid, space_order=8) for n in 'fb')
+        f.data[:] = rng.standard_normal(grid.shape)
+        b.data[:] = 1 + rng.random(grid.shape)
+        dx = f.dx(x0=x + x.spacing/2)
+        dy = f.dy(x0=y + y.spacing/2)
+        whole, split = (Function(name=n, grid=grid, space_order=8)
+                        for n in ('whole', 'split'))
+        Operator([Eq(whole, (b*(dx + dy)).dx),
+                  Eq(split, (b*dx).dx + (b*dy).dx)]).apply()
+        assert np.abs(whole.data).max() > 0
+        assert np.allclose(whole.data, split.data, rtol=0, atol=1e-12)
+
     @pytest.mark.parametrize('expr', [
         '(b*u.dx).dx + (b*u.dy).dy',
         '(b._subs(x, x + x.spacing/2)*u.dx(x0=x + x.spacing/2)).dx(x0=x - x.spacing/2)'
