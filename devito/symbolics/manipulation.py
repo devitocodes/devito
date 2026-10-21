@@ -12,7 +12,7 @@ from devito.finite_differences.differentiable import (
     EvalDerivative, IndexDerivative, LocalSum
 )
 from devito.symbolics.extended_dtypes import LONG
-from devito.symbolics.extended_sympy import DefFunction, rfunc
+from devito.symbolics.extended_sympy import CallFromPointer, DefFunction, rfunc
 from devito.symbolics.queries import q_leaf
 from devito.symbolics.search import (
     retrieve_functions, retrieve_indexed, retrieve_terminals
@@ -22,11 +22,12 @@ from devito.symbolics.unevaluation import Mul as UnevalMul
 from devito.symbolics.unevaluation import Pow as UnevalPow
 from devito.symbolics.unevaluation import UnevaluableMixin
 from devito.tools import (
-    EnrichedTuple, as_list, as_tuple, flatten, split, transitive_closure
+    EnrichedTuple, as_list, as_tuple, flatten, frozendict, split, transitive_closure
 )
 from devito.types.array import ComponentAccess
 from devito.types.basic import Basic, Indexed
 from devito.types.equation import Eq
+from devito.types.misc import FIndexed
 from devito.types.relational import Ge, Gt, Le, Lt
 
 __all__ = [
@@ -118,6 +119,17 @@ def _uxreplace(expr, rule):
     return expr, False
 
 
+@_uxreplace.register(CallFromPointer)
+def _(expr, rule):
+    if expr in rule or expr.__class__ in rule:
+        return _uxreplace.dispatch(object)(expr, rule)
+
+    args, changed = _uxreplace_dispatch((expr.pointer, expr.params), rule)
+    if changed:
+        return expr.func(expr.call, *args), True
+    return expr, False
+
+
 @_uxreplace.register(LocalSum)
 def _(expr, rule):
     # Only the sum owns these guards; ordinary ConditionalDimensions stay atomic
@@ -166,6 +178,7 @@ def _(iterable, rule):
 
 
 @_uxreplace_dispatch.register(dict)
+@_uxreplace_dispatch.register(frozendict)
 def _(mapper, rule):
     ret = {}
     changed = False
@@ -182,6 +195,12 @@ def _uxreplace_handle(expr, args, kwargs):
         return expr.func(*args, evaluate=False)
     except TypeError:
         return expr.func(*args)
+
+
+@_uxreplace_handle.register(CallFromPointer)
+def _(expr, args, kwargs):
+    # C member names belong to their compound type, rather than the local scope
+    return expr.func(expr.call, *args[1:])
 
 
 @_uxreplace_handle.register(Min)
@@ -262,6 +281,7 @@ _uxreplace_registry = UxreplaceRegistry()
 _uxreplace_registry.register(Eq)
 _uxreplace_registry.register(DefFunction)
 _uxreplace_registry.register(ComponentAccess)
+_uxreplace_registry.register(FIndexed)
 _uxreplace_registry.register(LocalSum)
 
 
