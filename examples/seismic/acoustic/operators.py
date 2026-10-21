@@ -7,6 +7,12 @@ def freesurface(model, eq):
     Generate the stencil that mirrors the field as a free surface modeling for
     the acoustic wave equation.
 
+    On a model over a surface, the surface is the row below the mirror rows,
+    the `fsdomain`: the field is zero on it and its odd mirror through it,
+    `u(z) = -u(2 s - z)`, above it. Otherwise the surface is the first row, and
+    the update of the rows below it, in the `fsdomain`, reads the odd mirror of
+    the field in place of the points above it.
+
     Parameters
     ----------
     model : Model
@@ -14,6 +20,9 @@ def freesurface(model, eq):
     eq : Eq
         Time-stepping stencil (time update) to mirror at the freesurface.
     """
+    if 'surface' in model.grid.subdomains:
+        return _odd_mirror(model, eq.lhs)
+
     lhs, rhs = eq.args
     # Get vertical dimension and corresponding subdimension
     fsdomain = model.grid.subdomains['fsdomain']
@@ -45,6 +54,19 @@ def freesurface(model, eq):
     fs_eq.append(eq.func(lhs._subs(z, 0), 0, subdomain=fsdomain))
 
     return fs_eq
+
+
+def _odd_mirror(model, field):
+    """
+    The free surface of `field`, e.g. `u.forward`, on a model over a surface:
+    zero on the surface row `s`, and the odd mirror `u(z) = -u(2 s - z)` in the
+    mirror rows above it.
+    """
+    subdomains = model.grid.subdomains
+    z = model.grid.dimensions[-1]
+    surface = subdomains['surface'].rows
+    return [Eq(field, 0, subdomain=subdomains['surface']),
+            Eq(field, -field.subs(z, 2*surface - z), subdomain=subdomains['fsdomain'])]
 
 
 def laplacian(field, model, kernel):

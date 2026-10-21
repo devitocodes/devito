@@ -11,7 +11,8 @@ from devito import (  # noqa
     inner, resample, sin
 )
 from devito.mpi import MPI
-from examples.seismic import SeismicModel
+from examples.seismic import AcquisitionGeometry, SeismicModel
+from examples.seismic.acoustic import AcousticWaveSolver
 from examples.seismic.elastic import traction_free_update
 from examples.seismic.elastic.sbp import sbp_matrix, sbp_norm
 
@@ -1662,8 +1663,26 @@ class TestSeismicModel:
             10.*np.arange(cartesian.grid.shape[-1])
         assert np.allclose(z_coord[:, 8:], cartesian_z, atol=1e-4)
         assert np.allclose(z_coord[:, :8], -10.*np.arange(8, 0, -1), atol=1e-4)
-        assert set(grid.subdomains) == set(cartesian.grid.subdomains)
+        assert set(grid.subdomains) == set(cartesian.grid.subdomains) | {'surface'}
         assert model.critical_dt == cartesian.critical_dt
+
+    def test_free_surface(self):
+        """
+        The free surface of the example solvers on a flat surface, the odd mirror
+        through the surface row, is that of a Cartesian model, to roundoff.
+        """
+        x = 10.*np.arange(51)
+        results = []
+        for surface in [None, 0.*x]:
+            model = self.model(surface=surface)
+            geometry = AcquisitionGeometry(
+                model, np.stack([x, np.full_like(x, 20.)], axis=1),
+                np.array([[250., 40.]]), 0., 400., f0=0.015, src_type='Ricker'
+            )
+            rec = AcousticWaveSolver(model, geometry, space_order=8).forward()[0]
+            results.append(np.array(rec.data))
+        cartesian, curvilinear = results
+        assert np.linalg.norm(curvilinear - cartesian) < 1e-5*np.linalg.norm(cartesian)
 
     def test_surface(self):
         """The surface is below the mirror rows, continued flat across the layers."""

@@ -96,6 +96,27 @@ class FSDomain(SubDomain):
                 for d in dimensions}
 
 
+class SurfaceDomain(SubDomain):
+
+    """
+    The surface row of a model over a surface, below its `rows` mirror rows, of
+    a grid of `size` rows.
+    """
+
+    name = 'surface'
+
+    def __init__(self, rows, size):
+        super().__init__()
+        self.rows = rows
+        self.size = size
+
+    def define(self, dimensions):
+        vertical = dimensions[-1]
+        return {d: (d if d != vertical else ('middle', self.rows,
+                                             self.size - self.rows - 1))
+                for d in dimensions}
+
+
 class GenericModel:
     """
     General model class with common properties
@@ -129,6 +150,8 @@ class GenericModel:
             # The surface is the vertical origin, below the mirror rows
             origin_pml[-1] = dtype(-self._mirror_rows*spacing[-1])
             shape_pml[-1] += self._mirror_rows
+            subdomains = subdomains + (SurfaceDomain(self._mirror_rows,
+                                                     int(shape_pml[-1])),)
 
         # Origin of the computational domain with boundary to inject/interpolate
         # at the correct index
