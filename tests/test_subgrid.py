@@ -484,3 +484,52 @@ class TestInterpolatedFunction:
         op.apply()
         lim = min(int((a.shape[0] - 1)*1.5), int((b.shape[0] - 1)*2.5))
         assert np.allclose(u.data[:lim, :lim], 6., atol=1e-4)
+
+
+class TestMPI:
+
+    """
+    An integer-factor SubGrid works under MPI (see `tests/test_subsampling.py`
+    for that coverage). An *interpolated* one does not yet: the stencil
+    positions follow from global indices, which needs a per-rank index offset
+    that is not plumbed through, so the transfer is refused rather than
+    silently computing the wrong points.
+    """
+
+    @pytest.mark.parallel(mode=[2, 4])
+    @pytest.mark.parametrize('factor', [1.5, 2.5, 0.5])
+    def test_interpolated_transfer_refused(self, mode, factor):
+        grid = Grid(shape=(16, 16), extent=(15., 15.))
+        sub = SubGrid(grid, factor=factor)
+        u = Function(name='u', grid=grid, space_order=2)
+
+        with pytest.raises(NotImplementedError, match='not supported under MPI'):
+            restrict(u, sub)
+
+    @pytest.mark.parallel(mode=[2, 4])
+    def test_interpolated_function_refused(self, mode):
+        grid = Grid(shape=(16, 16), extent=(15., 15.))
+        sub = SubGrid(grid, factor=1.5)
+        vp = Function(name='vp', grid=sub, space_order=0)
+
+        with pytest.raises(NotImplementedError, match='not supported under MPI'):
+            Operator(Eq(Function(name='u', grid=grid), interpolated(vp)))
+
+    @pytest.mark.parallel(mode=[2, 4])
+    def test_integer_factor_still_works(self, mode):
+        """The integer path needs no interpolation, so MPI is unaffected."""
+        n = 24
+        grid = Grid(shape=(n, n))
+        sub = SubGrid(grid, factor=3)
+
+        assert not sub.is_interpolated
+
+        u = Function(name='u', grid=grid)
+        g = Function(name='g', grid=sub, space_order=0)
+        glob = np.arange(n*n, dtype=u.dtype).reshape(n, n)
+        u.data[:] = glob
+
+        Operator(Eq(g, u)).apply()
+
+        expected = glob[::3, ::3][g.local_indices]
+        assert np.array_equal(np.asarray(g.data), expected)

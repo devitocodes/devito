@@ -49,6 +49,21 @@ class SubGridTransfer:
     schemes = {'nearest': 1, 'linear': 2}
 
     def __init__(self, subgrid, scheme='linear'):
+        if subgrid.distributor.is_parallel:
+            # `pos = floor(i*factor)` holds for a *global* index `i`, but each
+            # rank iterates local indices, so the position would have to be
+            # computed globally and shifted back by the parent's per-rank
+            # index offset. That needs a symbolic integer offset which the
+            # Grid does not currently expose (`origin_ioffset` is a host-side
+            # value, and `origin_symbols` are physical floats). Refuse rather
+            # than silently compute the wrong points
+            raise NotImplementedError(
+                "Interpolated SubGrid transfers are not supported under MPI. "
+                "The stencil positions are derived from global indices, which "
+                "requires a per-rank index offset that is not yet plumbed "
+                "through. An integer-factor SubGrid works under MPI, since it "
+                "needs no interpolation"
+            )
         if not subgrid.is_interpolated:
             raise ValueError(
                 f"SubGrid of factor `{tuple(subgrid.factor)}` has its points on "
