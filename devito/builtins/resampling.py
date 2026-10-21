@@ -1,3 +1,5 @@
+from itertools import product
+
 import numpy as np
 
 from devito.mpi import MPI
@@ -16,6 +18,11 @@ def resample(function, cartesian, transpose=False):
     reduces to a 1D interpolation along each column when the lateral nodes of both
     grids coincide, as for a TerrainFollowing map. Nodes above or below the
     Cartesian domain take the value of its nearest node.
+
+    Multilinear interpolation is second-order accurate for a smooth field, and
+    keeps the resampled values within the bounds of the field it reads, as at
+    the sharp interfaces of an earth model, where a higher-order polynomial
+    interpolation would overshoot, e.g. into negative velocities.
 
     Under MPI, each rank holds the whole Cartesian field while resampling.
 
@@ -45,37 +52,43 @@ def resample(function, cartesian, transpose=False):
     grid = function.grid.root
     if not grid.is_Curvilinear:
         raise ValueError(f"{function} is not defined on a CurvilinearGrid")
-    corners = _resampling_weights(grid, cartesian.grid.root)
+    cartesian_grid = cartesian.grid.root
+    axes = _resampling_axes(grid, cartesian_grid)
+    shape = tuple(cartesian.shape_global)
     dtype = np.result_type(function.dtype, cartesian.dtype, np.float64)
 
     if not transpose:
-        values = _global_values(cartesian, dtype)
-        resampled = sum(w*values[index] for index, w in corners)
+        values = _global_values(cartesian, dtype).ravel()
+        resampled = 0
+        for index, weight in _corners(axes, shape):
+            resampled = resampled + weight*values[index]
         if not grid.distributor.loc_empty:
             function.data_local[:] = resampled
         return
 
     values = np.asarray(function.data_local, dtype=dtype)
-    transposed = np.zeros(cartesian.shape_global, dtype=dtype)
-    for index, weight in corners:
-        np.add.at(transposed, index, weight*values)
+    transposed = np.zeros(int(np.prod(shape)), dtype=dtype)
+    for index, weight in _corners(axes, shape):
+        transposed += np.bincount(index.ravel(), weights=(weight*values).ravel(),
+                                  minlength=transposed.size)
+    transposed = transposed.reshape(shape)
     if grid.distributor.is_parallel:
         transposed = grid.comm.allreduce(transposed, op=MPI.SUM)
     cartesian.data[:] = transposed
 
 
-def _resampling_weights(grid, cartesian_grid):
+def _resampling_axes(grid, cartesian_grid):
     """
-    Multilinear interpolation weights from the nodes of `cartesian_grid` to the
-    local nodes of the CurvilinearGrid `grid`, as a list of `(cartesian node
-    indices, weights)` pairs, one per corner of the interpolation cell. Positions
-    are clamped to the Cartesian domain, and snapped to a node within roundoff, so
-    that a node shared by both grids is copied exactly.
+    The cell of `cartesian_grid` holding each local node of the CurvilinearGrid
+    `grid`, along each axis, as a list of `(first node index, fraction)` pairs,
+    the fraction being None along an axis where every node is on a Cartesian
+    node. Positions are clamped to the Cartesian domain, and snapped to a node
+    within roundoff, so that a node shared by both grids is copied exactly.
     """
     if cartesian_grid.dim != grid.dim or cartesian_grid.is_Curvilinear:
         raise ValueError(f"Cannot resample from {cartesian_grid}, which is not a "
                          f"{grid.dim}D Cartesian Grid")
-    positions = []
+    axes = []
     for coordinate, origin, spacing, size in zip(
         grid.coordinates, cartesian_grid.origin, cartesian_grid.spacing,
         cartesian_grid.shape, strict=True
@@ -83,22 +96,29 @@ def _resampling_weights(grid, cartesian_grid):
         values = np.asarray(coordinate.data_local, dtype=np.float64)
         position = (values - np.float64(origin))/np.float64(spacing)
         nearest = np.rint(position)
-        position = np.where(np.abs(position - nearest) < 1e-6, nearest, position)
-        positions.append(np.clip(position, 0, size - 1))
+        position = np.clip(np.where(np.abs(position - nearest) < 1e-6, nearest,
+                                    position), 0, size - 1)
+        first = np.minimum(np.floor(position).astype(np.int64), max(size - 2, 0))
+        fraction = position - first
+        axes.append((first, fraction if np.any(fraction) else None))
+    return axes
 
-    base = [np.minimum(np.floor(p).astype(np.int64), max(size - 2, 0))
-            for p, size in zip(positions, cartesian_grid.shape, strict=True)]
-    fractions = [p - b for p, b in zip(positions, base, strict=True)]
-    corners = []
-    for corner in np.ndindex(*(2,)*grid.dim):
+
+def _corners(axes, shape):
+    """
+    The corners of the multilinear interpolation cells of `axes` (see
+    `_resampling_axes`) in a Cartesian grid of `shape`, one at a time, as
+    `(flat node indices, weights)`. An axis without fraction has one corner.
+    """
+    choices = [(0, 1) if fraction is not None else (0,) for _, fraction in axes]
+    for corner in product(*choices):
         weight = 1
         index = []
-        for c, b, f, size in zip(corner, base, fractions, cartesian_grid.shape,
-                                 strict=True):
-            weight = weight * (f if c else 1 - f)
-            index.append(np.minimum(b + c, size - 1))
-        corners.append((tuple(index), weight))
-    return corners
+        for c, (first, fraction), size in zip(corner, axes, shape, strict=True):
+            if fraction is not None:
+                weight = weight*(fraction if c else 1 - fraction)
+            index.append(np.minimum(first + c, size - 1))
+        yield np.ravel_multi_index(np.broadcast_arrays(*index), shape), weight
 
 
 def _global_values(function, dtype):

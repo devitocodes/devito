@@ -1025,6 +1025,25 @@ class TestResample:
         orders = np.log2(np.array(errors[:-1])/np.array(errors[1:]))
         assert np.all(orders > 1.8), orders
 
+    def test_bounds(self):
+        """
+        Resampling a model with a sharp interface keeps the values within its
+        bounds, with no overshoot at the interface.
+        """
+        grid = sine_grid(41, dtype=np.float64)
+        cartesian_grid = Grid(shape=(41, 57), extent=(1000., 1000.), origin=(0., -100.),
+                              dtype=np.float64)
+        cartesian = Function(name='c', grid=cartesian_grid)
+        _, zs = node_coordinates(cartesian_grid)
+        cartesian.data[:] = np.where(zs < 400., 1.5, 4.5)
+        resampled = Function(name='f', grid=grid)
+        resample(resampled, cartesian)
+        assert resampled.data.min() >= 1.5 and resampled.data.max() <= 4.5
+        # Away from the interface, the model is copied
+        _, z = (c.data for c in grid.coordinates)
+        assert np.all(resampled.data[z < 380.] == 1.5)
+        assert np.all(resampled.data[z > 420.] == 4.5)
+
     def test_flat_is_copy(self):
         """On a flat map over the same nodes, resampling copies the values."""
         shape, extent = (21, 31), (200., 300.)
