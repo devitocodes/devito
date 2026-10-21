@@ -12,7 +12,7 @@ vertical axis as in
 import numpy as np
 import sympy
 
-from devito import CustomDimension, Eq, Function, SubDomain
+from devito import DefaultDimension, Eq, Function, SubDomain
 from devito.finite_differences import generic_derivative
 from devito.finite_differences.differentiable import SafeInv
 from devito.symbolics import indexify, retrieve_indexed
@@ -302,7 +302,7 @@ class _ElasticSBP:
         if key not in self.weights:
             name = f"sbp_{''.join(kinds)}{'p' if vgrid == '+' else 'm'}" \
                    f"{'t' if traction_free else ''}"
-            taps = CustomDimension(f'{name}_k', 0, size - 1, size)
+            taps = DefaultDimension(name=f'{name}_k', default_value=int(size))
             weights = Function(name=name, dimensions=(vertical, taps),
                                shape=(self.grid.shape[-1], size), grid=self.grid,
                                dtype=self.grid.dtype)
