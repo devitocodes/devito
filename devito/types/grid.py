@@ -213,6 +213,13 @@ class Grid(CartesianDiscretization, ArgProvider):
                                             is_const=True)
                                      for d in self.dimensions)
 
+        # Integer index offset of this rank's origin from the global one. Unlike
+        # `origin_symbols`, which are physical floats, these are the whole
+        # numbers of grid points needed to turn a local index into a global one
+        self._ioffset_symbols = tuple(Scalar(name=f'oi_{d.name}', dtype=np.int32,
+                                             is_const=True)
+                                      for d in self.dimensions)
+
         # Sanity check
         assert (self.dim == len(self.origin) == len(self.extent) == len(self.spacing))
 
@@ -261,6 +268,23 @@ class Grid(CartesianDiscretization, ArgProvider):
     def origin_map(self):
         """Map between origin symbols and their values."""
         return dict(zip(self.origin_symbols, self.origin, strict=True))
+
+    @property
+    def ioffset_symbols(self):
+        """
+        Symbols for the integer index offset of the local (per-process) origin
+        from the global one, one per SpaceDimension.
+
+        `local_index + ioffset` is the global index, which is what index
+        arithmetic derived from a global coordinate -- such as subgrid
+        interpolation positions -- has to be expressed in.
+        """
+        return self._ioffset_symbols
+
+    @property
+    def ioffset_map(self):
+        """Map between index-offset symbols and their per-rank values."""
+        return dict(zip(self.ioffset_symbols, self.origin_ioffset, strict=True))
 
     @property
     def origin_ioffset(self):
@@ -379,6 +403,7 @@ class Grid(CartesianDiscretization, ArgProvider):
         ret = []
         ret.append(self.time_dim.spacing.name)
         ret.extend([i.name for i in self.origin_map])
+        ret.extend([i.name for i in self.ioffset_map])
         for i in self.spacing_map:
             try:
                 ret.append(i.name)
@@ -400,6 +425,9 @@ class Grid(CartesianDiscretization, ArgProvider):
 
         # Grid origin
         args.update({k.name: v for k, v in self.origin_map.items()})
+
+        # Index offset of this rank's origin from the global one
+        args.update({k.name: int(v) for k, v in self.ioffset_map.items()})
 
         # MPI-related objects
         if self.distributor.is_parallel:

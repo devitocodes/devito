@@ -46,24 +46,9 @@ class SubGridTransfer:
     """
 
     # Scheme -> stencil radius, i.e. number of parent points used per Dimension
-    schemes = {'nearest': 1, 'linear': 2}
+    schemes = {'nearest': 1, 'linear': 2, 'cubic': 4}
 
     def __init__(self, subgrid, scheme='linear'):
-        if subgrid.distributor.is_parallel:
-            # `pos = floor(i*factor)` holds for a *global* index `i`, but each
-            # rank iterates local indices, so the position would have to be
-            # computed globally and shifted back by the parent's per-rank
-            # index offset. That needs a symbolic integer offset which the
-            # Grid does not currently expose (`origin_ioffset` is a host-side
-            # value, and `origin_symbols` are physical floats). Refuse rather
-            # than silently compute the wrong points
-            raise NotImplementedError(
-                "Interpolated SubGrid transfers are not supported under MPI. "
-                "The stencil positions are derived from global indices, which "
-                "requires a per-rank index offset that is not yet plumbed "
-                "through. An integer-factor SubGrid works under MPI, since it "
-                "needs no interpolation"
-            )
         if not subgrid.is_interpolated:
             raise ValueError(
                 f"SubGrid of factor `{tuple(subgrid.factor)}` has its points on "
@@ -83,6 +68,34 @@ class SubGridTransfer:
         return self.schemes[self.scheme]
 
     @property
+    def offsets(self):
+        """
+        Tap offsets from the base index, along one Dimension. `nearest` and
+        `linear` read forward from it; `cubic` is centred, so it reaches one
+        point back.
+        """
+        lo = -((self.radius - 1)//2) if self.radius > 2 else 0
+        return tuple(range(lo, lo + self.radius))
+
+    def _weight(self, alpha, offset):
+        """The interpolation weight for one tap along one Dimension."""
+        if self.scheme == 'nearest':
+            return sympy.S.One
+        if self.scheme == 'linear':
+            # `1 - alpha` at the lower tap, `alpha` at the upper
+            return alpha if offset else (1 - alpha)
+
+        # Catmull-Rom cubic, taps at offsets -1, 0, 1, 2. Reproduces a linear
+        # field exactly and the weights sum to one
+        a = alpha
+        return {
+            -1: -a**3/2 + a**2 - a/2,
+            0: 3*a**3/2 - 5*a**2/2 + 1,
+            1: -3*a**3/2 + 2*a**2 + a/2,
+            2: a**3/2 - a**2/2,
+        }[offset]
+
+    @property
     def parent(self):
         return self.subgrid.parent
 
@@ -99,17 +112,31 @@ class SubGridTransfer:
         if invert:
             dims = self.parent.dimensions
             factors = [1/f if f != 1 else 1 for f in self.subgrid.factor]
+            # Reading the SubGrid at parent points: shift *into* subgrid-local
+            src, dst = self.parent, self.subgrid
         else:
             dims = self.subgrid.dimensions
             factors = list(self.subgrid.factor)
+            src, dst = self.subgrid, self.parent
+
+        # `pos = floor(i*factor)` holds for a *global* index, but each rank
+        # iterates local ones. Lift the index to global, map it, then drop it
+        # back into the target's local frame. Both offsets are zero without
+        # MPI, so the expressions fold away
+        parallel = src.distributor.is_parallel
+        src_off = src.ioffset_symbols if parallel else None
+        dst_off = dst.ioffset_symbols if parallel else None
 
         retval = []
-        for ds, f in zip(dims, factors, strict=True):
+        for i, (ds, f) in enumerate(zip(dims, factors, strict=True)):
             if f == 1:
                 # Dimension passed through untouched: one index *is* the
                 # other, with no fractional part
-                retval.append((ds, sympy.S.Zero))
+                shift = (src_off[i] - dst_off[i]) if parallel else sympy.S.Zero
+                retval.append((ds + shift, sympy.S.Zero))
                 continue
+
+            idx = ds + src_off[i] if parallel else ds
 
             # `factor` as an exact rational, so the base index is integer
             # arithmetic rather than a `floor` on floats
@@ -117,13 +144,18 @@ class SubGridTransfer:
             num, den = frac.numerator, frac.denominator
 
             if self.scheme == 'nearest':
-                # Snap to the closest parent point: floor(i*f + 1/2)
-                retval.append((IntDiv(2*num*ds + den, 2*den), sympy.S.Zero))
+                # Snap to the closest point: floor(i*f + 1/2)
+                pos = IntDiv(2*num*idx + den, 2*den)
+                alpha = sympy.S.Zero
             else:
-                pos = IntDiv(num*ds, den)
+                pos = IntDiv(num*idx, den)
                 # The fractional part of `i*num/den`, i.e. `(i*num mod den)/den`
-                alpha = sympy.Rational(1, den)*(num*ds - den*pos)
-                retval.append((pos, alpha))
+                alpha = sympy.Rational(1, den)*(num*idx - den*pos)
+
+            if parallel:
+                pos = pos - dst_off[i]
+
+            retval.append((pos, alpha))
 
         return retval
 
@@ -133,13 +165,10 @@ class SubGridTransfer:
         count is a compile-time constant, hence the plain product.
         """
         retval = []
-        for offsets in product(range(self.radius), repeat=len(positions)):
+        for offsets in product(self.offsets, repeat=len(positions)):
             weight = sympy.S.One
             for (_, alpha), o in zip(positions, offsets, strict=True):
-                if self.radius == 1:
-                    continue                       # nearest: unit weight
-                # Linear: `1 - alpha` at the lower tap, `alpha` at the upper
-                weight = weight*(alpha if o else (1 - alpha))
+                weight = weight*self._weight(alpha, o)
 
             indices = tuple(pos + o for (pos, _), o in
                             zip(positions, offsets, strict=True))
@@ -159,14 +188,50 @@ class SubGridTransfer:
         `field`, defined on the SubGrid, interpolated onto the *parent's*
         points -- so that it can be read from within a parent-grid equation.
         """
+        self._check_halo(field)
+
         return self._stencil(field, self._positions(invert=True))
+
+    def _check_halo(self, field):
+        """
+        A stencil wider than one point reaches beyond the base index, so
+        `field` needs enough halo to hold the taps -- otherwise the kernel
+        reads, or for `prolong` *writes*, out of bounds.
+
+        Under MPI the same halo also stands in for points owned by a
+        neighbouring rank. Devito does not derive an exchange for these
+        accesses (they are indexed by the *subgrid* Dimensions, so the
+        exchange is never placed against the surrounding Iteration), so the
+        caller must ensure the halo is valid as well as large enough.
+        """
+        need = max(-min(self.offsets), max(self.offsets))
+        if not need:
+            return
+
+        if any(i.left < need or i.right < need for i in field._size_halo):
+            raise ValueError(
+                f"`{field.name}` needs a halo of at least {need} along every "
+                f"Dimension for a `{self.scheme}` SubGrid transfer (has "
+                f"{tuple(field._size_halo)}): the stencil reaches "
+                f"{min(self.offsets)}..{max(self.offsets)} around each base "
+                f"index. Pass `space_order={need}` or more"
+            )
 
     def restrict(self, field):
         """
         The value of `field`, defined on the parent Grid, interpolated onto the
         SubGrid's points. Returns an expression to be assigned to a SubGrid
         Function.
+
+        Notes
+        -----
+        Under MPI, `field`'s halo must be valid: Devito does not derive a halo
+        exchange for the taps, so an `Operator` that writes `field` and then
+        restricts it in one go will read stale halo data. Restrict in a
+        separate `Operator`, or exchange explicitly.
         """
+        self._check_halo(field)
+
         return self._stencil(field, self._positions())
 
     def prolong(self, field, expr):
@@ -175,6 +240,19 @@ class SubGridTransfer:
         Grid. Returns the `Inc`s performing the accumulation -- the adjoint of
         `restrict`, so one per tap.
         """
+        if self.subgrid.distributor.is_parallel:
+            # A tap may land on a parent point owned by a neighbour, so the
+            # contribution is written into the halo. Summing those back to
+            # their owner is a halo *reduction*, which Devito does not derive
+            # for these accesses -- the result would silently not be the
+            # adjoint of `restrict` (measured 6.5% off on two ranks)
+            raise NotImplementedError(
+                "`prolong` is not supported under MPI. Contributions landing "
+                "in a neighbour's halo would have to be reduced back to their "
+                "owner, which is not yet derived. `restrict` and "
+                "`interpolated` do work under MPI, given a sufficient halo"
+            )
+
         return [Inc(field[i], w*expr)
                 for w, i in self._taps(self._positions())]
 

@@ -175,6 +175,93 @@ class TestNearest:
         assert np.allclose(g.data, -4., atol=1e-6)
 
 
+class TestCubic:
+
+    """
+    Catmull-Rom cubic: 4 centred taps, exact on a linear field and
+    higher-order than linear on a smooth one.
+    """
+
+    def test_offsets_are_centred(self):
+        sub = SubGrid(Grid(shape=(9, 9)), factor=1.5)
+        t = SubGridTransfer(sub, scheme='cubic')
+
+        assert t.radius == 4
+        assert t.offsets == (-1, 0, 1, 2)
+
+    def test_exact_on_linear_field(self):
+        n, fac = 13, 1.5
+        grid = Grid(shape=(n, n), extent=(float(n - 1),)*2)
+        sub = SubGrid(grid, factor=fac)
+
+        u = Function(name='u', grid=grid, space_order=4)
+        g = Function(name='g', grid=sub, space_order=0)
+        u.data[:] = (3.*np.arange(n)[:, None]
+                     + 2.*np.arange(n)[None, :]).astype(u.dtype)
+
+        Operator(Eq(g, restrict(u, sub, scheme='cubic'))).apply()
+
+        ns = sub.shape[0]
+        ref = (3.*(np.arange(ns)[:, None]*fac)
+               + 2.*(np.arange(ns)[None, :]*fac))
+        # Interior only: the stencil reaches -1..2
+        assert np.allclose(g.data[1:-2, 1:-2], ref[1:-2, 1:-2], atol=2e-4)
+
+    def test_exact_on_constant_field(self):
+        """The weights must sum to one."""
+        grid = Grid(shape=(13, 13), extent=(12., 12.))
+        sub = SubGrid(grid, factor=1.5)
+
+        u = Function(name='u', grid=grid, space_order=4)
+        g = Function(name='g', grid=sub, space_order=0)
+        u.data[:] = 2.5
+
+        Operator(Eq(g, restrict(u, sub, scheme='cubic'))).apply()
+
+        assert np.allclose(g.data[1:-2, 1:-2], 2.5, atol=1e-5)
+
+    def test_more_accurate_than_linear(self):
+        """On a smooth non-linear field cubic must win clearly."""
+        n, fac = 33, 1.5
+        errors = {}
+        for scheme, so in (('nearest', 2), ('linear', 2), ('cubic', 4)):
+            grid = Grid(shape=(n, n), extent=(1., 1.))
+            sub = SubGrid(grid, factor=fac)
+            u = Function(name=f'u_{scheme}', grid=grid, space_order=so)
+            g = Function(name=f'g_{scheme}', grid=sub, space_order=0)
+            xx, yy = np.meshgrid(np.linspace(0, 1, n), np.linspace(0, 1, n),
+                                 indexing='ij')
+            u.data[:] = np.sin(3*xx)*np.cos(3*yy)
+
+            Operator(Eq(g, restrict(u, sub, scheme=scheme))).apply()
+
+            ns0, ns1 = sub.shape
+            px = np.arange(ns0)*fac/(n - 1)
+            py = np.arange(ns1)*fac/(n - 1)
+            ref = np.sin(3*px)[:, None]*np.cos(3*py)[None, :]
+            errors[scheme] = np.abs(g.data[2:-3, 2:-3]
+                                    - ref[2:-3, 2:-3]).max()
+
+        assert errors['cubic'] < errors['linear'] < errors['nearest']
+        # cubic should be orders of magnitude better, not marginally
+        assert errors['cubic'] < errors['linear']/100
+
+    @pytest.mark.parametrize('ndim,taps', [(1, 4), (2, 16), (3, 64)])
+    def test_tap_count(self, ndim, taps):
+        n = 13
+        grid = Grid(shape=(n,)*ndim, extent=(float(n - 1),)*ndim)
+        sub = SubGrid(grid, factor=1.5)
+
+        u = Function(name='u', grid=grid, space_order=4)
+        g = Function(name='g', grid=sub, space_order=0)
+
+        op = Operator(Eq(g, restrict(u, sub, scheme='cubic')))
+        expr, = [i.expr for i in FindNodes(Expression).visit(op) if i.write is g]
+
+        assert len([i for i in retrieve_indexed(expr.rhs)
+                    if i.function is u]) == taps
+
+
 class TestAdjoint:
 
     """
@@ -184,13 +271,14 @@ class TestAdjoint:
     """
 
     @pytest.mark.parametrize('factor', [1.5, 0.5, 2.5, (2, 1.5)])
-    @pytest.mark.parametrize('scheme', ['linear', 'nearest'])
+    @pytest.mark.parametrize('scheme', ['linear', 'nearest', 'cubic'])
     def test_dot_test(self, factor, scheme):
         grid = Grid(shape=(9, 9), extent=(8., 8.))
         sub = SubGrid(grid, factor=factor)
 
-        u = Function(name='u', grid=grid)
-        ut = Function(name='ut', grid=grid)
+        # The stencil reaches beyond the base index, so the parent needs halo
+        u = Function(name='u', grid=grid, space_order=2)
+        ut = Function(name='ut', grid=grid, space_order=2)
         g = Function(name='g', grid=sub, space_order=0)
         gt = Function(name='gt', grid=sub, space_order=0)
 
@@ -351,7 +439,7 @@ class TestInterpolatedFunction:
         sub = SubGrid(grid, factor=1.5)
 
         u = Function(name='u', grid=grid)
-        vp = Function(name='vp', grid=sub, space_order=0)
+        vp = Function(name='vp', grid=sub, space_order=2)
 
         op = Operator(Eq(u, interpolated(vp)*u))
 
@@ -368,7 +456,7 @@ class TestInterpolatedFunction:
         sub = SubGrid(grid, factor=1.5)
 
         u = Function(name='u', grid=grid)
-        vp = Function(name='vp', grid=sub, space_order=0)
+        vp = Function(name='vp', grid=sub, space_order=2)
 
         op = Operator(Eq(u, vp*u))
 
@@ -383,7 +471,7 @@ class TestInterpolatedFunction:
         sub = SubGrid(grid, factor=fac)
 
         u = Function(name='u', grid=grid)
-        vp = Function(name='vp', grid=sub, space_order=0)
+        vp = Function(name='vp', grid=sub, space_order=2)
         u.data[:] = 1.
         vp.data[:] = 2.5
 
@@ -400,7 +488,7 @@ class TestInterpolatedFunction:
         ns = sub.shape[0]
 
         u = Function(name='u', grid=grid)
-        vp = Function(name='vp', grid=sub, space_order=0)
+        vp = Function(name='vp', grid=sub, space_order=2)
         vp.data[:] = (3.*np.arange(ns)[:, None]
                       + 2.*np.arange(ns)[None, :]).astype(vp.dtype)
         u.data[:] = 1.
@@ -420,7 +508,7 @@ class TestInterpolatedFunction:
         sub = SubGrid(grid, factor=1.5)
 
         u = Function(name='u', grid=grid)
-        vp = Function(name='vp', grid=sub, space_order=0)
+        vp = Function(name='vp', grid=sub, space_order=2)
 
         op = Operator(Eq(u, interpolated(vp)*u))
         ccode = str(op.ccode)
@@ -439,7 +527,7 @@ class TestInterpolatedFunction:
         sub = SubGrid(grid, factor=1.5)
 
         u = Function(name='u', grid=grid)
-        vp = Function(name='vp', grid=sub, space_order=0)
+        vp = Function(name='vp', grid=sub, space_order=2)
         u.data[:] = 1.
         vp.data[:] = -3.
 
@@ -470,8 +558,8 @@ class TestInterpolatedFunction:
         b = SubGrid(grid, factor=2.5, name='b')
 
         u = Function(name='u', grid=grid)
-        va = Function(name='va', grid=a, space_order=0)
-        vb = Function(name='vb', grid=b, space_order=0)
+        va = Function(name='va', grid=a, space_order=2)
+        vb = Function(name='vb', grid=b, space_order=2)
         u.data[:] = 1.
         va.data[:] = 2.
         vb.data[:] = 3.
@@ -489,47 +577,104 @@ class TestInterpolatedFunction:
 class TestMPI:
 
     """
-    An integer-factor SubGrid works under MPI (see `tests/test_subsampling.py`
-    for that coverage). An *interpolated* one does not yet: the stencil
-    positions follow from global indices, which needs a per-rank index offset
-    that is not plumbed through, so the transfer is refused rather than
-    silently computing the wrong points.
+    Interpolated transfers under domain decomposition. The stencil positions
+    follow from *global* indices, so the mapping lifts the local index by the
+    rank's offset and drops the result back into the target's local frame.
     """
 
     @pytest.mark.parallel(mode=[2, 4])
-    @pytest.mark.parametrize('factor', [1.5, 2.5, 0.5])
-    def test_interpolated_transfer_refused(self, mode, factor):
-        grid = Grid(shape=(16, 16), extent=(15., 15.))
+    @pytest.mark.parametrize('factor', [1.5, 2.5, 0.5, 0.75])
+    def test_restrict_exact_on_linear_field(self, mode, factor):
+        """
+        Linear restriction stays exact across ranks. Without the index-offset
+        lifting every point on a non-zero rank is wrong by a parent row.
+        """
+        n = 16
+        grid = Grid(shape=(n, n), extent=(float(n - 1),)*2)
         sub = SubGrid(grid, factor=factor)
+
         u = Function(name='u', grid=grid, space_order=2)
+        g = Function(name='g', grid=sub, space_order=0)
+
+        glob = (3.*np.arange(n)[:, None]
+                + 2.*np.arange(n)[None, :]).astype(u.dtype)
+        u.data[:] = glob
+
+        Operator(Eq(g, restrict(u, sub))).apply()
+
+        f0, f1 = sub.factor
+        ref = (3.*(np.arange(sub.shape[0])[:, None]*f0)
+               + 2.*(np.arange(sub.shape[1])[None, :]*f1))
+        assert np.allclose(np.asarray(g.data), ref[g.local_indices], atol=2e-4)
+
+    @pytest.mark.parallel(mode=[2, 4])
+    def test_interpolated_exact_on_linear_field(self, mode):
+        """`interpolated()` reads the SubGrid correctly across ranks too."""
+        n, factor = 16, 1.5
+        grid = Grid(shape=(n, n), extent=(float(n - 1),)*2)
+        sub = SubGrid(grid, factor=factor)
+        ns = sub.shape[0]
+
+        u = Function(name='u', grid=grid, space_order=2)
+        vp = Function(name='vp', grid=sub, space_order=2)
+        vp.data[:] = np.full(sub.shape, 2.5, dtype=vp.dtype)
+        u.data[:] = 1.
+
+        Operator(Eq(u, interpolated(vp)*u)).apply()
+
+        # Interior, where the stencil stays within the subgrid
+        lim = int((ns - 1)*factor)
+        gl = u.local_indices
+        ii = np.arange(n)[gl[0]]
+        jj = np.arange(n)[gl[1]]
+        mask = (ii[:, None] < lim) & (jj[None, :] < lim)
+        if mask.any():
+            assert np.allclose(np.asarray(u.data)[mask], 2.5, atol=1e-4)
+
+    @pytest.mark.parallel(mode=[2, 4])
+    @pytest.mark.parametrize('scheme', ['linear', 'nearest'])
+    def test_prolong_refused(self, mode, scheme):
+        """
+        `prolong` scatters into a neighbour's halo, and summing those
+        contributions back to their owner is a halo reduction Devito does not
+        derive here. Without it the result is not the adjoint of `restrict`
+        (6.5% off on two ranks), so it is refused.
+        """
+        grid = Grid(shape=(16, 16), extent=(15., 15.))
+        sub = SubGrid(grid, factor=1.5)
+        ut = Function(name='ut', grid=grid, space_order=2)
+        gt = Function(name='gt', grid=sub, space_order=0)
 
         with pytest.raises(NotImplementedError, match='not supported under MPI'):
+            prolong(ut, gt, sub, scheme=scheme)
+
+    @pytest.mark.parallel(mode=[2, 4])
+    def test_insufficient_halo_rejected(self, mode):
+        """
+        A tap may land on a point owned by a neighbour, so the parent needs a
+        halo. Devito does not derive the exchange for these accesses, so an
+        inadequate halo is refused rather than read as stale data.
+        """
+        grid = Grid(shape=(16, 16), extent=(15., 15.))
+        sub = SubGrid(grid, factor=1.5)
+        u = Function(name='u', grid=grid, space_order=0)
+
+        with pytest.raises(ValueError, match='needs a halo of at least'):
             restrict(u, sub)
 
     @pytest.mark.parallel(mode=[2, 4])
-    def test_interpolated_function_refused(self, mode):
-        grid = Grid(shape=(16, 16), extent=(15., 15.))
-        sub = SubGrid(grid, factor=1.5)
-        vp = Function(name='vp', grid=sub, space_order=0)
-
-        with pytest.raises(NotImplementedError, match='not supported under MPI'):
-            Operator(Eq(Function(name='u', grid=grid), interpolated(vp)))
-
-    @pytest.mark.parallel(mode=[2, 4])
-    def test_integer_factor_still_works(self, mode):
-        """The integer path needs no interpolation, so MPI is unaffected."""
+    def test_integer_factor_needs_no_halo(self, mode):
+        """An integer factor reads a single point, so no halo is required."""
         n = 24
         grid = Grid(shape=(n, n))
         sub = SubGrid(grid, factor=3)
 
-        assert not sub.is_interpolated
-
-        u = Function(name='u', grid=grid)
+        u = Function(name='u', grid=grid, space_order=0)
         g = Function(name='g', grid=sub, space_order=0)
         glob = np.arange(n*n, dtype=u.dtype).reshape(n, n)
         u.data[:] = glob
 
         Operator(Eq(g, u)).apply()
 
-        expected = glob[::3, ::3][g.local_indices]
-        assert np.array_equal(np.asarray(g.data), expected)
+        assert np.array_equal(np.asarray(g.data),
+                              glob[::3, ::3][g.local_indices])
