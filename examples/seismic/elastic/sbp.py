@@ -32,7 +32,7 @@ pairing them conserves energy up to the boundary terms.
 
 import numpy as np
 
-__all__ = ['sbp_interior', 'sbp_matrix', 'sbp_norm']
+__all__ = ['sbp_closure_rows', 'sbp_interior', 'sbp_matrix', 'sbp_norm']
 
 # Interior stencils, from the `-` grid to the `+` grid and the other way: the
 # offsets of the points read from the point computed, in the indices of each grid
@@ -99,6 +99,11 @@ def sbp_interior(kind):
     """
     weights, offsets = _INTERIOR[kind]
     return tuple(float(w) for w in weights), tuple(int(o) for o in offsets)
+
+
+def sbp_closure_rows():
+    """The number of boundary rows of the operators, before their interior stencils."""
+    return max(len(closure) for closure in _CLOSURES.values())
 
 
 def sbp_norm(grid, size):
