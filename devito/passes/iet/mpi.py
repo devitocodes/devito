@@ -476,15 +476,15 @@ def _make_cond_mapper(iet):
 def _is_written_before(it, hs, f):
     """
     True if the Function `f` is written within the Iteration `it` before the
-    HaloSpot `hs`, False otherwise.
+    HaloSpot `hs`, directly or through a Function holding it as a component,
+    from the Scope of the expressions in between; False otherwise.
     """
-    inner = FindNodes(Expression).visit(hs)
-    for e in FindNodes(Expression).visit(it):
-        if inner and e is inner[0]:
-            return False
-        if e.write is f:
-            return True
-    return False
+    # Up to the HaloSpot, which the visitor enters before it stops
+    inner = set(FindNodes(Expression).visit(hs))
+    expressions = [e for e in FindWithin(Expression, it, stop=hs).visit(it)
+                   if e not in inner]
+    scope = Scope(e.expr for e in expressions)
+    return any(w is f or f in getattr(w, 'components', ()) for w in scope.writes)
 
 
 def _derive_scope(it, hs0, hs1):
