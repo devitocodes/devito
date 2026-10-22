@@ -14,15 +14,16 @@ from devito.ir.support import SymbolRegistry
 from devito.mpi.distributed import MPINeighborhood
 from devito.mpi.routines import Gather, HaloUpdate, HaloWait, MPIMsg, Scatter
 from devito.passes import needs_transfer
-from devito.symbolics import FieldFromComposite, FieldFromPointer, IndexedPointer, search
+from devito.symbolics import (FieldFromComposite, FieldFromPointer, IndexedPointer,
+                              search, uxreplace)
 from devito.tools import (
     DAG, as_hashable, as_tuple, filter_ordered, memoized_func, natural_sort_key,
     sorted_priority, timed_pass
 )
 from devito.types import (
     Array, Auto, Bundle, ComponentAccess, CompositeObject, FunctionMap, IncrDimension,
-    Indirection, ModuloDimension, NPThreads, NThreadsBase, Pointer, SharedData, Symbol,
-    Temp, ThreadArray, Wildcard
+    IndexedData, Indirection, ModuloDimension, NPThreads, NThreadsBase, Pointer,
+    SharedData, Symbol, Temp, ThreadArray, Wildcard
 )
 from devito.types.args import ArgProvider
 from devito.types.dense import DiscreteFunction
@@ -134,6 +135,10 @@ class Graph(Byproduct):
 
         Callable parameters and Call arguments are reconciled before the graph
         walk, after each changed node, and after the pass has completed.
+
+        The returned metadata may include `args`, a mapping from new parameters
+        to expressions in the original parameters. Each call site instantiates
+        these expressions using its own argument bindings.
         """
         _update_args(self)
 
@@ -166,7 +171,7 @@ class Graph(Byproduct):
             efuncs[i] = efunc
             efuncs.update(dict([(i.name, i) for i in new_efuncs]))
 
-            efuncs = _update_args_efunc(efunc, efuncs, dag)
+            efuncs = _update_args_efunc(efunc, efuncs, dag, metadata.get('args'))
 
         # Minimize code size
         if len(efuncs) > len(self.efuncs):
@@ -725,7 +730,7 @@ def _(i, mapper, sregistry):
     mapper[i] = i._rebuild(name=sregistry.make_name(prefix='nthreads'))
 
 
-def _update_args_efunc(root, efuncs, dag):
+def _update_args_efunc(root, efuncs, dag, args=None):
     """
     Re-derive the parameters of `root` and apply the changes in cascade through
     the `efuncs`.
@@ -777,7 +782,8 @@ def _update_args_efunc(root, efuncs, dag):
     # 4) removed a function that was previously necessary
     functions = FindSymbols('symbolics').visit(root.body)
     drop_params.extend(a for a in root.parameters
-                       if a.is_AbstractFunction and a not in functions)
+                       if (a.is_AbstractFunction or isinstance(a, IndexedData))
+                       and a.function not in functions)
 
     # Must record the index, not the param itself, since a param may be
     # bound to whatever arg, possibly a generic SymPy expr
@@ -810,9 +816,16 @@ def _update_args_efunc(root, efuncs, dag):
     efuncs = dict(efuncs)
     efuncs[root.name] = root._rebuild(parameters=_filter(root.parameters, root))
 
+    def _filter_call(values):
+        mapper = {}
+        if args:
+            bindings = dict(zip(root.parameters, values, strict=True))
+            mapper = {p: uxreplace(expr, bindings) for p, expr in args.items()}
+        return [mapper.get(a, a) for a in _filter(values)]
+
     # Update all call sites to use the new signature
     for n in dag.downstream(root.name):
-        mapper = {c: c._rebuild(arguments=_filter(c.arguments))
+        mapper = {c: c.rebuild_args(_filter_call)
                   for c in FindNodes(Call).visit(efuncs[n])
                   if c.name == root.name}
         if not mapper:
