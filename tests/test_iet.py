@@ -559,6 +559,16 @@ def test_codegen_quality0():
     assert foo1.parameters[0] is a
 
 
+def test_const_pointer_parameter():
+    class ConstPointer(Symbol):
+        _C_modifier = ' const'
+
+    p = ConstPointer(name='p', dtype=POINTER(dtype_to_ctype(np.float32)))
+    foo = Callable('foo', Call('external', (p,)), 'void', parameters=(p,))
+
+    assert 'void foo(float * const p)' in str(foo)
+
+
 def test_graph_parameter_bindings():
     x, y, a, b, p = [Symbol(name=n) for n in ('x', 'y', 'a', 'b', 'p')]
     inner = Callable('inner', Call('external', (x, y)), 'void', parameters=(x, y))

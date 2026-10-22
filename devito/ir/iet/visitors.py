@@ -342,7 +342,7 @@ class CGen(Visitor):
                 strtype = f'{strtype}{self._restrict_keyword}'
         strtype = ' '.join(qualifiers + [strtype])
 
-        if obj.is_LocalObject and obj._C_modifier is not None and mode == 2:
+        if obj._C_modifier is not None and mode == 2:
             strtype += obj._C_modifier
 
         strname = obj._C_name
