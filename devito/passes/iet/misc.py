@@ -347,10 +347,11 @@ def _(iet):
 def _(iet):
     # SubDimensions in the main loop nests
     mapper = {}
-    mds = {}
+
+    trees = retrieve_iteration_tree(iet)
     # Build a mapper replacing SubDimension names with respective root dimension
     # names where possible
-    for tree in retrieve_iteration_tree(iet):
+    for tree in trees:
         # Rename SubDimensions present as indices in innermost loop
         mapper.update(_rename_subdims(tree.inner, tree.dimensions))
 
@@ -359,16 +360,12 @@ def _(iet):
         dims = [d for d in dims if d.is_Incr and d.parent in mapper]
         mapper.update({d: d._rebuild(parent=mapper[d.parent]) for d in dims})
 
-        # Update parents of CIRE-generated ModuloDimensions. Search once per
-        # outermost Iteration, as each tree would otherwise rescan the outer loops
-        try:
-            candidates = mds[tree.root]
-        except KeyError:
-            candidates = mds[tree.root] = [
-                d for d in FindSymbols('dimensions').visit(tree.root) if d.is_Modulo
-            ]
-        dims = [d for d in candidates if d.parent in mapper]
-        mapper.update({d: d._rebuild(parent=mapper[d.parent]) for d in dims})
+    # Update parents of CIRE-generated ModuloDimensions
+    roots = {tree.root for tree in trees}
+    mds = {d for root in roots for d in FindSymbols('dimensions').visit(root)
+           if d.is_Modulo}
+    mapper.update({d: d._rebuild(parent=mapper[d.parent])
+                   for d in mds if d.parent in mapper})
 
     return Uxreplace(mapper, nested=True).visit(iet)
 
