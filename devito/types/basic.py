@@ -58,6 +58,12 @@ class CodeSymbol:
     for a given architecture.
     """
 
+    _C_modifier = None
+    """
+    A suffix added to the type in a function signature. E.g., `&` for a
+    reference parameter, or ` const` for a constant pointer.
+    """
+
     @abc.abstractmethod
     def __init__(self, *args, **kwargs):
         return
@@ -2056,13 +2062,6 @@ class LocalType(Basic):
     @property
     def _mem_internal_lazy(self):
         return self._liveness == 'lazy'
-
-    """
-    A modifier added to the declaration of the LocalType when it appears in a
-    function signature. For example, a subclass might define `_C_modifier = '&'`
-    to impose pass-by-reference semantics.
-    """
-    _C_modifier = None
 
     """
     One or more optional keywords added to the declaration of the LocalType

@@ -152,6 +152,8 @@ class DeviceOperatorMixin:
             options = options or {}
 
             if mode == 'host':
+                options = {'split-modulo-buffers': options0['split-modulo-buffers'],
+                           **options}
                 target = {
                     'platform': 'cpu64',
                     'language': 'C' if options0['par-disabled'] else 'openmp',
