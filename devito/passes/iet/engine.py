@@ -14,8 +14,9 @@ from devito.ir.support import SymbolRegistry
 from devito.mpi.distributed import MPINeighborhood
 from devito.mpi.routines import Gather, HaloUpdate, HaloWait, MPIMsg, Scatter
 from devito.passes import needs_transfer
-from devito.symbolics import (FieldFromComposite, FieldFromPointer, IndexedPointer,
-                              search, uxreplace)
+from devito.symbolics import (
+    FieldFromComposite, FieldFromPointer, IndexedPointer, search, uxreplace
+)
 from devito.tools import (
     DAG, as_hashable, as_tuple, filter_ordered, memoized_func, natural_sort_key,
     sorted_priority, timed_pass
