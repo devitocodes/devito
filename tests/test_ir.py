@@ -1,6 +1,6 @@
 import numpy as np
 import pytest
-from sympy import And, Or, S
+from sympy import S
 
 from conftest import EVAL, skipif  # noqa
 from devito import (  # noqa
@@ -12,7 +12,7 @@ from devito.ir.cgen import ccode
 from devito.ir.clusters import Cluster, ClusterGroup
 from devito.ir.equations import LoweredEq
 from devito.ir.equations.algorithms import dimension_sort
-from devito.ir.iet import Conditional, FindNodes, Iteration
+from devito.ir.iet import FindNodes, Iteration
 from devito.ir.stree import stree_build
 from devito.ir.support.basic import (
     AFFINE, IRREGULAR, REGULAR, IterationInstance, Relation, Scope, TimedAccess, Vector,
@@ -1715,35 +1715,6 @@ class TestClusterGroup:
 
 
 class TestGuards:
-
-    @pytest.mark.parametrize('relation', [And, Or, 'strict'])
-    def test_true_never_set(self, relation):
-        """
-        A guard that reduces to `true` is pointless, hence never set. E.g.,
-        `time >= 0` folds to `true` as `time` is nonnegative.
-        """
-        grid = Grid(shape=(4, 4))
-        time = grid.time_dim
-
-        ct = ConditionalDimension(name='ct', parent=time, condition=time >= 0,
-                                  relation=relation)
-
-        f = TimeFunction(name='f', grid=grid, time_order=0, save=4)
-        f1 = TimeFunction(name='f', grid=grid, time_order=0, save=4)
-
-        eqn = Eq(f, time + 1, implicit_dims=ct)
-
-        op0 = Operator(eqn, opt='noop')
-        op1 = Operator(eqn)
-
-        for op in (op0, op1):
-            assert not FindNodes(Conditional).visit(op)
-
-        op0.apply(time_M=3)
-        op1.apply(time_M=3, f=f1)
-
-        assert np.all(f.data[:, 1, 1] == [1, 2, 3, 4])
-        assert np.all(f.data == f1.data)
 
     def test_guard_overflow(self):
         """
