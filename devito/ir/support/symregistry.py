@@ -1,4 +1,5 @@
-from devito.tools import generator
+from devito.symbolics import retrieve_functions
+from devito.tools import as_tuple, generator
 from devito.types import (
     DeviceID, NPThreads, NThreads, NThreadsNested, NThreadsNonaffine, ThreadID
 )
@@ -31,6 +32,14 @@ class SymbolRegistry:
         # A local cache is used to track symbols across different compiler
         # passes, to maximize symbol (especially Dimension) reuse
         self.caches = {}
+
+    def reserve(self, exprs):
+        """Reserve identifiers already used by the input expressions."""
+        exprs = as_tuple(exprs)
+        self.reserved.update(i.name for e in exprs for i in e.free_symbols)
+
+        # Before indexification, a Function's free symbols omit its own name
+        self.reserved.update(i.name for i in retrieve_functions(exprs))
 
     def make_name(self, prefix=None, increment_first=True):
         # By default we're creating a new symbol

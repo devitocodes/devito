@@ -36,9 +36,7 @@ from devito.passes import (
     lower_dtypes, lower_index_derivatives, lower_local_sums, minimize_symbols,
     optimize_pows, unevaluate
 )
-from devito.symbolics import (
-    estimate_cost, retrieve_functions, retrieve_symbols, subs_op_args
-)
+from devito.symbolics import estimate_cost, subs_op_args
 from devito.tools import (
     DAG, CacheInstances, MemoryEstimate, OrderedSet, ReducerMap, Signer, as_mapper,
     as_tuple, contains_val, filter_sorted, flatten, frozendict, is_integer, memoized_func,
@@ -295,10 +293,7 @@ class Operator(Callable):
 
         expressions = as_tuple(expressions)
 
-        # Protect application identifiers before compiler temporaries are introduced
-        sregistry = kwargs['sregistry']
-        sregistry.reserved.update(i.name for i in retrieve_functions(expressions))
-        sregistry.reserved.update(i.name for i in retrieve_symbols(expressions))
+        kwargs['sregistry'].reserve(expressions)
 
         # Enable recursive lowering
         # This may be used by a compilation pass that constructs a new
