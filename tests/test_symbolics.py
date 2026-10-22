@@ -339,6 +339,27 @@ def test_extended_sympy_arithmetic():
     assert ccode(-1 + bar) == '-1 + o->bar'
 
 
+@pytest.mark.parametrize('cls, separator', [(UnevalAdd, ' + '), (UnevalMul, '*')])
+def test_lowered_arithmetic_printing(cls, separator):
+    a, b, c = [dSymbol(i, dtype=np.float32) for i in ('a', 'b', 'c')]
+
+    # Lowered operands carry an order that must survive identifier changes
+    assert ccode(cls(c, a, b)) == separator.join(('c', 'a', 'b'))
+    renamed = uxreplace(cls(c, a, b), {c: a, a: c})
+    assert ccode(renamed) == separator.join(('a', 'c', 'b'))
+
+    # Ordinary index arithmetic retains its usual printing inside lowered math
+    grid = Grid(shape=(8,))
+    x, = grid.dimensions
+    f = Function(name='f', grid=grid)
+    assert ccode(cls(c, f.indexed[x + 1], a)) == \
+        separator.join(('c', 'f[x + 1]', 'a'))
+    assert ccode(x + 1) == 'x + 1'
+
+    # Each nested lowered operation retains its own operands and precedence
+    assert ccode(UnevalMul(b, UnevalAdd(c, a))) == 'b*(c + a)'
+
+
 def test_integer_abs():
     i1 = Dimension(name="i1")
     assert ccode(Abs(i1 - 1)) == "abs(i1 - 1)"

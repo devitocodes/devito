@@ -19,6 +19,7 @@ from devito.arch.compiler import AOMPCompiler
 from devito.symbolics.extended_sympy import BitwiseAnd
 from devito.symbolics.inspection import has_integer_args, sympy_dtype
 from devito.symbolics.queries import q_leaf
+from devito.symbolics.unevaluation import UnevaluableMixin
 from devito.tools import (
     ctypes_to_cstr, ctypes_vector_mapper, dtype_to_ctype, memoized_func
 )
@@ -58,6 +59,21 @@ class BasePrinter(CodePrinter):
     _includes = []
     _namespaces = []
     _headers = [('_POSIX_C_SOURCE', '200809L')]
+
+    def __init__(self, settings=None):
+        super().__init__(settings)
+        self._order = self.order
+
+    def _print(self, expr, **kwargs):
+        # Lowered arithmetic already owns its operand order. Reset the setting
+        # for each child so ordinary index expressions keep their usual form.
+        order = self._settings['order']
+        self._settings['order'] = ('none' if isinstance(expr, UnevaluableMixin)
+                                   else self._order)
+        try:
+            return super()._print(expr, **kwargs)
+        finally:
+            self._settings['order'] = order
 
     @property
     def dtype(self):
