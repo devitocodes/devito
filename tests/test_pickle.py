@@ -9,7 +9,7 @@ from sympy import Symbol
 from devito import (
     MPI, ConditionalDimension, Constant, Dimension, Eq, Function, Grid, IncrDimension,
     Min, Operator, PrecomputedSparseTimeFunction, SparseFunction, SteppingDimension,
-    SubDimension, SubDomain, TimeDimension, TimeFunction, floor, solve
+    SubDimension, SubDomain, TimeDimension, TimeFunction, ceiling, floor, solve
 )
 from devito.data import LEFT, OWNED
 from devito.finite_differences.tools import centered, direct, left, right, transpose
@@ -905,14 +905,15 @@ class TestOperator:
 
         assert str(op) == str(new_op)
 
-    def test_elemental(self, pickle):
+    @pytest.mark.parametrize('func', [ceiling, floor])
+    def test_elemental(self, pickle, func):
         """
         Tests that elementary functions don't get reconstructed differently.
         """
         grid = Grid(shape=(4, 4))
         f = Function(name='f', grid=grid)
 
-        op = Operator(Eq(f, floor(f + 0.5)))
+        op = Operator(Eq(f, func(f + 0.5)))
 
         pkl_op = pickle.dumps(op)
         new_op = pickle.loads(pkl_op)

@@ -3,7 +3,7 @@ from collections.abc import Iterable
 from functools import singledispatch
 
 import numpy as np
-from sympy import Add, Max, Min, Mul, Pow, S, SympifyError, Tuple, sympify
+from sympy import Add, Max, Min, Mul, Pow, S, SympifyError, Tuple, ceiling, floor, sympify
 from sympy.core import Basic as SympyBasic
 from sympy.core.add import _addsort
 from sympy.core.mul import _mulsort
@@ -21,6 +21,8 @@ from devito.symbolics.unevaluation import Add as UnevalAdd
 from devito.symbolics.unevaluation import Mul as UnevalMul
 from devito.symbolics.unevaluation import Pow as UnevalPow
 from devito.symbolics.unevaluation import UnevaluableMixin
+from devito.symbolics.unevaluation import ceiling as UnevalCeil
+from devito.symbolics.unevaluation import floor as UnevalFloor
 from devito.tools import (
     EnrichedTuple, as_list, as_tuple, flatten, frozendict, split, transitive_closure
 )
@@ -615,7 +617,10 @@ def evalrel(func=min, input=None, assumptions=None):
     return rfunc(func, *input)
 
 
-uneval_mapper = {Add: UnevalAdd, Mul: UnevalMul, Pow: UnevalPow}
+# Rounding functions also need freezing: reconstruction otherwise reevaluates
+# their lowered arguments, including during Operator unpickling.
+uneval_mapper = {Add: UnevalAdd, Mul: UnevalMul, Pow: UnevalPow,
+                 ceiling: UnevalCeil, floor: UnevalFloor}
 
 
 def unevaluate(expr):
