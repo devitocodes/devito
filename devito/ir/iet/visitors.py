@@ -23,7 +23,7 @@ from devito.ir.iet.nodes import (
 )
 from devito.ir.support.space import Backward
 from devito.symbolics import (
-    FieldFromComposite, FieldFromPointer, ListInitializer, uxreplace
+    FieldFromComposite, FieldFromPointer, IndexedPointer, ListInitializer, uxreplace
 )
 from devito.symbolics.extended_dtypes import NoDeclStruct
 from devito.tools import (
@@ -615,7 +615,7 @@ class CGen(Visitor):
             call = MultilineCall(o.name, arguments, True, o.is_indirect, cast,
                                  o.templates)
             if retobj.is_Indexed or \
-               isinstance(retobj, (FieldFromComposite, FieldFromPointer)):
+               isinstance(retobj, (FieldFromComposite, FieldFromPointer, IndexedPointer)):
                 return c.Assign(self.ccode(retobj), call)
             else:
                 return c.Initializer(c.Value(rettype, retobj._C_name), call)

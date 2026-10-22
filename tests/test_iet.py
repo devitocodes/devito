@@ -19,8 +19,8 @@ from devito.ir.iet.visitors import sorted_efuncs
 from devito.passes.iet.engine import Graph, reuse_efuncs
 from devito.passes.iet.languages.C import CDataManager
 from devito.symbolics import (
-    FLOAT, Byref, Class, FieldFromComposite, InlineIf, ListInitializer, Macro, SizeOf,
-    String
+    FLOAT, Byref, Class, FieldFromComposite, IndexedPointer, InlineIf, ListInitializer,
+    Macro, SizeOf, String
 )
 from devito.symbolics.extended_dtypes import c_complex
 from devito.tools import CustomDtype, as_tuple, dtype_to_ctype
@@ -444,17 +444,20 @@ void foo(struct dataobj *restrict u_vec, float *restrict u)
 }"""
 
 
-def test_call_retobj_indexed():
+@pytest.mark.parametrize('pointer', [False, True])
+def test_call_retobj_indexed(pointer):
     grid = Grid(shape=(10, 10))
 
     u = Function(name='u', grid=grid)
     v = Function(name='v', grid=grid)
 
-    call = Call('foo', [u], retobj=v.indexify())
+    retobj = IndexedPointer(v.indexed, grid.dimensions) if pointer else v.indexify()
+    call = Call('foo', [u], retobj=retobj)
 
     assert str(call) == "v[x][y] = foo(u_vec);"
 
     assert not call.defines
+    assert set(grid.dimensions).issubset(call.expr_symbols)
 
 
 def test_call_lambda_transform():
@@ -554,6 +557,27 @@ def test_codegen_quality0():
     assert len(foo.parameters) == 3
     assert len(foo1.parameters) == 1
     assert foo1.parameters[0] is a
+
+
+def test_graph_parameter_bindings():
+    x, y, a, b, p = [Symbol(name=n) for n in ('x', 'y', 'a', 'b', 'p')]
+    inner = Callable('inner', Call('external', (x, y)), 'void', parameters=(x, y))
+    root = make_callable('root', [Call('inner', (a + 1, b)),
+                                  Call('inner', (b, a + 2))])
+    graph = Graph(root)
+    graph.apply(lambda iet: (iet, {'efuncs': [inner]}))
+
+    def transform(iet):
+        if iet.name != 'inner':
+            return iet, {}
+        return iet._rebuild(body=Call('external', (p,))), {'args': {p: x + y}}
+
+    graph.apply(transform)
+
+    assert graph.efuncs['inner'].parameters == (p,)
+    assert [c.arguments for c in FindNodes(Call).visit(graph.root)] == [
+        (a + b + 1,), (a + b + 2,)
+    ]
 
 
 @pytest.mark.parametrize('copy_symbols', [False, True])
