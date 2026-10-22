@@ -3,11 +3,14 @@ import pytest
 
 from conftest import assert_blocking, opts_device_tiling, skipif
 from devito import (
-    Eq, Function, Grid, Max, Operator, SparseTimeFunction, TimeFunction, norm, solve
+    ConditionalDimension, Eq, Function, Grid, Max, Operator, SparseTimeFunction,
+    TimeFunction, norm, solve, switchconfig
 )
 from devito.data import LEFT
 from devito.exceptions import InvalidOperator
-from devito.ir.iet import FindNodes, Iteration, retrieve_iteration_tree
+from devito.ir.iet import (
+    BusyWaitCall, FindNodes, Iteration, MapNodes, TimedList, retrieve_iteration_tree
+)
 from examples.seismic import Receiver, RickerSource, TimeAxis
 
 pytestmark = skipif(['nodevice'], whole_module=True)
@@ -226,6 +229,36 @@ class TestCodeGeneration:
 
         assert '<algorithm>' in str(op)
 
+    @pytest.mark.parametrize('profiling', ['advanced1', 'advanced2'])
+    @pytest.mark.parametrize('npthreads', [None, 1])
+    def test_wait_timing(self, profiling, npthreads):
+        grid = Grid(shape=(4, 4))
+        u = TimeFunction(name='u', grid=grid)
+        ts = ConditionalDimension(name='ts', parent=grid.time_dim, factor=2)
+        usave = TimeFunction(name='usave', grid=grid, save=3, time_dim=ts)
+
+        with switchconfig(profiling=profiling):
+            op = Operator([Eq(u.forward, u + 1), Eq(usave, u)],
+                          platform='nvidiaX', language='openacc',
+                          opt=('buffering', 'tasking', 'orchestrate',
+                               {'npthreads': npthreads}))
+
+        timed_calls = MapNodes(TimedList, BusyWaitCall, mode='immediate').visit(op)
+        waits = {c.name: timer for timer, calls in timed_calls.items() for c in calls}
+        assert set(waits) == {'wait_lock0', 'release_lock0', 'activate0', 'shutdown0'}
+        assert all(t is not None and t.name.startswith('busywait')
+                   for t in waits.values())
+
+        # Waits outside a compute section must have their own top-level timer.
+        standalone = {name for name, timer in waits.items()
+                      if timer.name in op._profiler._sections}
+        expected = {'shutdown0', 'activate0'} if npthreads else {'shutdown0'}
+        assert standalone == expected
+
+        # Time the call sites; helper and worker bodies must stay uninstrumented.
+        for name in [*waits, 'copy_to_host0']:
+            assert not FindNodes(TimedList).visit(op._func_table[name].root)
+
 
 class TestOperator:
 
@@ -298,6 +331,50 @@ class TestOperator:
     ])
     def test_iso_acoustic(self, opt):
         TestOperator().iso_acoustic(opt)
+
+    @pytest.mark.parametrize('profiling', ['advanced1', 'advanced2'])
+    def test_wait_timing(self, profiling):
+        grid = Grid(shape=(4, 4))
+        u = TimeFunction(name='u', grid=grid)
+        ts = ConditionalDimension(name='ts', parent=grid.time_dim, factor=2)
+        usave = TimeFunction(name='usave', grid=grid, save=3, time_dim=ts)
+
+        with switchconfig(profiling=profiling):
+            op = Operator([Eq(u.forward, u + 1), Eq(usave, u)],
+                          platform='nvidiaX', language='openacc',
+                          opt=('buffering', 'tasking', 'orchestrate'))
+
+        # Propagate, then run an empty loop to check timer reset.
+        for time_m, time_M in [(0, 4), (1, 0)]:
+            summary = op.apply(time_m=time_m, time_M=time_M)
+
+            assert np.all(u.data == np.array([4, 5])[:, None, None])
+            assert np.all(usave.data == np.array([0, 2, 4])[:, None, None])
+
+            # Only shutdown is a top-level wait; nested waits are included already.
+            reported_waits = [k for k in summary if k.name.startswith('busywait')]
+            assert len(reported_waits) == 1
+            assert summary.globals_nosetup_all.time == pytest.approx(
+                sum(v.time for v in summary.values())
+            )
+
+    @pytest.mark.parametrize('shape', [(20, 20), (8, 8, 8)])
+    def test_streaming_tiled(self, shape):
+        """An atomic wait must not leave part of a tiled snapshot unread."""
+        nt = 5
+        grid = Grid(shape=shape)
+        usave = TimeFunction(name='usave', grid=grid, save=nt)
+        u = TimeFunction(name='u', grid=grid, save=nt)
+
+        for i in range(nt):
+            usave.data[i] = i + 1
+
+        op = Operator(Eq(u, usave), platform='nvidiaX', language='openacc',
+                      opt=('buffering', 'streaming', 'orchestrate',
+                           {'gpu-fit': u, 'par-tile': True, 'linearize': True}))
+        op.apply(time_M=nt-1)
+
+        assert np.array_equal(u.data, usave.data)
 
 
 class TestMPI:

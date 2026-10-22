@@ -5,13 +5,16 @@ from functools import singledispatch
 import cgen as c
 
 from devito.ir import (
-    AsyncCall, AsyncCallable, BlankLine, Call, Callable, Conditional, DummyEq, DummyExpr,
-    EntryFunction, FindNodes, FindSymbols, Increment, Iteration, List, PointerCast,
-    Return, ThreadCallable, ThreadFence, Transformer, While, make_callable, maybe_alias
+    AsyncCall, AsyncCallable, BlankLine, BusyWait, BusyWaitCall, Call, Callable,
+    Conditional, DummyEq, DummyExpr, EntryFunction, FindNodes, FindSymbols, Increment,
+    Iteration, List, PointerCast, Return, ThreadCallable, Transformer, While,
+    make_callable, maybe_alias
 )
 from devito.passes.iet.definitions import DataManager
 from devito.passes.iet.engine import iet_pass
-from devito.symbolics import CondEq, CondNe, FieldFromComposite, FieldFromPointer, Null
+from devito.symbolics import (
+    CondEq, CondNe, FieldFromComposite, FieldFromPointer, Null, atomic_load, atomic_store
+)
 from devito.tools import split
 from devito.types import (
     Lock, Pointer, PThreadArray, QueueID, SharedData, Temp, VolatileInt
@@ -69,13 +72,15 @@ def _lower_async_objs(iet, tracker=None, sregistry=None, **kwargs):
 
         if sdata.size == 1:
             d = sdata.index
-            condition = CondNe(FieldFromComposite(sdata.symbolic_flag, sdata[d]), 1)
-            activation = [While(condition)]
+            flag = FieldFromComposite(sdata.symbolic_flag, sdata[d])
+            condition = CondNe(atomic_load(flag), 1)
+            activation = [BusyWait(condition)]
         else:
             d = Temp(name=sregistry.make_name(prefix=sdata.index.name))
-            condition = CondNe(FieldFromComposite(sdata.symbolic_flag, sdata[d]), 1)
+            flag = FieldFromComposite(sdata.symbolic_flag, sdata[d])
+            condition = CondNe(atomic_load(flag), 1)
             activation = [DummyExpr(d, 0),
-                          While(condition, DummyExpr(d, (d + 1) % sdata.size))]
+                          BusyWait(condition, DummyExpr(d, (d + 1) % sdata.size))]
         arguments = []
         for i in sdata.ncfields:
             for a in n.arguments:
@@ -87,18 +92,13 @@ def _lower_async_objs(iet, tracker=None, sregistry=None, **kwargs):
         activation.extend([DummyExpr(FieldFromComposite(i.base, sdata[d]), i)
                            for i in arguments])
 
-        # Publishing the request must happen last. Everything the thread depends on
-        # must be visible before this flag is set. `volatile` does not provide that
-        # ordering, so weakly ordered targets could otherwise observe stale state.
-        activation.append(ThreadFence('release'))
-        activation.append(
-            DummyExpr(FieldFromComposite(sdata.symbolic_flag, sdata[d]), 2)
-        )
+        # The request is published last, so the thread sees everything set above
+        activation.append(Call(*atomic_store(flag, 2).args))
         name = sregistry.make_name(prefix='activate')
         efunc = make_callable(name, activation)
 
         efuncs.append(efunc)
-        subs[n] = Call(name, efunc.parameters)
+        subs[n] = BusyWaitCall(name, efunc.parameters)
 
     iet = Transformer(subs).visit(iet)
 
@@ -133,6 +133,7 @@ def _(iet, key=None, tracker=None, sregistry=None, **kwargs):
         pname=sregistry.make_name(prefix='tsdata')
     )
     sbase = sdata.indexed
+    flag = FieldFromPointer(sdata.symbolic_flag, sbase)
 
     # PThreadArray -- that is he pthreads that will execute the AsyncCallable
     # asynchronously
@@ -143,31 +144,25 @@ def _(iet, key=None, tracker=None, sregistry=None, **kwargs):
     tbase = threads.indexed
 
     # Prepend the SharedData fields available upon thread activation
-    preactions = [ThreadFence('acquire')]
-    preactions.extend(DummyExpr(i, FieldFromPointer(i.base, sbase))
-                      for i in ncfields)
+    preactions = [DummyExpr(i, FieldFromPointer(i.base, sbase)) for i in ncfields]
     preactions.append(BlankLine)
 
     # Append the flag reset
     postactions = [List(body=[
         BlankLine,
         # Whatever the task produced -- data in a buffer, a lock handed back --
-        # has to be visible before the flag says it is done.
-        ThreadFence('release'),
-        DummyExpr(FieldFromPointer(sdata.symbolic_flag, sbase), 1)
+        # has to be visible before the flag says it is done
+        Call(*atomic_store(flag, 1).args)
     ])]
 
     wrap = List(body=preactions + list(iet.body.body) + postactions)
 
     # The thread has work to do when it receives the signal that all locks have
     # been set to 0 by the main thread
-    wrap = Conditional(
-        CondEq(FieldFromPointer(sdata.symbolic_flag, sbase), 2),
-        wrap
-    )
+    wrap = Conditional(CondEq(atomic_load(flag), 2), wrap)
 
     # The thread keeps spinning until the alive flag is set to 0 by the main thread
-    wrap = While(CondNe(FieldFromPointer(sdata.symbolic_flag, sbase), 0), wrap)
+    wrap = While(CondNe(atomic_load(flag), 0), wrap)
 
     # pthread functions expect exactly one argument of type void*
     tparameter = Pointer(name=f'_{sdata.name}')
@@ -207,7 +202,7 @@ def _(iet, key=None, tracker=None, sregistry=None, **kwargs):
             body.append(DummyExpr(FieldFromPointer(i.base, sbase), i.base))
     body.extend([
         BlankLine,
-        DummyExpr(FieldFromPointer(sdata.symbolic_flag, sbase), 1)
+        DummyExpr(flag, 1)
     ])
     body.extend([
         BlankLine,
@@ -222,8 +217,8 @@ def _(iet, key=None, tracker=None, sregistry=None, **kwargs):
     # Create an efunc to shutdown the pthreads
     name = sregistry.make_name(prefix='shutdown')
     body = List(body=callback([
-        While(CondEq(FieldFromPointer(sdata.symbolic_flag, sbase), 2)),
-        DummyExpr(FieldFromPointer(sdata.symbolic_flag, sbase), 0),
+        BusyWait(CondEq(atomic_load(flag), 2)),
+        Call(*atomic_store(flag, 0).args),
         Call('pthread_join', (threads[d], Null))
     ]))
     shutdown = make_callable(name, body)
@@ -252,7 +247,7 @@ def inject_async_tear_updown(iet, tracker=None, **kwargs):
 
         # Tear-down
         arguments = list(shutdown.parameters)
-        teardown.append(Call(shutdown.name, arguments))
+        teardown.append(BusyWaitCall(shutdown.name, arguments))
 
     # Inject tearup and teardown
     tearup = List(

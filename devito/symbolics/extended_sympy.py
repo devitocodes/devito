@@ -27,7 +27,7 @@ __all__ = ['CondEq', 'CondNe', 'BitwiseNot', 'BitwiseXor', 'BitwiseAnd',  # noqa
            'MathFunction', 'InlineIf', 'Reserved', 'ReservedWord', 'Keyword',
            'String', 'Macro', 'Class', 'MacroArgument', 'RoundUp', 'Deref',
            'Namespace', 'Rvalue', 'Null', 'SizeOf', 'rfunc', 'BasicWrapperMixin',
-           'ValueLimit', 'AlignedAccess', 'VectorAccess']
+           'ValueLimit', 'AlignedAccess', 'VectorAccess', 'atomic_load', 'atomic_store']
 
 
 class CondEq(sympy.Eq):
@@ -1038,6 +1038,27 @@ class SizeOf(DefFunction):
         except TypeError:
             intype = str(self.ctype)
         return f"sizeof({intype}{self.stars})"
+
+
+def atomic_load(flag):
+    """
+    An acquire load of a flag that threads synchronise on, for use in a wait
+    condition. Reads that follow it cannot be satisfied before it.
+
+    The `__atomic` builtins accept the existing `volatile int` flags and are
+    valid in C and C++ alike, so no declaration changes and no header is needed.
+    """
+    return DefFunction('__atomic_load_n', (Byref(flag), Macro('__ATOMIC_ACQUIRE')))
+
+
+def atomic_store(flag, value):
+    """
+    A release store to a flag that threads synchronise on, the counterpart of
+    `atomic_load`: everything sequenced before it is visible to whoever then
+    acquires `flag` and observes the stored value.
+    """
+    return DefFunction('__atomic_store_n',
+                       (Byref(flag), value, Macro('__ATOMIC_RELEASE')))
 
 
 def rfunc(func, item, *args):

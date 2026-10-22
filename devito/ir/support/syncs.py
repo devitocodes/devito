@@ -141,10 +141,8 @@ class SyncCopyIn(SyncOp):
         ret = []
         for d in self.target.dimensions:
             if d.root is self.dim.root:
-                if self.target.is_regular:
-                    ret.append((self.tindex, 1))
-                else:
-                    ret.append((0, 1))
+                tindex = 0 if self.target.shape_allocated[d] == 1 else self.tindex
+                ret.append((tindex, 1))
             else:
                 ret.append(FULL)
 
