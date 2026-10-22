@@ -17,17 +17,18 @@ from devito.mpi.halo_scheme import HaloTouch
 from devito.symbolics import (  # noqa
     INT, BaseCast, CallFromComposite, CallFromPointer, Cast, DefFunction,
     FieldFromComposite, FieldFromPointer, IntDiv, ListInitializer, Namespace,
-    ReservedWord, RoundUp, Rvalue,
-    SizeOf, VectorAccess, evalrel, pow_to_mul, q_negative, q_positive,
-    retrieve_derivatives, retrieve_functions, retrieve_indexed, subs_if_composite,
-    uxreplace, xreplace_indices
+    ReservedWord, RoundUp, Rvalue, SizeOf, VectorAccess, evalrel, pow_to_mul, q_negative,
+    q_positive, retrieve_derivatives, retrieve_functions, retrieve_indexed,
+    subs_if_composite, uxreplace, xreplace_indices
 )
-from devito.symbolics.unevaluation import Add as UnevalAdd, Mul as UnevalMul
+from devito.symbolics.unevaluation import Add as UnevalAdd
+from devito.symbolics.unevaluation import Mul as UnevalMul
 from devito.tools import CustomDtype, as_tuple, dtypes_vector_mapper
 from devito.types import (
-    Array, Bundle, ComponentAccess, FIndexed, LocalObject, Object, StencilDimension, Temp
+    Array, Bundle, ComponentAccess, FIndexed, LocalObject, Object, StencilDimension
 )
 from devito.types import Symbol as dSymbol
+from devito.types import Temp
 from devito.types.basic import AbstractSymbol
 
 
@@ -1136,9 +1137,9 @@ class TestUxreplace:
         assert rebuilt.args == (z, op(y, x))
 
     @pytest.mark.parametrize('cls,converted', [(CallFromPointer, CallFromComposite),
-                                             (CallFromComposite, CallFromPointer),
-                                             (FieldFromPointer, FieldFromComposite),
-                                             (FieldFromComposite, FieldFromPointer)])
+                                               (CallFromComposite, CallFromPointer),
+                                               (FieldFromPointer, FieldFromComposite),
+                                               (FieldFromComposite, FieldFromPointer)])
     def test_bound_member_names(self, cls, converted):
         a, b = [dSymbol(name=f'r{i}') for i in (9, 0)]
         p, q = [dSymbol(name=f'p{i}') for i in (9, 0)]
