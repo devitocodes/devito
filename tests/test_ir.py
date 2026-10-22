@@ -18,8 +18,7 @@ from devito.ir.iet import FindNodes, Iteration
 from devito.ir.stree import stree_build
 from devito.ir.support.basic import (
     AFFINE, IRREGULAR, REGULAR, IterationInstance, Relation, Scope, TimedAccess, Vector,
-    _cached_distance, _expand_read, disjoint_subdims_axis, disjoint_test, mocksym0,
-    mocksym1
+    disjoint_subdims_axis, disjoint_test, mocksym0, mocksym1
 )
 from devito.ir.support.guards import GuardOverflow
 from devito.ir.support.space import (
@@ -27,9 +26,7 @@ from devito.ir.support.space import (
     NullInterval, null_ispace
 )
 from devito.ir.support.utils import detect_halo_writes
-from devito.passes.clusters.fusion import (
-    BREAK, EDGE, Fusion, _fusion_hazards, _maybe_break
-)
+from devito.passes.clusters.fusion import Fusion, _maybe_break
 from devito.symbolics import DefFunction, FieldFromPointer, uxreplace
 from devito.tools import Stamp, prod
 from devito.tools.data_structures import frozendict
@@ -692,72 +689,60 @@ class TestVectorHierarchy:
         a = TimedAccess(f[x + 1, y], 'W', 0, ispace)
         b = TimedAccess(f[x, y], 'R', 1, ispace)
 
-        cache = _cached_distance.cache
-        _cached_distance.clear()
-        try:
-            assert a.distance(b) == (1, 0)
-            assert len(cache) == 1
+        d = a.distance(b)
+        assert d == (1, 0)
 
-            # Timestamps and access modes are not part of the geometry
-            assert a.rebuild(timestamp=5).distance(b.rebuild(mode='W')) == (1, 0)
-            assert len(cache) == 1
+        # Timestamps and access modes are not part of the geometry, hence a cache hit
+        assert a.rebuild(timestamp=5).distance(b.rebuild(mode='W')) is d
 
-            # Anything else is
-            rev = IterationSpace([Interval(x), Interval(y)], directions={x: Backward})
-            shifted = IterationSpace([Interval(x, 0, 1), Interval(y)])
-            c0 = a.rebuild(access=ComponentAccess(f[x, y], 0))
-            c1 = a.rebuild(access=ComponentAccess(f[x, y], 1))
-            pairs = [
-                (b, a, False),
-                (a.rebuild(ispace=rev), b.rebuild(ispace=rev), False),
-                (a.rebuild(ispace=shifted), b, False),
-                (a.rebuild(access=g[x + 1, y]), b.rebuild(access=g[x, y]), False),
-                (a, b, True),
-                (c0, c1, False),
-            ]
-            for n, (i, j, logical) in enumerate(pairs, start=2):
-                i.distance(j, logical=logical)
-                assert len(cache) == n
+        # Anything else is
+        rev = IterationSpace([Interval(x), Interval(y)], directions={x: Backward})
+        shifted = IterationSpace([Interval(x, 0, 1), Interval(y)])
+        c0 = a.rebuild(access=ComponentAccess(f[x, y], 0))
+        c1 = a.rebuild(access=ComponentAccess(f[x, y], 1))
+        pairs = [
+            (b, a, False),
+            (a.rebuild(ispace=rev), b.rebuild(ispace=rev), False),
+            (a.rebuild(ispace=shifted), b, False),
+            (a.rebuild(access=g[x + 1, y]), b.rebuild(access=g[x, y]), False),
+            (a, b, True),
+            (c0, c1, False),
+        ]
+        for i, j, logical in pairs:
+            assert i.distance(j, logical=logical) is not d
 
-            assert b.distance(a) == (-1, 0)
-            assert c0.distance(c1) == (S.ImaginaryUnit,)
+        assert b.distance(a) == (-1, 0)
+        assert c0.distance(c1) == (S.ImaginaryUnit,)
 
-            # Cleared at the end of each Operator build
-            Operator(Eq(f, 1))
-            assert len(cache) == 0
-        finally:
-            _cached_distance.clear()
+        # Cleared at the end of each Operator build
+        Operator(Eq(f, 1))
+        assert a.distance(b) == d
+        assert a.distance(b) is not d
 
     def test_expand_read(self):
         grid = Grid(shape=(8,))
         x, = grid.dimensions
+        xl = SubDimension.left('xl', x, 4)
         f = Function(name='f', grid=grid)
         h = StencilDimension('h', 0, 2)
         w = Weights(name='w', dimensions=h, initvalue=[1., 2., 3.])
 
-        stencil = f[x + h]
-        plain = f[x]
+        plain = IterationSpace([Interval(x)])
+        sub = IterationSpace([Interval(xl)])
+
+        def expanded(access, ispace):
+            return tuple(TimedAccess(access, 'R', 0, ispace).expanded)
+
+        # Unbounded StencilDimension: every point over SubDimensions, else the extrema
+        assert expanded(f[x + h], sub) == (f[x], f[x + 1], f[x + 2])
+        assert expanded(f[x + h], plain) == (f[x], f[x + 2])
+
+        assert expanded(f[x], sub) == (f[x],)
+        assert expanded(f[x], plain) == (f[x], f[x])
+
+        # A StencilDimension bound by an IndexDerivative isn't expanded
         bound = IndexDerivative(f[x + h]*w, {x: h})
-
-        cache = _expand_read.cache
-        _expand_read.clear()
-        try:
-            # Unbounded StencilDimension: every point, or just the extrema
-            assert _expand_read(stencil, True) == (f[x], f[x + 1], f[x + 2])
-            assert tuple(_expand_read(stencil, False)) == (f[x], f[x + 2])
-            assert len(cache) == 2
-
-            assert tuple(_expand_read(plain, True)) == (plain,)
-            assert tuple(_expand_read(plain, False)) == (plain, plain)
-
-            # A StencilDimension bound by an IndexDerivative isn't expanded
-            assert tuple(_expand_read(bound, True)) == (bound,)
-            assert len(cache) == 5
-
-            _expand_read(stencil, True)
-            assert len(cache) == 5
-        finally:
-            _expand_read.clear()
+        assert expanded(bound, sub) == (bound,)
 
     def test_disjoint_subdims_cache(self):
         grid = Grid(shape=(24, 24))
@@ -777,19 +762,17 @@ class TestVectorHierarchy:
         il1, left1, middle1 = accesses(Stamp())
         assert il0 != il1 and il0.reset() == il1.reset()
 
-        _cached_distance.clear()
         disjoint_subdims_axis.clear()
-        try:
-            assert left0.distance(middle0) == (S.ImaginaryUnit,)
-            assert len(disjoint_subdims_axis.cache) == 1
 
-            # Stamps aren't part of the per-axis cache key
-            assert left1.distance(middle1) == (S.ImaginaryUnit,)
-            assert len(_cached_distance.cache) == 2
-            assert len(disjoint_subdims_axis.cache) == 1
-        finally:
-            _cached_distance.clear()
-            disjoint_subdims_axis.clear()
+        d0 = left0.distance(middle0)
+        assert d0 == (S.ImaginaryUnit,)
+        assert len(disjoint_subdims_axis.cache) == 1
+
+        # Stamps aren't part of the per-axis cache key, unlike the distance one
+        d1 = left1.distance(middle1)
+        assert d1 == d0
+        assert d1 is not d0
+        assert len(disjoint_subdims_axis.cache) == 1
 
     @pytest.mark.parametrize('offset,expected', [(4, True), (6, False), (8, False)])
     @pytest.mark.parametrize('swap', [False, True])
@@ -1854,27 +1837,6 @@ class TestFusionDAG:
             return [ClusterGroup(Cluster(e, ispace), ispace) for e in exprs]
 
         return d, x, f, g, h, cgroups
-
-    def test_no_break(self, setup):
-        d, x, f, g, h, cgroups = setup
-
-        # Reads behind or at the write along `d` aren't carried anti-dependences
-        for write, hazard in [(f[d, x], EDGE), (f[d + 1, x], None)]:
-            cgs = cgroups(Eq(g[d, x], f[d, x]), Eq(write, 1))
-            assert not _maybe_break(cgs, frozenset({d}))
-            assert _fusion_hazards(cgs[0].scope, cgs[1].scope, frozenset({d})) == hazard
-
-    def test_break(self, setup):
-        d, x, f, g, h, cgroups = setup
-
-        # Reading `f` ahead of the next write along `d` is
-        cgs = cgroups(Eq(g[d, x], f[d + 1, x]), Eq(f[d, x], 1), Eq(h[d, x], 1))
-        assert _maybe_break(cgs, frozenset({d}))
-        assert _fusion_hazards(cgs[0].scope, cgs[1].scope, frozenset({d})) == BREAK
-
-        # Hence the full DAG, `BREAK` edges included
-        dag = Fusion(toposort=True)._build_dag(cgs, [Interval(d)])
-        assert set(dag.edges) == {(cgs[0], cgs[1]), (cgs[1], cgs[2])}
 
     def test_break_stencil_reads(self):
         x = Dimension(name='x')

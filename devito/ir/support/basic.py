@@ -280,6 +280,17 @@ class TimedAccess(IterationInstance, AccessMode, CacheInstances):
         return self.function.is_Symbol
 
     @cached_property
+    def expanded(self):
+        """
+        The accesses `self` may perform once its StencilDimensions are resolved;
+        see `Scope.reads_smart_gen`.
+        """
+        if any(d.is_Sub for d in self.ispace.dimensions):
+            return erange(self.access)
+        else:
+            return extrema(self.access)
+
+    @cached_property
     def is_regular(self):
         if not super().is_regular:
             return False
@@ -1193,11 +1204,9 @@ class Scope(CacheInstances):
         be found. For example, a DiscreteFunction would never appear among
         the iteration symbols.
         """
-        uses_subdims = lambda i: any(d.is_Sub for d in i.ispace.dimensions)
-
         if isinstance(f, (Function, Temp, TempArray, TBArray)):
             for i in self.getreads(f):
-                for j in _expand_read(i.access, uses_subdims(i)):
+                for j in i.expanded:
                     yield TimedAccess(j, i.mode, i.timestamp, i.ispace)
 
         else:
@@ -1611,15 +1620,6 @@ def skippable_interval(d, ispace, it):
     occur in the IterationSpace.
     """
     return d is None or (d in ispace and not d._defines & it.dim._defines)
-
-
-@memoized_func(scope='build')
-def _expand_read(access, subdims):
-    """
-    The accesses a read may perform once its StencilDimensions are resolved;
-    see `Scope.reads_smart_gen`.
-    """
-    return erange(access) if subdims else extrema(access)
 
 
 @memoized_func(scope='build')
