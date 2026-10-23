@@ -487,6 +487,8 @@ def test_roundup():
     with switchconfig(platform='bdw', language='openmp'):
         op = Operator(Eq(u, u + expr))
 
+    assert expr.is_integer is True
+    assert (16*expr) % 16 == 0
     assert ccode(expr) == 'ROUND_UP(a, 16)'
     assert '#define ROUND_UP(a,b)' in str(op)
     assert 'ROUND_UP(a, 16)' in str(op)
