@@ -214,7 +214,8 @@ class BaseGuardOverflow(Guard):
     A guard for buffer overflow.
     """
 
-    pass
+    def __new__(cls, p0, p1, **kwargs):
+        return super().__new__(cls, p0, p1, evaluate=False)
 
 
 class GuardOverflowGe(BaseGuardOverflow, Ge):

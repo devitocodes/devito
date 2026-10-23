@@ -13,14 +13,16 @@ from devito import (
 )
 from devito.data import LEFT, OWNED
 from devito.finite_differences.tools import centered, direct, left, right, transpose
-from devito.ir import Backward, Forward, GuardBound, GuardBoundNext, GuardFactor
+from devito.ir import (
+    Backward, Forward, GuardBound, GuardBoundNext, GuardFactor, GuardOverflow
+)
 from devito.mpi.halo_scheme import Halo
 from devito.mpi.routines import (
     MPIMsgEnriched, MPIRegion, MPIRequestObject, MPIStatusObject
 )
 from devito.symbolics import (
     CallFromPointer, Cast, DefFunction, FieldFromPointer, IntDiv, ListInitializer, SizeOf,
-    indexify, pow_to_mul
+    as_long, indexify, pow_to_mul
 )
 from devito.symbolics.unevaluation import Mod
 from devito.tools import EnrichedTuple
@@ -565,6 +567,22 @@ class TestBasic:
             new_gbn = pickle.loads(pkl_gbn)
 
             assert str(gbn) == str(new_gbn)
+
+    @pytest.mark.parametrize('negated', [False, True])
+    def test_guard_overflow(self, pickle, negated):
+        d = Dimension(name='d')
+        freespace = Scalar(name='freespace')
+        size = SizeOf(np.float32)*as_long((d + 4)*(d + 8))
+
+        guard = GuardOverflow(freespace, size)
+        if negated:
+            guard = guard.negated
+
+        new_guard = pickle.loads(pickle.dumps(guard))
+
+        assert type(new_guard) is type(guard)
+        assert str(new_guard) == str(guard)
+        assert new_guard.canonical is new_guard
 
     def test_temp_function(self, pickle):
         grid = Grid(shape=(3, 3))
