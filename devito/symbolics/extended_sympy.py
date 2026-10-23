@@ -15,7 +15,8 @@ from sympy.logic.boolalg import BooleanFunction
 from devito.finite_differences.elementary import Max, Min
 from devito.tools import (  # noqa
     Bunch, Pickable, as_tuple, ctypes_to_cstr, ctypes_vector_mapper, double2, double3,
-    double4, dtype_to_ctype, float2, float3, float4, int2, int3, int4, is_integer
+    double4, dtype_to_ctype, extract_dtype, float2, float3, float4, int2, int3, int4,
+    is_integer
 )
 from devito.types import Symbol
 from devito.types.basic import Basic
@@ -659,6 +660,12 @@ class RoundUp(Function):
                 return value + step - remainder
 
         return super().__new__(cls, value, step, **kwargs)
+
+    def _eval_is_integer(self):
+        dtype = extract_dtype(self.value)
+        if (self.value.is_integer or
+                isinstance(dtype, type) and issubclass(dtype, np.integer)):
+            return True
 
     @property
     def value(self):
