@@ -1,4 +1,4 @@
-from ctypes import c_double, c_void_p
+from ctypes import POINTER, _Pointer, c_double, c_void_p
 
 import numpy as np
 import sympy
@@ -210,6 +210,26 @@ class Pointer(LocalObject, sympy.Expr):
     @property
     def dtype(self):
         return self._dtype
+
+    def __reduce_ex__(self, proto):
+        dtype = self.dtype
+        depth = 0
+        while isinstance(dtype, type) and issubclass(dtype, _Pointer):
+            dtype = dtype._type_
+            depth += 1
+        if not depth:
+            return super().__reduce_ex__(proto)
+
+        args, kwargs = self.__getnewargs_ex__()
+        kwargs.pop('dtype')
+        return self._rebuild_pointer, (type(self), args, kwargs, dtype, depth)
+
+    @staticmethod
+    def _rebuild_pointer(cls, args, kwargs, dtype, depth):
+        # Recreate generated ctypes classes without serializing their metaclass
+        for _ in range(depth):
+            dtype = POINTER(dtype)
+        return cls(*args, dtype=dtype, **kwargs)
 
 
 class Indirection(Symbol):
