@@ -47,18 +47,20 @@ def index_apply_modulo(idx, modulo):
     if is_integer(idx):
         return idx % modulo
     elif isinstance(idx, slice):
+        # A negative bound counts from the end, so it is its magnitude that
+        # wraps around; e.g., `-1:` must select the last entry whatever `modulo`
         if idx.start is None:
             start = idx.start
         elif idx.start >= 0:
             start = idx.start % modulo
         else:
-            start = -(idx.start % modulo)
+            start = -(-idx.start % modulo)
         if idx.stop is None:
             stop = idx.stop
         elif idx.stop >= 0:
             stop = idx.stop % (modulo + 1)
         else:
-            stop = -(idx.stop % (modulo + 1))
+            stop = -(-idx.stop % (modulo + 1))
         return slice(start, stop, idx.step)
     elif isinstance(idx, (tuple, list)):
         return [i % modulo for i in idx]
