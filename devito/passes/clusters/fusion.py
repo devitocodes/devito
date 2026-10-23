@@ -7,6 +7,7 @@ from devito.ir.clusters import Cluster, ClusterGroup, Queue
 from devito.ir.support import (
     InitArray, PrefetchUpdate, ReleaseLock, Scope, SyncArray, WaitLock, WithLock
 )
+from devito.ir.support.basic import Dependence
 from devito.symbolics import search
 from devito.tools import (
     DAG, CacheInstances, as_tuple, flatten, frozendict, memoized_func, timed_pass
@@ -49,6 +50,44 @@ def _fusion_hazards(scope0, scope1, prefix):
         return EDGE
 
     return NO_HAZARD
+
+
+def _maybe_break(cgroups, prefix):
+    """
+    True if any two of `cgroups` may induce a `BREAK` hazard, False if that's
+    provably impossible.
+
+    A `BREAK` requires an anti-dependence carried along `prefix`. All distinct
+    read/write access geometries that may occur in two different ClusterGroups
+    are checked, ignoring timestamps and `Scope.rules`, hence conservatively.
+    """
+    if not prefix:
+        return False
+
+    # Map each distinct access geometry to the ClusterGroups it occurs in
+    writes = defaultdict(dict)
+    for n, cg in enumerate(cgroups):
+        for f, v in cg.scope.writes.items():
+            for w in v:
+                writes[f].setdefault((w.access, w.ispace), (w, set()))[1].add(n)
+    reads = defaultdict(dict)
+    for n, cg in enumerate(cgroups):
+        for f in writes:
+            for r in cg.scope.reads_smart_gen(f):
+                reads[f].setdefault((r.access, r.ispace), (r, set()))[1].add(n)
+
+    for f, v in writes.items():
+        for r, rn in reads[f].values():
+            for w, wn in v.values():
+                if len(rn | wn) == 1:
+                    # Only ever within the same ClusterGroup
+                    continue
+
+                d = Dependence(r, w)
+                if not d.is_imaginary and d.cause & prefix:
+                    return True
+
+    return False
 
 
 class Keys(CacheInstances):
@@ -297,10 +336,39 @@ class Fusion(Queue):
         """
         A DAG representing the data dependences across the ClusterGroups within
         a given scope.
+
+        If no `BREAK` hazard is possible, the DAG only encodes an ordering, so
+        just its transitive reduction is built.
         """
         prefix = frozenset(i.dim for i in as_tuple(prefix))
 
         dag = DAG(nodes=cgroups)
+
+        if not _maybe_break(cgroups, prefix):
+            # Visit the ClusterGroups backwards, tracking reachability as
+            # bitsets, so that already ordered pairs needn't be analyzed. E.g.,
+            # with edges `cg1 -> cg2` and `cg0 -> cg1`, `(cg0, cg2)` is skipped
+            reach = [0]*len(cgroups)
+            barrier = len(cgroups)
+            for n in reversed(range(len(cgroups))):
+                cg0 = cgroups[n]
+                if cg0.scope.has_barrier:
+                    barrier = n
+
+                r = 0
+                for n1 in range(n + 1, len(cgroups)):
+                    if r >> n1 & 1:
+                        continue
+
+                    # Fences have the same effect as any hazard
+                    cg1 = cgroups[n1]
+                    if n1 >= barrier or _fusion_hazards(cg0.scope, cg1.scope, prefix):
+                        dag.add_edge(cg0, cg1)
+                        r |= 1 << n1 | reach[n1]
+                reach[n] = r
+
+            return dag
+
         for n, cg0 in enumerate(cgroups):
             # Track whether there is any fence between `cg0` and the current `cg1`.
             fenced = cg0.scope.has_barrier
