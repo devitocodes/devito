@@ -10,7 +10,9 @@ from devito import (  # noqa
     Operator, Real, SubDimension, SubDomain, TimeDimension, TimeFunction, configuration,
     cos, norm, sin, solve, switchconfig
 )
-from devito.finite_differences.differentiable import Mul, SafeInv, Weights
+from devito.finite_differences.differentiable import (
+    IndexDerivative, Mul, SafeInv, Weights
+)
 from devito.ir import Expression, FindNodes, ccode
 from devito.ir.support.guards import GuardExpr, pairwise_or, simplify_and
 from devito.mpi.halo_scheme import HaloTouch
@@ -21,6 +23,7 @@ from devito.symbolics import (  # noqa
     retrieve_derivatives, retrieve_functions, retrieve_indexed, subs_if_composite,
     uxreplace, xreplace_indices
 )
+from devito.symbolics.manipulation import Defer, MulSubsIndex
 from devito.tools import CustomDtype, as_tuple, dtypes_vector_mapper
 from devito.types import (
     Array, Bundle, ComponentAccess, FIndexed, LocalObject, Object, StencilDimension
@@ -1011,6 +1014,72 @@ class TestUxreplace:
 
         assert processed is not exprs
         assert processed[0] is not exprs[0]
+
+    @pytest.mark.parametrize('expr,subs,defer', [
+        ('a*b', '{a*b: r0}', False),
+        ('a*b*c + 1', '{a*b: r0}', False),
+        ('-a*b*c', '{a*b: r0}', False),
+        ('a*b*c + c*e*q', '{a*b: r0, e*q: r1}', False),
+        ('a*b*c + e', '{a*b: r0, e: r1}', False),
+        ('sin(a*b*c) + 1', '{a*b: r0}', False),
+        # SymPy may rewrite these, or its outcome depends on its key order
+        ('a**2*b**2*c', '{a*b: r0}', True),
+        ('c/(a*b)', '{a*b: r0}', True),
+        ('4*a*b*c', '{2*a*b: r0}', True),
+        ('a*b*c', '{a*b: r0, b*c: r1}', True),
+    ])
+    def test_subs_if_composite_mul_keys(self, expr, subs, defer):
+        grid = Grid(shape=(4, 4))
+        a, b, c, e, q, r0, r1 = [Function(name=n, grid=grid).indexify()  # noqa
+                                 for n in ('a', 'b', 'c', 'e', 'q', 'r0', 'r1')]
+
+        expr = Eq(q, eval(expr))
+        subs = eval(subs)
+        expected = expr.subs(subs)
+        index = MulSubsIndex.build(subs)
+
+        assert index is not None
+        if defer:
+            with pytest.raises(Defer):
+                index.apply(expr, strict=True)
+        else:
+            assert index.apply(expr, strict=True) == expected
+        assert subs_if_composite((expr,), subs)[0] == expected
+        assert expected != expr
+
+    def test_subs_if_composite_mul_keys_index_derivative(self):
+        grid = Grid(shape=(10,))
+        x, = grid.dimensions
+        i = StencilDimension('i', 0, 2)
+        f = Function(name='f', grid=grid, space_order=2)
+        g = Function(name='g', grid=grid, space_order=2)
+        r = Function(name='r', grid=grid)
+
+        fi = f.indexify().subs(x, x + i)
+        gi = g.indexify().subs(x, x + i)
+        w = Weights(name='w0', dimensions=i, initvalue=[-0.5, 0, 0.5])
+        ideriv = IndexDerivative(fi*gi*w, {x: i})
+
+        expr = Eq(r.indexify(), ideriv + 1)
+        subs = {ideriv.base: r[x + i]}
+        expected = expr.subs(subs)
+
+        assert MulSubsIndex.build(subs).apply(expr, strict=True) == expected
+        assert expected != expr
+
+    def test_subs_if_composite_mul_keys_untouched(self):
+        grid = Grid(shape=(4, 4))
+        a, b, c, e, r0, r1 = [Function(name=n, grid=grid).indexify()
+                              for n in ('a', 'b', 'c', 'e', 'r0', 'r1')]
+
+        exprs = (Eq(r0, a*c + b*e), Eq(r1, a + b))
+        items = list(exprs)
+        subs = {a*b: r0, c*e: r1}
+        index = MulSubsIndex.build(subs)
+
+        assert subs_if_composite(exprs, subs) is exprs
+        assert subs_if_composite(items, subs) is items
+        assert all(index.apply(e, strict=True) is e for e in exprs)
 
     def test_pow_to_mul_reuses_untouched_sequence(self):
         grid = Grid(shape=(4, 4))
