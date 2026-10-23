@@ -28,7 +28,7 @@ from devito.symbolics.unevaluation import Mod
 from devito.tools import EnrichedTuple
 from devito.types import (
     Array, ComponentAccess, CustomDimension, DefaultDimension, DeviceID, FIndexed,
-    Indirection, Lock, NPThreads, PointerArray, PThreadArray, Scalar, SharedData
+    Indirection, Lock, NPThreads, Pointer, PointerArray, PThreadArray, Scalar, SharedData
 )
 from devito.types import Symbol as dSymbol
 from devito.types import TempFunction, ThreadID, Timer
@@ -74,6 +74,29 @@ class TestBasic:
 
         assert s0 == new_s0
         assert s1 == new_s1
+
+    def test_indexed_cached_ctype(self, pickle):
+        grid = Grid(shape=(4, 4))
+        f = Function(name='f', grid=grid)
+        indexed = f.indexed
+        ctype = indexed._C_ctype
+
+        restored = pickle.loads(pickle.dumps(indexed))
+        assert restored.function.name == f.name
+        assert restored.function.dtype == f.dtype
+        assert restored._C_ctype == ctype
+
+    @pytest.mark.parametrize('depth', [1, 2])
+    def test_typed_pointer(self, pickle, depth):
+        dtype = ctypes.c_float
+        for _ in range(depth):
+            dtype = ctypes.POINTER(dtype)
+        p = Pointer(name='p', dtype=dtype, liveness='eager')
+
+        restored = pickle.loads(pickle.dumps(p))
+        assert restored.name == p.name
+        assert restored.dtype == dtype
+        assert restored.liveness == p.liveness
 
     def test_constant(self, pickle):
         c = Constant(name='c')
