@@ -575,7 +575,7 @@ def get_cuda_version():
         out = run(nvc_version_command, capture_output=True, text=True)
     except (FileNotFoundError, CalledProcessError):
         pass
-    finally:
+    else:
         if out.returncode == 0:
             start = out.stdout.find('release')
             start = out.stdout.find(',', start) + 1

@@ -809,7 +809,8 @@ class CudaCompiler(Compiler):
     @property
     def std(self):
         # Since CUDA 13, code needs compiling with C++17 standard
-        _cxxstd = 'c++17' if get_cuda_version().major >= 13 else 'c++14'
+        cuda_version = get_cuda_version()
+        _cxxstd = 'c++17' if cuda_version and cuda_version.major >= 13 else 'c++14'
         return _cxxstd if self._cpp else self._cstd
 
     def __lookup_cmds__(self):
