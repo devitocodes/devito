@@ -1799,6 +1799,12 @@ class IndexedBase(sympy.IndexedBase, Basic, Pickable):
 
     func = Pickable._rebuild
 
+    def __getstate__(self):
+        state = dict(self.__dict__)
+        # Recreate process-local ctypes classes from the Function's dtype
+        state.pop('_C_ctype', None)
+        return state
+
     @sympy.cacheit
     def sort_key(self, order=None):
         class_key, args, exp, coeff = super().sort_key(order=order)
