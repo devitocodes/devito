@@ -334,7 +334,6 @@ class DeviceCustomOperator(DeviceOperatorMixin, CustomOperator):
             'orchestrate': partial(orchestrator.process),
             'pthreadify': partial(pthreadify, **kwargs),
             'mpi': partial(mpiize, **kwargs),
-            'linearize': partial(linearize, **kwargs),
             'prodders': partial(hoist_prodders),
             'init': partial(parizer.initialize)
         }
@@ -348,7 +347,7 @@ class DeviceCustomOperator(DeviceOperatorMixin, CustomOperator):
         'blocking', 'tasking', 'streaming', 'factorize', 'fission', 'fuse', 'lift',
         'cire-sops', 'cse', 'opt-pows', 'topofuse',
         # IET
-        'orchestrate', 'pthreadify', 'parallel', 'mpi', 'linearize', 'prodders'
+        'orchestrate', 'pthreadify', 'parallel', 'mpi', 'prodders'
     )
     _known_passes_disabled = ('denormals', 'simd')
     assert not (set(_known_passes) & set(_known_passes_disabled))

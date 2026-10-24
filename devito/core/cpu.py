@@ -305,7 +305,6 @@ class Cpu64CustomOperator(Cpu64OperatorMixin, CustomOperator):
             'parallel': parizer.make_parallel,
             'openmp': parizer.make_parallel,
             'mpi': partial(mpiize, **kwargs),
-            'linearize': partial(linearize, **kwargs),
             'simd': partial(parizer.make_simd),
             'prodders': hoist_prodders,
             'init': partial(parizer.initialize)
@@ -320,7 +319,7 @@ class Cpu64CustomOperator(Cpu64OperatorMixin, CustomOperator):
         'blocking', 'topofuse', 'fission', 'fuse', 'factorize', 'cire-sops',
         'cse', 'lift', 'opt-pows', 'opt-hyperplanes',
         # IET
-        'denormals', 'openmp', 'mpi', 'linearize', 'simd', 'prodders',
+        'denormals', 'openmp', 'mpi', 'simd', 'prodders',
     )
     _known_passes_disabled = ('tasking', 'streaming', 'openacc')
     assert not (set(_known_passes) & set(_known_passes_disabled))
