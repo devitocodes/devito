@@ -93,6 +93,28 @@ class TestDataBasic:
         f.data[idx] = dat
         assert np.all(np.array(f.data[9:]) == dat)
 
+    @pytest.mark.parametrize('idx', [
+        slice(-1, None), slice(-2, None), slice(-3, None), slice(None, -1),
+        slice(None, -2), slice(1, -1), slice(-2, -1), slice(-1, None, -1)
+    ])
+    def test_negative_slicing_modulo(self, idx):
+        """
+        Test slicing with negative bounds along a modulo-indexed Dimension, here
+        the time Dimension of a buffered TimeFunction. Both reads and writes must
+        select the same entries as NumPy does.
+        """
+        grid = Grid(shape=(4,))
+        u = TimeFunction(name='u', grid=grid, time_order=2)
+        assert u.data._modulo == (True, False)
+
+        expected = np.arange(12, dtype=np.float32).reshape(3, 4)
+        u.data[:] = expected
+        assert np.array_equal(u.data[idx], expected[idx])
+
+        expected[idx] = -1.
+        u.data[idx] = -1.
+        assert np.array_equal(u.data, expected)
+
     def test_halo_indexing(self):
         """Test data packing/unpacking in presence of a halo region."""
         domain_shape = (16, 16, 16)
