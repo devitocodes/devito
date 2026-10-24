@@ -514,5 +514,16 @@ def traction_free_update(v, tau, buoyancy, lam, mu, damp=1):
             raise ValueError(f"traction_free_update needs fields of space order 4 "
                              f"and time order 1, not {f} of space order "
                              f"{f.space_order} and time order {f.time_order}")
+    # The default staggering of the fields, which the SBP grids follow: v[i] at the
+    # half points along axis i, tau[i, j] along axes i and j, its diagonal on nodes
+    components = [((i,), f) for i, f in enumerate(v)] + \
+        [(((i, j) if i != j else ()), tau[i, j])
+         for i in range(grid.dim) for j in range(grid.dim)]
+    for axes, f in components:
+        expected = tuple(int(a in axes) for a in range(grid.dim))
+        if tuple(f.staggered)[-grid.dim:] != expected:
+            raise ValueError(f"traction_free_update needs the default staggering of a "
+                             f"VectorTimeFunction and a TensorTimeFunction, {expected} "
+                             f"for {f}, not {tuple(f.staggered)[-grid.dim:]}")
 
     return _ElasticSBP(v, tau, buoyancy, lam, mu, damp).equations()

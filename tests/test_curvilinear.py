@@ -2031,6 +2031,10 @@ class TestElastic:
             traction_free_update(*elastic_fields(grid), 1., 1., mu)
         mu = Function(name='mu', grid=grid, space_order=4, staggered=NODE)
         traction_free_update(*elastic_fields(grid), 1., 1., mu)
+        v_nodes = VectorTimeFunction(name='v_nodes', grid=grid, space_order=4,
+                                     time_order=1, staggered=(NODE, NODE))
+        with pytest.raises(ValueError, match='default staggering'):
+            traction_free_update(v_nodes, tau, *self.parameters)
 
 
 class TestElasticMPI:
