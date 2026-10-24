@@ -1682,10 +1682,11 @@ class TestFreeSurfaceWave:
         """
         Under a tilted free surface, the odd mirror along the grid lines matches
         the analytic image-source solution: the misfit is 1.6e-3 at a spacing of
-        10 m and 4.0e-4 at 5 m, second order, against 9.3e-4 and 2.3e-4 for a
-        mirror along the normal to the surface.
+        10 m and 4.0e-4 at 5 m, second order.
         """
-        assert tilted_plane_misfit() < 2e-3
+        misfits = [tilted_plane_misfit(spacing) for spacing in (10., 5.)]
+        assert misfits[0] < 2e-3
+        assert np.log2(misfits[0]/misfits[1]) > 1.8
 
 
 class TestSeismicModel:
