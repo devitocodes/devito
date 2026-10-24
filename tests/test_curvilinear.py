@@ -8,7 +8,7 @@ from devito import (  # noqa
     NODE, CurvilinearGrid, CurvilinearMap, Eq, Function, Grid, Inc, Operator,
     SparseFunction, SparseTimeFunction, SubDomain, TensorFunction, TensorTimeFunction,
     TerrainFollowing, TimeFunction, VectorFunction, VectorTimeFunction, cos, div, grad,
-    inner, resample, sin
+    inner, resample, sin, solve
 )
 from devito.mpi import MPI
 from examples.seismic import AcquisitionGeometry, Receiver, SeismicModel
@@ -1435,17 +1435,19 @@ def odd_mirror(field, rows):
                subdomain=rows_subdomain(grid, surface - rows, rows))]
 
 
-def odd_fold(field, coefficient, rows):
+def odd_fold(field, coefficient, rows, weighted=True):
     """
     The transpose of `odd_mirror` in an adjoint update of `field`, e.g.
     `v.backward`, which leaves `coefficient` times the operator in the rows
-    above the surface, in the inner product weighted by the Jacobian: the rows
-    above the surface folded onto the rows below, which they mirror, then zero.
+    above the surface, in the inner product weighted by the Jacobian, or the
+    unweighted one if not `weighted`: the rows above the surface folded onto the
+    rows below, which they mirror, then zero.
     """
     grid = field.function.grid
     z, surface = grid.dimensions[-1], surface_row(grid)
-    folded = (grid.jacobian*field/coefficient).subs(z, 2*surface - z)
-    return [Inc(field, -coefficient/grid.jacobian*folded,
+    weight = grid.jacobian if weighted else 1
+    folded = (weight*field/coefficient).subs(z, 2*surface - z)
+    return [Inc(field, -coefficient/weight*folded,
                 subdomain=rows_subdomain(grid, surface + 1, rows)),
             Eq(field, 0, subdomain=rows_subdomain(grid, 0, surface + 1))]
 
@@ -1687,6 +1689,51 @@ class TestFreeSurfaceWave:
         misfits = [tilted_plane_misfit(spacing) for spacing in (10., 5.)]
         assert misfits[0] < 2e-3
         assert np.log2(misfits[0]/misfits[1]) > 1.8
+
+    def test_adjoint(self):
+        """
+        The adjoint of the wave equation under a sine surface, as written in the
+        tutorial, passes the dot test to roundoff in double precision: the
+        transposes `.dx2.T` of the second derivatives of `u.laplace`, the data
+        injected before the unweighted fold, and the adjoint source interpolated
+        from `q/J`, the transpose of a source injected divided by the Jacobian.
+        """
+        grid = surface_grid((51, 41), (1000., 800.), sine_surface, rows=4,
+                            dtype=np.float64)
+        dt, nt = 1e-3, 301
+        m = Function(name='m', grid=grid, space_order=8)
+        m.data[:] = 1/1500.**2
+        source = grid.to_physical([[500., 300.]])
+        receivers = grid.to_physical(np.stack([np.linspace(200., 800., 31),
+                                               np.full(31, 50.)], axis=1))
+        src = SparseTimeFunction(name='src', grid=grid, npoint=1, nt=nt,
+                                 coordinates=source)
+        rec = SparseTimeFunction(name='rec', grid=grid, npoint=31, nt=nt,
+                                 coordinates=receivers)
+        src.data[:, 0] = ricker(np.arange(nt)*dt, f0=15., t0=.08)
+        u = TimeFunction(name='u', grid=grid, space_order=8, time_order=2)
+        update = Eq(u.forward, solve(m*u.dt2 - u.laplace, u.forward))
+        Operator([update] +
+                 src.inject(u.forward, src*dt**2/(m*grid.jacobian)) +
+                 odd_mirror(u.forward, 4) +
+                 rec.interpolate(u)).apply(dt=dt, time_M=nt - 2)
+
+        data = SparseTimeFunction(name='data', grid=grid, npoint=31, nt=nt,
+                                  coordinates=receivers)
+        data.data[:] = np.random.default_rng(21).standard_normal(data.data.shape)
+        src_adjoint = SparseTimeFunction(name='src_adjoint', grid=grid, npoint=1,
+                                         nt=nt, coordinates=source)
+        q = TimeFunction(name='q', grid=grid, space_order=8, time_order=2)
+        update = Eq(q.backward, solve(m*q.dt2 - (q.dx2.T + q.dy2.T), q.backward))
+        Operator([update] +
+                 data.inject(q.backward, data*dt**2/m) +
+                 odd_fold(q.backward, dt**2/m, 4, weighted=False) +
+                 src_adjoint.interpolate(q/grid.jacobian)).apply(dt=dt, time_M=nt - 2)
+
+        forward = np.dot(rec.data.ravel(), data.data.ravel())
+        adjoint = np.dot(src.data.ravel(), src_adjoint.data.ravel())
+        assert np.abs(forward) > 0
+        assert np.isclose(forward, adjoint, rtol=1e-12, atol=0)
 
 
 class TestSeismicModel:
