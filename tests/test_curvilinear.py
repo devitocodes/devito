@@ -274,6 +274,20 @@ class TestGrid:
         with pytest.raises(ValueError, match='nodes and the half points'):
             grid.terms_at({x: x + x.spacing/4})
 
+    def test_singular_half_points(self):
+        """
+        A surface reaching the bottom of the grid between its nodes only makes
+        the map singular at the half points, an error once the metric terms are
+        needed there.
+        """
+        grid = CurvilinearGrid(shape=(11, 11), extent=(100., 100.),
+                               mapping=TerrainFollowing(
+                                   surface=lambda x: 100.*np.sin(np.pi*x/10.)**2))
+        x, y = grid.dimensions
+        assert np.all(np.asarray(grid.jacobian.data) > 0)
+        with pytest.raises(ValueError, match='half points along'):
+            grid.terms_at({x: x + x.spacing/2})
+
     def test_function(self):
         """Functions on a CurvilinearGrid have the computational shape and spacing."""
         grid = sine_grid(21)
@@ -708,6 +722,15 @@ class Integral(CurvilinearMap):
 def skew_grid(n, space_order=4, comm=None):
     return CurvilinearGrid(shape=(n, n), extent=(1000., 800.), mapping=Skew(),
                            space_order=space_order, dtype=np.float64, comm=comm)
+
+
+class Undefined(CurvilinearMap):
+    # The identity, undefined past x = 950: on the last rank only of a grid of
+    # 1000 m split in two along x, even with the halo and the stencil around it
+
+    def forward(self, grid, computational):
+        xi, eta = computational
+        return np.where(xi > 950., np.nan, xi), eta + 0*xi
 
 
 class TestGenericMap:

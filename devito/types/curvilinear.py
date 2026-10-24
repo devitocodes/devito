@@ -620,14 +620,30 @@ class CurvilinearGrid(Grid):
         the nodes of every rank, halo included: a map that is singular or turns
         cells inside out has no metric terms.
         """
-        jacobian = np.asarray(self.mapping.jacobian(self, self._local_vectors))
-        valid = bool(np.all(np.isfinite(jacobian)) and np.all(jacobian > 0))
+        try:
+            jacobian = self.mapping.jacobian(self, self._local_vectors)
+            error = None
+        except ValueError as e:
+            jacobian, error = None, e
+        self._check_jacobian(jacobian, error, ())
+
+    def _check_jacobian(self, jacobian, error, staggered):
+        """
+        Raise an error, on every rank, unless the map evaluated without `error`
+        and `jacobian` is finite and positive on every rank, at the points
+        staggered by half a cell along the Dimensions `staggered`.
+        """
+        valid = error is None and bool(np.all(np.isfinite(jacobian)) and
+                                       np.all(np.asarray(jacobian) > 0))
         if self.distributor.is_parallel:
+            # Every rank reaches the reduction, so that all raise together
             valid = self.comm.allreduce(valid, op=MPI.LAND)
         if not valid:
+            where = f'half points along {staggered}' if staggered else 'nodes'
             raise ValueError(f"{type(self.mapping).__name__} has a Jacobian that is not "
-                             "finite and positive on the nodes of the grid: the map "
-                             "is singular or turns cells inside out")
+                             f"finite and positive on the {where} of the grid, on some "
+                             "rank: the map is singular or turns cells inside out"
+                             ) from error
 
     @property
     def mapping(self):
@@ -726,9 +742,14 @@ class CurvilinearGrid(Grid):
         vectors = tuple(v + np.float64(h)/2 if d in staggered else v
                         for v, d, h in zip(self._local_vectors, self.dimensions,
                                            self.spacing, strict=True))
-        values, second_values, jacobian_values = self.mapping.terms(
-            self, vectors, derivatives=derivatives
-        )
+        try:
+            values, second_values, jacobian_values = self.mapping.terms(
+                self, vectors, derivatives=derivatives
+            )
+            error = None
+        except ValueError as e:
+            jacobian_values, error = None, e
+        self._check_jacobian(jacobian_values, error, staggered)
         if metrics is None:
             metrics = self._symbolic_terms(values, 1, staggered)
             jacobian = self._make_function(f'J{_suffix(staggered)}', jacobian_values,
