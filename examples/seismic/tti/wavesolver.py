@@ -37,6 +37,9 @@ class AnisotropicWaveSolver:
 
         if model.fs and kernel == 'staggered':
             raise ValueError("Free surface only supported for centered TTI kernel")
+        if model.grid.is_Curvilinear and kernel == 'staggered':
+            raise ValueError("A CurvilinearGrid is only supported for the centered "
+                             "TTI kernel")
 
         if space_order % 2 != 0:
             raise ValueError(f"space_order must be even but got {space_order}")

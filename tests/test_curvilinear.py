@@ -1708,6 +1708,19 @@ class TestSeismicModel:
         assert smooth.vp.shape == model.vp.shape == model.grid.shape
         assert np.all(np.asarray(smooth.vp.data) == 1.5)
 
+    def test_staggered_tti(self):
+        """The staggered TTI kernel refuses a CurvilinearGrid, even without fs."""
+        x = 10.*np.arange(51)
+        grid = self.model(surface=-60.*np.exp(-((x - 250.)/80.)**2)).grid
+        model = SeismicModel(origin=(0., 0.), spacing=(10., 10.), shape=(51, 41),
+                             space_order=8, vp=2., nbl=10, grid=grid, epsilon=.1,
+                             delta=.05, theta=.3)
+        geometry = AcquisitionGeometry(model, np.array([[250., 30.]]),
+                                       np.array([[250., 50.]]), 0., 100., f0=0.015,
+                                       src_type='Ricker')
+        with pytest.raises(ValueError, match='centered TTI kernel'):
+            AnisotropicWaveSolver(model, geometry, space_order=8, kernel='staggered')
+
     def test_mirror_rows(self):
         """
         A flat surface gives the nodes and time step of a Cartesian model below
