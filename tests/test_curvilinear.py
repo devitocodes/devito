@@ -1695,6 +1695,19 @@ class TestSeismicModel:
         return SeismicModel(origin=(0., 0.), spacing=(10., 10.), shape=(51, 41),
                             space_order=8, vp=vp, nbl=10, fs=True, **kwargs)
 
+    def test_shared_grid(self):
+        """
+        A model built on the grid of a model over a surface, e.g. a smooth model
+        for imaging, pads its parameters with the same mirror rows.
+        """
+        x = 10.*np.arange(51)
+        model = self.model(vp=np.full((51, 41), 2.),
+                           surface=-60.*np.exp(-((x - 250.)/80.)**2))
+        smooth = self.model(vp=np.full((51, 41), 1.5), grid=model.grid)
+        assert smooth.parameter_padsizes == model.parameter_padsizes
+        assert smooth.vp.shape == model.vp.shape == model.grid.shape
+        assert np.all(np.asarray(smooth.vp.data) == 1.5)
+
     def test_mirror_rows(self):
         """
         A flat surface gives the nodes and time step of a Cartesian model below

@@ -128,8 +128,14 @@ class GenericModel:
         if grid is not None and surface is not None:
             raise ValueError("A model is given either a grid or a surface to build its "
                              "CurvilinearGrid from, not both")
-        # A surface that is not flat is mirrored into rows above it
-        self._mirror_rows = 0 if surface is None else space_order
+        # A surface that is not flat is mirrored into rows above it, the rows above
+        # the 'surface' row of a grid built over one
+        if surface is not None:
+            self._mirror_rows = space_order
+        elif grid is not None and 'surface' in grid.subdomains:
+            self._mirror_rows = grid.subdomains['surface'].start
+        else:
+            self._mirror_rows = 0
         # Default setup
         origin_pml = [dtype(o - s*nbl) for o, s in zip(origin, spacing, strict=True)]
         shape_pml = np.array(shape) + 2 * self.nbl
