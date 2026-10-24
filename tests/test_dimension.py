@@ -2074,6 +2074,28 @@ class TestConditionalDimension:
         for t in range(buffer_size):
             assert np.all(usaved.data[t] == t*factor + bounds[0] - 1)
 
+    @pytest.mark.parametrize('legacy', [False, True])
+    @pytest.mark.parametrize('array', [False, True])
+    @pytest.mark.parametrize('constant', [False, True])
+    def test_override_function_and_factor(self, legacy, array, constant):
+        """An explicit factor takes precedence over a replacement's defaults."""
+        grid = Grid(shape=(4, 4))
+        factor = Constant(name='factor', dtype=np.int32, value=4) if legacy else 4
+        cd = ConditionalDimension(name='ts', parent=grid.time_dim, factor=factor)
+        u = TimeFunction(name='u', grid=grid, time_order=0, space_order=0)
+        usave = TimeFunction(name='usave', grid=grid, time_dim=cd, save=4,
+                             space_order=0)
+        replacement = usave.func(name='replacement')
+        target = replacement.data if array else replacement
+        override = Constant(name='override', dtype=np.int32, value=2) if constant else 2
+
+        op = Operator([Eq(usave, u), Eq(u, u + 1)])
+        op.apply(usave=target, time_M=7, **{cd.symbolic_factor.name: override})
+
+        assert np.all(replacement.data == np.arange(4).reshape(4, 1, 1)*2)
+        assert np.all(usave.data == 0)
+        assert cd.factor_data == 4
+
     @pytest.mark.parametrize('factor', [1, 2, 3])
     @pytest.mark.parametrize('relation', [Or, 'strict'])
     def test_factor_and_condeq_overlap(self, factor, relation):

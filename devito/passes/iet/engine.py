@@ -593,6 +593,10 @@ def _(i, mapper, sregistry):
 
 @abstract_object.register(Array)
 def _(i, mapper, sregistry):
+    # Constant arrays have global storage shared with other Callables
+    if i._mem_constant:
+        return
+
     name = sregistry.make_name(prefix=i._symbol_prefix)
 
     if i.initvalue is not None:
