@@ -12,7 +12,7 @@ from devito.ir import SymbolRegistry
 from devito.ir.iet import (
     Call, Callable, CGen, Conditional, Definition, Dereference, DeviceCall, DummyExpr,
     ElementalFunction, FindNodes, FindSymbols, Iteration, KernelLaunch, Lambda, List,
-    Switch, Transformer, filter_iterations, make_callable, make_efunc,
+    Switch, Transformer, Uxreplace, filter_iterations, make_callable, make_efunc,
     retrieve_iteration_tree
 )
 from devito.ir.iet.visitors import sorted_efuncs
@@ -118,6 +118,20 @@ def test_nested_calls_cgen():
     code = CGen().visit(call)
 
     assert str(code) == 'foo(bar());'
+
+
+def test_uxreplace_dereference_offset():
+    d = CustomDimension(name='d', symbolic_size=4)
+    array = Array(name='a0', dimensions=(d,), shape=(4,), scope='shared')
+    pointer = Pointer(name='sm7')
+    old, new = Symbol(name='off7'), Symbol(name='off0')
+    node = Dereference(array, pointer, offset=old + 32)
+
+    replaced = Uxreplace({old: new}).visit(node)
+
+    assert replaced.offset == new + 32
+    assert replaced.pointee is array
+    assert replaced.pointer is pointer
 
 
 @pytest.mark.parametrize('mode,expected', [
@@ -542,14 +556,17 @@ def test_codegen_quality0():
     assert foo1.parameters[0] is a
 
 
-def test_reuse_efuncs_natural_numbering():
+@pytest.mark.parametrize('copy_symbols', [False, True])
+def test_reuse_efuncs_natural_numbering(copy_symbols):
 
-    def make_foo(name, start):
+    def make_foo(name, start, copies=False):
         pointers = [Pointer(name=f'p{i}') for i in range(start, start + 3)]
-        return make_callable(name, Call('bar', pointers))
+        aliases = [p._rebuild() for p in pointers] if copies else pointers
+        return make_callable(name, List(body=[Call('bar', pointers),
+                                              Call('bar', aliases)]))
 
     foo0 = make_foo('foo0', 0)
-    foo1 = make_foo('foo1', 9)
+    foo1 = make_foo('foo1', 9, copies=copy_symbols)
 
     root = make_callable('root', List(body=[
         Call(foo0.name, foo0.parameters),

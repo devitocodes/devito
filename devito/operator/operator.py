@@ -293,6 +293,8 @@ class Operator(Callable):
 
         expressions = as_tuple(expressions)
 
+        kwargs['sregistry'].reserve(expressions)
+
         # Enable recursive lowering
         # This may be used by a compilation pass that constructs a new
         # expression for which a partial or complete lowering is desired
@@ -473,6 +475,11 @@ class Operator(Callable):
         return graph
 
     @classmethod
+    def _finalize_iet(cls, graph, **kwargs):
+        """Backend hook after lowering, before macro and signature extraction."""
+        return graph
+
+    @classmethod
     @timed_pass(name='lowering.uIET')
     def _lower_uiet(cls, stree, profiler=None, **kwargs):
         """
@@ -515,14 +522,16 @@ class Operator(Callable):
         # specialization further Sections may be introduced
         cls._Target.instrument(graph, **kwargs)
 
-        # Extract the necessary macros from the symbolic objects
-        generate_macros(graph, **kwargs)
-
         # Target-specific lowering
         lower_dtypes(graph, **kwargs)
 
         # Target-independent optimizations
         minimize_symbols(graph)
+
+        graph = cls._finalize_iet(graph, **kwargs)
+
+        # Extract macros only after the symbolic objects have their final names
+        generate_macros(graph, **kwargs)
 
         # Finalize helper signatures after all IET transformations have settled.
         finalize_args(graph)

@@ -15,17 +15,20 @@ from devito.ir import Expression, FindNodes, ccode
 from devito.ir.support.guards import GuardExpr, pairwise_or, simplify_and
 from devito.mpi.halo_scheme import HaloTouch
 from devito.symbolics import (  # noqa
-    INT, BaseCast, CallFromPointer, Cast, DefFunction, FieldFromComposite,
-    FieldFromPointer, IntDiv, ListInitializer, Namespace, ReservedWord, RoundUp, Rvalue,
-    SizeOf, VectorAccess, evalrel, pow_to_mul, q_negative, q_positive,
-    retrieve_derivatives, retrieve_functions, retrieve_indexed, subs_if_composite,
-    uxreplace, xreplace_indices
+    INT, BaseCast, CallFromComposite, CallFromPointer, Cast, DefFunction,
+    FieldFromComposite, FieldFromPointer, IntDiv, ListInitializer, Namespace,
+    ReservedWord, RoundUp, Rvalue, SizeOf, VectorAccess, evalrel, pow_to_mul, q_negative,
+    q_positive, retrieve_derivatives, retrieve_functions, retrieve_indexed,
+    subs_if_composite, uxreplace, xreplace_indices
 )
+from devito.symbolics.unevaluation import Add as UnevalAdd
+from devito.symbolics.unevaluation import Mul as UnevalMul
 from devito.tools import CustomDtype, as_tuple, dtypes_vector_mapper
 from devito.types import (
     Array, Bundle, ComponentAccess, FIndexed, LocalObject, Object, StencilDimension
 )
 from devito.types import Symbol as dSymbol
+from devito.types import Temp
 from devito.types.basic import AbstractSymbol
 
 
@@ -1122,6 +1125,44 @@ class TestUxreplace:
         ht1 = uxreplace(ht0, {f.indexed: g.indexed})
 
         assert ht1.args == (g[x, y],)
+
+    @pytest.mark.parametrize('op', [UnevalAdd, UnevalMul])
+    def test_lowered_arithmetic_order(self, op):
+        a, b, c = [Temp(name=f'r{i}') for i in (9, 10, 11)]
+        x, y, z = [Temp(name=f'r{i}') for i in (0, 1, 2)]
+        expr = op(c, op(b, a))
+
+        rebuilt = uxreplace(expr, {a: x, b: y, c: z})
+
+        assert rebuilt.args == (z, op(y, x))
+
+    @pytest.mark.parametrize('cls,converted', [(CallFromPointer, CallFromComposite),
+                                               (CallFromComposite, CallFromPointer),
+                                               (FieldFromPointer, FieldFromComposite),
+                                               (FieldFromComposite, FieldFromPointer)])
+    def test_bound_member_names(self, cls, converted):
+        a, b = [dSymbol(name=f'r{i}') for i in (9, 0)]
+        p, q = [dSymbol(name=f'p{i}') for i in (9, 0)]
+        expr = cls(a, p, [a])
+
+        assert uxreplace(expr, {a: b, p: q}) == cls(a, q, [b])
+        assert uxreplace(expr, {expr: cls(b, q, [b])}) == cls(b, q, [b])
+        assert uxreplace(expr, {cls: converted, a: b, p: q}) == converted(a, q, [b])
+
+        bound = cls(a, p)
+        assert uxreplace(bound, {a: b}) is bound
+
+    def test_findexed_strides(self):
+        grid = Grid(shape=(4, 4))
+        x, y = grid.dimensions
+        f = Function(name='f', grid=grid)
+        a, b = [dSymbol(name=f'y_stride{i}') for i in (9, 0)]
+        expr = FIndexed(f.indexed, x, y, strides_map={y: a})
+
+        rebuilt = uxreplace(expr, {a: b})
+
+        assert rebuilt.strides == (b,)
+        assert expr.strides == (a,)
 
 
 def test_minmax():
