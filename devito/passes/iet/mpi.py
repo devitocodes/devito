@@ -235,6 +235,22 @@ def _hoist_invariant(iet):
     return iet
 
 
+def _is_stale_halo(f):
+    """
+    Whether `f`'s halo cannot be assumed valid on entry, so that a HaloSpot for
+    it must survive even though the Operator never writes it.
+
+    A Function on an interpolated SubGrid qualifies. The parent Grid and the
+    SubGrid are decomposed independently, so a rank's parent points generally
+    need SubGrid points its neighbour owns; and `f.data` only ever fills the
+    local *domain*, leaving the halo unpopulated.
+    """
+    grid = getattr(f, 'grid', None)
+
+    return bool(grid is not None and getattr(grid, 'is_SubGrid', False)
+                and grid.is_interpolated)
+
+
 def _drop_if_unwritten(iet, options=None, **kwargs):
     """
     Drop HaloSpots for unwritten Functions.
@@ -252,7 +268,8 @@ def _drop_if_unwritten(iet, options=None, **kwargs):
     mapper = {}
     for hs in FindNodes(HaloSpot).visit(iet):
         for f, v in hs.fmapper.items():
-            if not writes.intersection({f, v.bundle}) and key(f):
+            if not writes.intersection({f, v.bundle}) and key(f) \
+               and not _is_stale_halo(f):
                 mapper[hs] = mapper.get(hs, hs.halo_scheme).drop(f)
 
     # Post-process analysis

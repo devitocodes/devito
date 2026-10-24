@@ -16,6 +16,7 @@ from devito.deprecations import deprecations
 from devito.exceptions import InvalidArgument
 from devito.finite_differences import Differentiable, generate_fd_shortcuts
 from devito.finite_differences.interpolation import interp_mapper
+from devito.finite_differences.subgrid import is_subgrid_read, subgrid_interp
 from devito.finite_differences.tools import fd_weights_registry
 from devito.logger import debug, warning
 from devito.mpi import MPI
@@ -1104,6 +1105,12 @@ class Function(DiscreteFunction):
             raise TypeError("`interp_order` must be an integer")
         elif interp_order > self._space_order and self._space_order > 1:
             raise ValueError("`interp_order` must be <= `space_order`")
+        elif interp_order % 2 and self.grid is not None and \
+                self.grid.is_SubGrid:
+            # A SubGrid read is centred on the cell the position falls in, so
+            # the taps are split evenly either side of it
+            raise ValueError("`interp_order` must be even for a Function on a "
+                             f"SubGrid, got `{interp_order}`")
         self._interp_order = interp_order
 
         # Acquire derivative shortcuts
@@ -1130,7 +1137,18 @@ class Function(DiscreteFunction):
         return 1.2 if self.staggered.on_node else 1.1
 
     def _eval_at(self, func, **kwargs):
-        if self.staggered == func.staggered or self.interp_order == 0:
+        # A Function on a SubGrid lives on different Dimensions altogether, so
+        # relocating it onto `func` means re-expressing its indices in the
+        # parent's terms. Same convention as staggering: the RHS is evaluated
+        # at the LHS's location
+        if self.interp_order == 0:
+            # Same convention as staggering: no relocation requested
+            return self
+
+        if is_subgrid_read(self, func, kwargs.get('subdomain')):
+            return subgrid_interp(self, func)
+
+        if self.staggered == func.staggered:
             return self
 
         # Dims where self and func indices differ -> {dim: func_idx}
