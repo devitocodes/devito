@@ -133,9 +133,17 @@ class TestSC:
         assert all(given.coeff(u._subs(x, x + i*x.spacing)) == w/x.spacing
                    for i, w in zip((-1, 0, 1), weights, strict=True))
 
-        computed = u.dx2.evaluate
-        assert all(len(str(c).split('.')[-1].rstrip('0')) <= _PRECISION
-                   for c in computed.atoms(sp.Float))
+        # The weights of an eighth-order first derivative, 4/105 and 1/280 among
+        # them, are rounded to `_PRECISION` digits
+        u8 = Function(name='u8', grid=grid, space_order=8)
+        computed = u8.dx.evaluate
+        offsets = range(-4, 5)
+        exact = sp.finite_diff_weights(1, list(offsets), 0)[-1][-1]
+        for i, w in zip(offsets, exact, strict=True):
+            c = computed.coeff(u8._subs(x, x + i*x.spacing))*x.spacing
+            assert float(c) == float(sp.Float(w, _PRECISION))
+            if abs(i) > 2:
+                assert float(c) != float(w)
 
     def test_coefficients_expr(self):
         p = Dimension('p')
