@@ -3,8 +3,8 @@ import pytest
 import scipy.sparse
 
 from devito import (
-    Eq, Function, Grid, Inc, MatrixSparseTimeFunction, Operator, SparseTimeFunction,
-    TimeFunction, configuration, sin, switchconfig
+    ConditionalDimension, Eq, Function, Grid, Inc, MatrixSparseTimeFunction, Operator,
+    SparseTimeFunction, TimeFunction, configuration, sin, switchconfig
 )
 from devito.ir import Call, Callable, DummyExpr, Expression, FindNodes, SymbolRegistry
 from devito.passes import Graph, generate_macros, linearize
@@ -737,3 +737,30 @@ def test_bundle_derived_dim_stride():
     assert bundle.symbolic_shape[p] is not bundle.symbolic_shape[rp]
     assert bundle.symbolic_shape[rp] == 2
     assert bundle.symbolic_shape.dindex(rp) == 1
+
+
+@pytest.mark.parametrize('opt', ['noop', ('advanced', {'linearize': True})])
+def test_nested_indexeds_in_guard(opt):
+    grid = Grid(shape=(4, 4))
+    time = grid.time_dim
+
+    T = TimeFunction(name='T', grid=grid, time_order=0, space_order=0)
+    ind = TimeFunction(name='I', grid=grid, time_order=0, space_order=0,
+                       dtype=np.int32)
+    f = TimeFunction(name='f', grid=grid, time_order=0, space_order=0, save=4)
+
+    # The guard reads `T` through an indirection
+    cd = ConditionalDimension(name='cd', parent=time,
+                              condition=T[0, ind[0, 0, 0], 0] < 1.5)
+    eqns = [Eq(T, time), Eq(f, T + 1, implicit_dims=cd)]
+
+    op = Operator(eqns, opt=opt, name='NestedGuard')
+
+    if opt != 'noop':
+        assert 'TL0(0, IL0(0, 0, 0), 0) < 1.5' in str(op)
+
+    ind.data[:] = 2
+    expected = np.array([1, 2, 0, 0])[:, None, None]
+
+    op.apply(time_M=3)
+    assert np.all(f.data == expected)
