@@ -331,7 +331,19 @@ class TestGridMPI:
         jacobian = grid.jacobian
         assert np.allclose(np.asarray(jacobian.data_ro_domain._local),
                            (height/800.)[jacobian.local_indices], rtol=1e-6)
-        assert np.isclose(grid.min_spacing, sine_grid(31).min_spacing)
+        serial = CurvilinearGrid(shape=(31, 31), extent=(1000., 800.),
+                                 mapping=TerrainFollowing(surface=sine_surface),
+                                 comm=MPI.COMM_SELF)
+        assert np.isclose(grid.min_spacing, serial.min_spacing, rtol=1e-6)
+
+    @pytest.mark.parallel(mode=[2])
+    def test_invalid_on_one_rank(self, mode):
+        """
+        A map that fails on the nodes of one rank only raises on every rank,
+        rather than leaving the others waiting for it.
+        """
+        with pytest.raises(ValueError, match='on some rank'):
+            CurvilinearGrid(shape=(31, 31), extent=(1000., 800.), mapping=Undefined())
 
 
 # Analytic fields for derivative tests, over the physical coordinates
