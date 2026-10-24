@@ -14,9 +14,13 @@ and a second derivative along one physical Dimension through
                  + sum_j (d^2 xi_j/d x_i^2) d/d xi_j.
 
 Higher and mixed derivatives are nested first and second derivatives. The
-transpose `.T` of a physical derivative is its exact discrete transpose, so a
-self-adjoint operator is written as one, e.g. `-(J*b*u.dx).dx.T/J`, symmetric
-in the inner product weighted by the Jacobian `J`.
+transpose `.T` of a physical derivative is the exact discrete transpose of the
+derivative evaluated where it is written, so a self-adjoint operator is written
+as one, e.g. `-(J*b*u.dx).dx.T/J`, symmetric in the inner product weighted by
+the Jacobian `J`. As on a Grid, an equation that evaluates `.T` at another
+staggering, e.g. a staggered left-hand side, moves its `x0` there, and so the
+metric terms it is evaluated with: the transpose of a derivative to a half
+point is written with that `x0`, `u.dx(x0=x + h_x/2).T`.
 """
 
 import sympy
