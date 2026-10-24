@@ -915,8 +915,8 @@ class TestSparse:
 
     def test_dirac(self):
         """
-        A unit Dirac injected divided by the Jacobian integrates to one over the
-        physical domain.
+        A unit Dirac injected divided by the physical cell volume, the Jacobian
+        times the computational one, integrates to one over the physical domain.
         """
         grid = sine_grid(41)
         points = random_points(3)
@@ -924,11 +924,11 @@ class TestSparse:
         src = SparseFunction(name='src', grid=grid, npoint=len(points),
                              coordinates=points)
         src.data[:] = 1.
-        Operator(src.inject(v, src/grid.jacobian)).apply()
+        cell = float(np.prod(grid.spacing))
+        Operator(src.inject(v, src/(grid.jacobian*cell))).apply()
 
-        cell = np.prod(grid.spacing)
-        assert np.isclose(np.sum(grid.jacobian.data*v.data)*cell,
-                          len(points)*cell, rtol=1e-5)
+        assert np.isclose(np.sum(grid.jacobian.data*v.data)*cell, len(points),
+                          rtol=1e-5)
 
     def test_flat_is_cartesian(self):
         """On a flat map, injection and interpolation are those of a Grid."""
