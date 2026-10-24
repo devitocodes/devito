@@ -363,12 +363,17 @@ class TerrainFollowing(CurvilinearMap):
     keeps_lateral = True
 
     def __init__(self, surface):
-        self._surface = surface if callable(surface) else np.asarray(surface,
-                                                                     dtype=np.float64)
+        if not callable(surface):
+            # A read-only copy, which the cached metric terms of a grid describe
+            surface = np.array(surface, dtype=np.float64)
+            surface.flags.writeable = False
+        self._surface = surface
 
     @property
     def surface(self):
-        """The surface, an array of lateral node values or a callable."""
+        """
+        The surface, a read-only array of lateral node values or a callable.
+        """
         return self._surface
 
     @staticmethod

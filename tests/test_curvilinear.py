@@ -167,6 +167,19 @@ class TestGrid:
         assert np.allclose(sampled.coordinates[1].data, grid.coordinates[1].data,
                            rtol=1e-6)
 
+    def test_array_surface_copy(self):
+        """
+        An array surface is a read-only copy, so the metric terms cached by a
+        grid keep describing its map when the array passed in changes.
+        """
+        surface = sine_surface(np.linspace(0., 1000., 21))
+        mapping = TerrainFollowing(surface=surface)
+        surface[:] = 0
+        assert not mapping.surface.flags.writeable
+        assert np.array_equal(mapping.surface, sine_surface(np.linspace(0., 1000., 21)))
+        with pytest.raises(ValueError, match='read-only'):
+            mapping.surface[0] = 0
+
     @pytest.mark.parametrize('space_order', [4, 8])
     def test_array_surface_order(self, space_order):
         """
