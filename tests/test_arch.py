@@ -6,6 +6,7 @@ from packaging.version import Version
 
 from devito import configuration, switchconfig
 from devito.arch import BLACKWELL, NVIDIAX
+from devito.arch.archinfo import get_cuda_version
 from devito.arch.compiler import (
     CudaCompiler, GNUCompiler, compiler_registry, sniff_compiler_version
 )
@@ -93,3 +94,26 @@ def test_cuda_target(monkeypatch, platform, cc, target):
 
     flags = [i for i in compiler.cflags if i.startswith(('-arch=', '-gencode='))]
     assert flags == [target]
+
+
+def test_get_cuda_version_without_nvcc(monkeypatch):
+    def missing(*args, **kwargs):
+        raise FileNotFoundError('nvcc')
+
+    monkeypatch.setattr('devito.arch.archinfo.run', missing)
+    # `.func` skips the cache
+    assert get_cuda_version.func() is None
+
+
+def test_cuda_std_without_nvcc(monkeypatch):
+    def std(version):
+        with switchconfig(mpi=False), monkeypatch.context() as m:
+            m.setattr('devito.arch.compiler.get_cuda_version', lambda: version)
+            m.setattr('devito.arch.compiler.check_cuda_runtime', lambda: None)
+            return CudaCompiler(platform=NVIDIAX).std
+
+    assert std(Version('13.0')) == 'c++17'
+    assert std(Version('12.8')) == 'c++14'
+    # No `nvcc`: fall back to the pre-CUDA 13 standard
+    assert std(None) == 'c++14'
+
