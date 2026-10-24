@@ -6,6 +6,7 @@ from packaging.version import Version
 
 from devito import configuration, switchconfig
 from devito.arch import BLACKWELL, NVIDIAX
+from devito.arch.archinfo import AppleArm, get_apple_platform
 from devito.arch.compiler import (
     CudaCompiler, GNUCompiler, compiler_registry, sniff_compiler_version
 )
@@ -23,6 +24,20 @@ def test_sniff_compiler_version(cc):
 @pytest.mark.parametrize("cc", ['gcc-4.9', 'gcc-11', 'gcc', 'gcc-14', 'gcc-123'])
 def test_gcc(cc):
     assert cc in compiler_registry
+
+
+@pytest.mark.parametrize("brand, expected", [
+    ("Apple M1", 'm1'),
+    ("Apple M1 (Virtual)", 'm1'),
+    ("Apple M2 Pro", 'm2'),
+    ("Apple M3 Max", 'm3'),
+    ("Apple M4 Max", 'm3'),
+    ("Apple M5", 'm3'),
+])
+def test_apple_platform(brand, expected):
+    platform = get_apple_platform(brand)
+    assert isinstance(platform, AppleArm)
+    assert platform.name == expected
 
 
 def test_switcharch():

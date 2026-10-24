@@ -720,6 +720,15 @@ def lscpu():
         return {}
 
 
+def get_apple_platform(brand):
+    """
+    The registered AppleArm matching an Apple-silicon brand string, e.g.
+    "Apple M2 Pro". Chips not registered yet map to the newest registered one.
+    """
+    key = brand.lower().split('apple ')[1].split()[0]
+    return platform_registry.get(key, platform_registry['m3'])
+
+
 @memoized_func
 def get_platform():
     """Attempt Platform autodetection."""
@@ -753,8 +762,8 @@ def get_platform():
             return platform_registry['power8']
         elif 'arm' in brand:
             return platform_registry['arm']
-        elif 'm1' in brand:
-            return platform_registry['m1']
+        elif 'apple m' in brand:
+            return get_apple_platform(brand)
         elif 'amd' in brand:
             return platform_registry['amd']
     except:
