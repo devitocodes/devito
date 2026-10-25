@@ -6,8 +6,9 @@ from sympy import S
 from devito.finite_differences import IndexDerivative, Weights
 from devito.ir import Backward, Forward, Interval, IterationSpace, Queue
 from devito.passes.clusters.fusion import fuse
-from devito.symbolics import (BasicWrapperMixin, ListInitializer, reuse_if_untouched,
-                             search, uxreplace)
+from devito.symbolics import (
+    BasicWrapperMixin, ListInitializer, reuse_if_untouched, search, uxreplace
+)
 from devito.tools import dtype_len, extract_dtype, infer_dtype, timed_pass
 from devito.types import Eq, Inc, Indexed, Symbol, Temp
 

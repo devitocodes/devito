@@ -21,8 +21,7 @@ from devito.passes.iet.languages.openacc import AccBB, AccPrinter
 from devito.passes.iet.languages.openmp import CXXOmpBB, OmpBB
 from devito.symbolics import sympy_dtype
 from devito.symbolics.extended_dtypes import ctypes_vector_mapper
-from devito.tools import (dtype_to_cstr, dtypes_vector_mapper, extract_dtype,
-                          infer_dtype)
+from devito.tools import dtype_to_cstr, dtypes_vector_mapper, extract_dtype, infer_dtype
 from devito.types import ComponentAccess
 from devito.types.basic import Basic, Scalar, Symbol
 from devito.types.dense import TimeFunction
@@ -92,8 +91,16 @@ def test_vector_inference():
     assert extract_dtype(expr) == dtype
     assert extract_dtype(ComponentAccess(v, 0)) == np.float32
     assert sympy_dtype(expr) == np.float32
-    assert infer_dtype([pickle.loads(pickle.dumps(dtype)), np.float32]) == dtype
-    assert infer_dtype([dtype, np.float64]) == dtypes_vector_mapper[np.float64, 2]
+    assert infer_dtype([dtype, np.float32]) == np.float32
+    assert infer_dtype([pickle.loads(pickle.dumps(dtype))], vector=True) == dtype
+    assert (infer_dtype([dtype, np.float64], vector=True) ==
+            dtypes_vector_mapper[np.float64, 2])
+    assert infer_dtype([dtype, np.complex64], vector=True) == np.complex64
+
+    f = Function(name='f', grid=Grid(shape=(4,)))
+    for expr in (f + v, f*v, (f + v)**2):
+        assert expr.dtype == extract_dtype(expr) == dtype
+    assert (f + ComponentAccess(v, 0)).dtype == np.float32
 
 
 @pytest.mark.parametrize('dtype', [np.complex64, np.complex128])
