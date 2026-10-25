@@ -15,8 +15,9 @@ from devito.finite_differences.differentiable import (
 )
 from devito.finite_differences.finite_difference import _PRECISION
 from devito.ir import Cluster, SymbolRegistry
-from devito.passes.clusters.derivatives import (_lower_index_derivatives,
-                                                deriv_schedule_registry)
+from devito.passes.clusters.derivatives import (
+    _lower_index_derivatives, deriv_schedule_registry
+)
 from devito.symbolics import DefFunction, ListInitializer, indexify, retrieve_indexed
 from devito.tools import dtypes_vector_mapper
 from devito.types import Array, Temp
@@ -1228,8 +1229,8 @@ class TestTwoStageEvaluation:
         init = clusters[0].exprs[0]
         increment = clusters[1].exprs[0]
         assert init.lhs.dtype == dtype
-        assert init.rhs == (initial if width == 1 else
-                            ListInitializer(*([initial]*width)))
+        expected = initial if width == 1 else ListInitializer(*([initial]*width))
+        assert init.rhs == expected
         assert increment.lhs == init.lhs
         assert (init.lhs == out) == reuse
 

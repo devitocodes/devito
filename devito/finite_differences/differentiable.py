@@ -591,6 +591,12 @@ class DifferentiableOp(Differentiable):
 
         return obj
 
+    @cached_property
+    def dtype(self):
+        # Typed operands may carry vector types or casts absent from `_functions`
+        dtypes = {extract_dtype(i) for i in self.args} - {None}
+        return infer_dtype(dtypes, vector=True)
+
     def subs(self, *args, **kwargs):
         return self.func(
             *[getattr(a, 'subs', lambda x: a)(*args, **kwargs)  # noqa: B023

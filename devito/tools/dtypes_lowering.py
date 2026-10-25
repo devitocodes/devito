@@ -357,7 +357,7 @@ def is_numpy_dtype(dtype):
         return False
 
 
-def infer_dtype(dtypes):
+def infer_dtype(dtypes, *, vector=False):
     """
     Given a set of np.dtypes, return the "winning" dtype:
 
@@ -365,10 +365,10 @@ def infer_dtype(dtypes):
           highest precision;
         * If there's at least one floating dtype, ignore any integer dtypes.
 
-    Preserve vector length when combining compatible vector and scalar operands.
+    If `vector=True`, preserve vector length when a matching vector dtype exists.
     """
     dtypes = set(dtypes)
-    n = max(map(dtype_len, dtypes), default=1)
+    n = max(map(dtype_len, dtypes), default=1) if vector else 1
 
     # Resolve the vector types, if any
     dtypes = {dtypes_vector_mapper.get_base_dtype(i, i) for i in dtypes}
@@ -387,23 +387,17 @@ def infer_dtype(dtypes):
         # E.g., mixed integer arithmetic
         dtype = max(dtypes, key=lambda i: np.dtype(i).itemsize, default=None)
 
-    return dtypes_vector_mapper[dtype, n] if n > 1 else dtype
+    return dtypes_vector_mapper.get((dtype, n), dtype)
 
 
 def extract_dtype(expr):
     """
     Extract the result dtype, retaining typed vector operands such as float2.
     """
-    # Arithmetic nodes may expose only their Functions' scalar precision
-    if not (expr.is_Add or expr.is_Mul or expr.is_Pow):
-        try:
-            dtype = expr.dtype
-        except AttributeError:
-            pass
-        else:
-            if dtype is not None:
-                return dtype
+    dtype = getattr(expr, 'dtype', None)
+    if dtype is not None:
+        return dtype
 
     dtypes = {extract_dtype(i) for i in expr.args} - {None}
 
-    return infer_dtype(dtypes)
+    return infer_dtype(dtypes, vector=True)
