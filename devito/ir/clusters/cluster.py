@@ -7,15 +7,15 @@ import numpy as np
 from devito.ir.equations import ClusterizedEq
 from devito.ir.support import (
     PARALLEL, PARALLEL_IF_PVT, BaseGuardBoundNext, DataSpace, Forward, Guards, Interval,
-    IntervalGroup, IterationSpace, PrefetchUpdate, Properties, Scope, WaitLock, WithLock,
-    detect_accesses, maximum, minimum, normalize_properties, normalize_syncs, null_ispace,
-    tailor_properties, update_properties
+    IntervalGroup, IterationSpace, PrefetchUpdate, Properties, Scope, TimedAccess,
+    WaitLock, WithLock, detect_accesses, maximum, minimum, normalize_properties,
+    normalize_syncs, null_ispace, tailor_properties, update_properties
 )
 from devito.mpi.halo_scheme import HaloScheme, HaloTouch
 from devito.mpi.reduction_scheme import DistReduce
 from devito.symbolics import estimate_cost, uxreplace
 from devito.tools import (
-    CacheInstances, as_tuple, cached_hash, filter_ordered, flatten, infer_dtype
+    CacheInstances, as_mapper, as_tuple, cached_hash, filter_ordered, flatten, infer_dtype
 )
 from devito.types import (
     CriticalRegion, Fence, Indexed, PhaseMarker, TensorMove, ThreadArrive, ThreadCommit,
@@ -157,7 +157,8 @@ class EqBlock(CacheInstances):
 
     @cached_property
     def scope(self):
-        return Scope(self.exprs)
+        reads, writes = extract_accesses(self)
+        return Scope(self.exprs, reads=reads, writes=writes)
 
     @cached_property
     def functions(self):
@@ -687,7 +688,8 @@ class ClusterGroup(tuple):
 
     @cached_property
     def scope(self):
-        return Scope(exprs=self.exprs)
+        reads, writes = extract_accesses(self)
+        return Scope(exprs=self.exprs, reads=reads, writes=writes)
 
     @cached_property
     def functions(self):
@@ -763,6 +765,23 @@ class ClusterGroup(tuple):
 
 
 # *** Utils
+
+def extract_accesses(cluster):
+    """
+    The accesses performed by `cluster` on top of those of its expressions,
+    e.g. due to its synchronization operations. A wait, e.g. for a prefetch to
+    complete, is an index-free write of its target, so that no access to the
+    target may float above it upon topological sorting.
+
+    Return the reads and writes as mappers from Functions to TimedAccesses, to
+    be fed to a Scope.
+    """
+    accesses = [TimedAccess(s.target.indexed, 'W', 0, cluster.ispace)
+                for s in flatten(cluster.syncs.values()) if isinstance(s, WaitLock)]
+
+    return (as_mapper([a for a in accesses if a.is_read], key=lambda i: i.function),
+            as_mapper([a for a in accesses if a.is_write], key=lambda i: i.function))
+
 
 def reduce_properties(clusters):
     """
