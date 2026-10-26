@@ -365,7 +365,9 @@ class BasePrinter(CodePrinter):
         Print an addition.
         """
         terms = self._as_ordered_terms(expr, order=order)
-        if expr.is_commutative and terms[0].is_Number and has_integer_args(*expr.args):
+        # Integer inputs alone do not prove an integer result (e.g. sin(n))
+        if (expr.is_commutative and terms[0].is_Number and
+                all(has_integer_args(i) for i in expr.args)):
             # Keep integer offsets last without sorting symbolic operands
             terms = sorted(terms, key=lambda i: i.is_Number)
 

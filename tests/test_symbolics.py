@@ -372,6 +372,8 @@ def test_lowered_integer_offset(dtype, offset, expected):
     # A floating-point addend requires preserving the original summation order
     value = dSymbol('value', dtype=np.float32)
     assert ccode(UnevalAdd(offset, size, value)) == f'{offset} + bx_size + value'
+    assert ccode(UnevalAdd(offset, size, sympy.sin(size))) == \
+        f'{offset} + bx_size + sin(bx_size)'
 
 
 def test_integer_abs():
