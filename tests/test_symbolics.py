@@ -19,11 +19,11 @@ from devito.symbolics import (  # noqa
     FieldFromComposite, FieldFromPointer, IntDiv, ListInitializer, Namespace,
     ReservedWord, RoundUp, Rvalue, SizeOf, VectorAccess, evalrel, pow_to_mul, q_negative,
     q_positive, retrieve_derivatives, retrieve_functions, retrieve_indexed,
-    subs_if_composite, uxreplace, xreplace_indices
+    subs_if_composite, unevaluate, uxreplace, xreplace_indices
 )
 from devito.symbolics.unevaluation import Add as UnevalAdd
 from devito.symbolics.unevaluation import Mul as UnevalMul
-from devito.tools import CustomDtype, as_tuple, dtypes_vector_mapper
+from devito.tools import CustomDtype, as_tuple, dtypes_vector_mapper, frozendict
 from devito.types import (
     Array, Bundle, ComponentAccess, FIndexed, LocalObject, Object, StencilDimension
 )
@@ -358,6 +358,33 @@ def test_lowered_arithmetic_printing(cls, separator):
 
     # Each nested lowered operation retains its own operands and precedence
     assert ccode(UnevalMul(b, UnevalAdd(c, a))) == 'b*(c + a)'
+    assert ccode(cls(b, cls(c, a))) == f'b{separator}(c{separator}a)'
+    assert ccode(UnevalAdd(b, sympy.Add(c, a, evaluate=False))) == 'b + (a + c)'
+
+
+def test_lowered_negative_product():
+    a, b, c = [dSymbol(i, dtype=np.float32) for i in ('a', 'b', 'c')]
+
+    # Extracting a negative coefficient must retain the frozen factors
+    assert ccode(UnevalMul(-2, c, a, b)) == '-2*c*a*b'
+    expr = -2*c*a*b
+    assert ccode(unevaluate(expr)) == ccode(expr)
+
+
+@pytest.mark.parametrize('cls, lowered, separator', [
+    (sympy.Add, UnevalAdd, ' + '),
+    (sympy.Mul, UnevalMul, '*')
+])
+def test_freeze_grouping(cls, lowered, separator):
+    a, b, c = [Temp(name=n, dtype=np.float32) for n in ('r9', 'r10', 'r11')]
+    x, y, z = [Temp(name=n, dtype=np.float32) for n in ('r0', 'r1', 'r2')]
+    expr = cls(c, cls(b, a, evaluate=False), evaluate=False)
+
+    frozen = unevaluate(expr, {a: x, b: y, c: z})
+
+    assert frozen.args == (c, lowered(a, b))
+    assert ccode(frozen) == f'r11{separator}(r9{separator}r10)'
+    assert unevaluate(frozen) is frozen
 
 
 @pytest.mark.parametrize('dtype', [np.int32, np.int64])
@@ -366,14 +393,35 @@ def test_lowered_integer_offset(dtype, offset, expected):
     size = dSymbol('bx_size', dtype=dtype)
     other = dSymbol('a_size', dtype=dtype)
 
-    assert ccode(UnevalAdd(offset, size)) == 'bx_size' + expected
-    assert ccode(UnevalAdd(offset, size, other)) == 'bx_size + a_size' + expected
+    lowered = unevaluate(size + offset)
+    assert lowered.args == (size, offset)
+    assert ccode(lowered) == 'bx_size' + expected
 
-    # A floating-point addend requires preserving the original summation order
+    # Renaming retains the order chosen before freezing
+    lowered = unevaluate(size + other + offset)
+    renamed = uxreplace(lowered, {size: other, other: size})
+    assert ccode(renamed) == 'bx_size + a_size' + expected
+
+    # Result types do not affect how the arithmetic order is frozen
     value = dSymbol('value', dtype=np.float32)
-    assert ccode(UnevalAdd(offset, size, value)) == f'{offset} + bx_size + value'
-    assert ccode(UnevalAdd(offset, size, sympy.sin(size))) == \
-        f'{offset} + bx_size + sin(bx_size)'
+    for addend in (value, sympy.sin(size)):
+        expr = size + addend + offset
+        assert ccode(unevaluate(expr)) == ccode(expr)
+
+
+@pytest.mark.parametrize('cls, separator', [(sympy.Add, ' + '), (sympy.Mul, '*')])
+@pytest.mark.parametrize('names', [('r9', 'r10', 'r11'), ('r21', 'r20', 'r19'),
+                                   ('later', 'middle', 'earlier')])
+def test_lowered_temporary_order(cls, separator, names):
+    grid = Grid(shape=(4,))
+    f, g, h, out = [Function(name=n, grid=grid) for n in ('f', 'g', 'h', 'out')]
+    a, b, c = [Temp(name=n, dtype=np.float32) for n in names]
+    op = Operator([Eq(a, cos(f)), Eq(b, sin(g)), Eq(c, cos(h)),
+                   Eq(out, cls(a, b, c))], opt='noop')
+    expr, = [i for i in FindNodes(Expression).visit(op) if i.write == out]
+
+    assert expr.expr.rhs.args == (a, b, c)
+    assert str(expr).endswith(f' = {separator.join(names)};')
 
 
 def test_integer_abs():
@@ -1077,17 +1125,20 @@ class TestUxreplace:
         assert xreplace_indices(exprs, {z: z + 1}) is exprs
         assert xreplace_indices(exprs, {x: x + 1}) is not exprs
 
-    def test_custom_reconstructable(self):
+    @pytest.mark.parametrize('mapping_type', [dict, frozendict])
+    def test_custom_reconstructable(self, mapping_type):
 
         class MyDefFunction(DefFunction):
             __rargs__ = ('name', 'arguments')
-            __rkwargs__ = ('p0', 'p1', 'p2')
+            __rkwargs__ = ('p0', 'p1', 'p2', 'p3')
 
-            def __new__(cls, name=None, arguments=None, p0=None, p1=None, p2=None):
+            def __new__(cls, name=None, arguments=None, p0=None, p1=None, p2=None,
+                        p3=None):
                 obj = super().__new__(cls, name=name, arguments=arguments)
                 obj.p0 = p0
                 obj.p1 = as_tuple(p1)
                 obj.p2 = p2
+                obj.p3 = p3
                 return obj
 
         grid = Grid(shape=(4, 4))
@@ -1096,7 +1147,7 @@ class TestUxreplace:
         g = Function(name='g', grid=grid)
 
         func = MyDefFunction(name='foo', arguments=f.indexify(),
-                             p0=f, p1=f, p2='bar')
+                             p0=f, p1=f, p2='bar', p3=mapping_type({'field': f}))
 
         mapper = {f: g, f.indexify(): g.indexify()}
         func1 = uxreplace(func, mapper)
@@ -1105,6 +1156,10 @@ class TestUxreplace:
         assert func1.p0 is g
         assert func1.p1 == (g,)
         assert func1.p2 == 'bar'
+        assert type(func1.p3) is mapping_type
+        assert func1.p3['field'] is g
+        assert func.p3['field'] is f
+        assert uxreplace(func1, mapper) is func1
 
     def test_custom_def_function_reconstruction_no_aliasing(self):
 

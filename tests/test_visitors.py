@@ -11,7 +11,7 @@ from devito.ir.iet import (
     FindNodes, FindSections, FindSymbols, FindWithin, IsPerfectIteration, Iteration, List,
     MapNodes, Node, Transformer, Uxreplace, printAST
 )
-from devito.symbolics import ListInitializer
+from devito.symbolics import ListInitializer, retrieve_indexed
 from devito.types import Array, LocalObject, SpaceDimension, Symbol
 
 
@@ -422,7 +422,8 @@ def test_find_symbols_with_duplicates():
     # objects because they are constructed in two different places during
     # the CIRE pass
     r0a = exprs[0].output
-    r0b = exprs[1].expr.rhs.args[0].args[0]
+    r0b, = [i for i in retrieve_indexed(exprs[1].expr.rhs)
+            if i.name == r0a.name]
     assert r0a.function is r0b.function
     assert r0a.name == r0b.name == "r0"
     assert hash(r0a) == hash(r0b)

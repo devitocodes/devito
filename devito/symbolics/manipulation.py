@@ -192,7 +192,7 @@ def _(mapper, rule):
         vx, flag = _uxreplace_dispatch(v, rule)
         ret[k] = vx
         changed |= flag
-    return (ret, True) if changed else (mapper, False)
+    return (mapper.__class__(ret), True) if changed else (mapper, False)
 
 
 @singledispatch
@@ -217,6 +217,7 @@ def _(expr, args, kwargs):
     return expr.func(*args, evaluate=evaluate)
 
 
+# The SymPy bases precede UnevaluableMixin in these classes' dispatch MRO
 @_uxreplace_handle.register(UnevalAdd)
 @_uxreplace_handle.register(UnevalMul)
 def _(expr, args, kwargs):
@@ -627,11 +628,27 @@ uneval_mapper = {Add: UnevalAdd, Mul: UnevalMul, Pow: UnevalPow,
                  ceiling: UnevalCeil, floor: UnevalFloor}
 
 
-def unevaluate(expr):
+def unevaluate(expr, mapper=None):
+    """
+    Freeze code-generation operand order without reevaluating arithmetic.
+
+    `mapper` supplies comparison symbols; original operands and grouping survive.
+    """
     if q_leaf(expr):
         return expr
 
-    args = [unevaluate(a) for a in expr.args]
+    args = [unevaluate(a, mapper) for a in expr.args]
+    if expr.func in (Add, Mul):
+        # Order comparison copies; preserve the original operands and grouping
+        keys = [uxreplace(a, mapper) for a in args]
+        originals = dict(zip(keys, args, strict=True))
+        handle = expr.func(*keys, evaluate=False)
+        if expr.func is Add:
+            keys = handle.as_ordered_terms()
+        else:
+            keys = handle.as_ordered_factors()
+        # Factor ordering can split a negative coefficient into -1 and its magnitude
+        args = [originals.get(a, a) for a in keys]
 
     try:
         return uneval_mapper[expr.func](*args)
