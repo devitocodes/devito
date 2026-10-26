@@ -19,7 +19,7 @@ from devito.arch.compiler import AOMPCompiler
 from devito.symbolics.extended_sympy import BitwiseAnd
 from devito.symbolics.inspection import has_integer_args, sympy_dtype
 from devito.symbolics.queries import q_leaf
-from devito.symbolics.unevaluation import UnevaluableMixin
+from devito.symbolics.unevaluation import Add as UnevalAdd
 from devito.tools import (
     ctypes_to_cstr, ctypes_vector_mapper, dtype_to_ctype, memoized_func
 )
@@ -59,21 +59,6 @@ class BasePrinter(CodePrinter):
     _includes = []
     _namespaces = []
     _headers = [('_POSIX_C_SOURCE', '200809L')]
-
-    def __init__(self, settings=None):
-        super().__init__(settings)
-        self._order = self.order
-
-    def _print(self, expr, **kwargs):
-        # Lowered arithmetic already owns its operand order. Reset the setting
-        # for each child so ordinary index expressions keep their usual form.
-        order = self._settings['order']
-        self._settings['order'] = ('none' if isinstance(expr, UnevaluableMixin)
-                                   else self._order)
-        try:
-            return super()._print(expr, **kwargs)
-        finally:
-            self._settings['order'] = order
 
     @property
     def dtype(self):
@@ -299,6 +284,11 @@ class BasePrinter(CodePrinter):
         args = [a for a in expr.args if a != -1]
         neg = (len(expr.args) - len(args)) % 2
 
+        # SymPy's sign extraction rebuilds a plain Mul, losing frozen factor order
+        if args and args[0].is_Number and args[0].is_negative:
+            args[0] = -args[0]
+            neg ^= 1
+
         if len(args) > 1:
             term = super()._print_Mul(expr.func(*args, evaluate=False))
         else:
@@ -365,17 +355,12 @@ class BasePrinter(CodePrinter):
         Print an addition.
         """
         terms = self._as_ordered_terms(expr, order=order)
-        # Integer inputs alone do not prove an integer result (e.g. sin(n))
-        if (expr.is_commutative and terms[0].is_Number and
-                all(has_integer_args(i) for i in expr.args)):
-            # Keep integer offsets last without sorting symbolic operands
-            terms = sorted(terms, key=lambda i: i.is_Number)
 
         PREC = precedence(expr)
         l = []
         for term in terms:
             t = self._print(term)
-            if precedence(term) < PREC:
+            if precedence(term) < PREC or (isinstance(expr, UnevalAdd) and term.is_Add):
                 l.extend(["+", f"({t})"])
             elif t.startswith('-'):
                 l.extend(["-", t[1:]])
