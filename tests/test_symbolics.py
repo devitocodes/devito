@@ -339,52 +339,82 @@ def test_extended_sympy_arithmetic():
     assert ccode(-1 + bar) == '-1 + o->bar'
 
 
-@pytest.mark.parametrize('cls, separator', [(UnevalAdd, ' + '), (UnevalMul, '*')])
-def test_lowered_arithmetic_printing(cls, separator):
+@pytest.mark.parametrize('cls, regular, separator', [
+    (UnevalAdd, sympy.Add, ' + '),
+    (UnevalMul, sympy.Mul, '*')
+])
+def test_lowered_arithmetic_printing(cls, regular, separator):
     a, b, c = [dSymbol(i, dtype=np.float32) for i in ('a', 'b', 'c')]
 
-    # Lowered operands carry an order that must survive identifier changes
-    assert ccode(cls(c, a, b)) == separator.join(('c', 'a', 'b'))
+    # Lowering retains ordinary canonical printing
+    assert ccode(cls(c, a, b)) == separator.join(('a', 'b', 'c'))
     renamed = uxreplace(cls(c, a, b), {c: a, a: c})
-    assert ccode(renamed) == separator.join(('a', 'c', 'b'))
+    assert ccode(renamed) == separator.join(('a', 'b', 'c'))
 
     # Ordinary index arithmetic retains its usual printing inside lowered math
     grid = Grid(shape=(8,))
     x, = grid.dimensions
     f = Function(name='f', grid=grid)
     assert ccode(cls(c, f.indexed[x + 1], a)) == \
-        separator.join(('c', 'f[x + 1]', 'a'))
+        ccode(regular(c, f.indexed[x + 1], a, evaluate=False))
     assert ccode(x + 1) == 'x + 1'
 
-    # Each nested lowered operation retains its own operands and precedence
-    assert ccode(UnevalMul(b, UnevalAdd(c, a))) == 'b*(c + a)'
-    assert ccode(cls(b, cls(c, a))) == f'b{separator}(c{separator}a)'
-    assert ccode(UnevalAdd(b, sympy.Add(c, a, evaluate=False))) == 'b + (a + c)'
+    # Nested sums retain main's printing policy
+    assert ccode(UnevalMul(b, UnevalAdd(c, a))) == 'b*(a + c)'
+    assert ccode(cls(b, cls(c, a))) == \
+        ccode(regular(b, regular(c, a, evaluate=False), evaluate=False))
+    assert ccode(UnevalAdd(b, sympy.Add(c, a, evaluate=False))) == 'b + a + c'
 
 
-def test_lowered_negative_product():
+@pytest.mark.parametrize('coefficient', [-2, sympy.Float(-2), sympy.Rational(-1, 2)])
+@pytest.mark.parametrize('position', [0, 1, 3])
+def test_lowered_negative_product(coefficient, position):
     a, b, c = [dSymbol(i, dtype=np.float32) for i in ('a', 'b', 'c')]
+    args = [c, a, b]
+    args.insert(position, coefficient)
 
-    # Extracting a negative coefficient must retain the frozen factors
-    assert ccode(UnevalMul(-2, c, a, b)) == '-2*c*a*b'
-    expr = -2*c*a*b
+    assert ccode(UnevalMul(*args)) == ccode(coefficient*a*b*c)
+    expr = coefficient*c*a*b
     assert ccode(unevaluate(expr)) == ccode(expr)
 
 
-@pytest.mark.parametrize('cls, lowered, separator', [
-    (sympy.Add, UnevalAdd, ' + '),
-    (sympy.Mul, UnevalMul, '*')
+@pytest.mark.parametrize('coefficient', [-1, -2, sympy.Float(-2), sympy.Rational(-1, 2)])
+def test_lowered_product_sign(coefficient):
+    a, b, c = [dSymbol(i, dtype=np.float32) for i in ('a', 'b', 'c')]
+    expr = UnevalMul(-1, coefficient, c, a, b)
+
+    assert ccode(expr) == ccode(-coefficient*a*b*c)
+
+
+def test_lowered_sign_identity():
+    assert ccode(UnevalMul(-1, -1)) == '1'
+
+
+@pytest.mark.parametrize('cls, lowered', [
+    (sympy.Add, UnevalAdd),
+    (sympy.Mul, UnevalMul)
 ])
-def test_freeze_grouping(cls, lowered, separator):
+def test_freeze_grouping(cls, lowered):
     a, b, c = [Temp(name=n, dtype=np.float32) for n in ('r9', 'r10', 'r11')]
-    x, y, z = [Temp(name=n, dtype=np.float32) for n in ('r0', 'r1', 'r2')]
     expr = cls(c, cls(b, a, evaluate=False), evaluate=False)
 
-    frozen = unevaluate(expr, {a: x, b: y, c: z})
+    frozen = unevaluate(expr)
 
-    assert frozen.args == (c, lowered(a, b))
-    assert ccode(frozen) == f'r11{separator}(r9{separator}r10)'
+    assert frozen.args == (c, lowered(b, a))
+    assert ccode(frozen) == ccode(expr)
     assert unevaluate(frozen) is frozen
+
+
+def test_freeze_equal_instances():
+    a = Symbol.__xnew__(Symbol, 'equal_frozen_operand')
+    b = Symbol.__xnew__(Symbol, 'equal_frozen_operand')
+    expr = sympy.Add(a, b, evaluate=False)
+
+    frozen = unevaluate(expr)
+
+    assert a == b and a is not b
+    assert frozen.args[0] is a
+    assert frozen.args[1] is b
 
 
 @pytest.mark.parametrize('dtype', [np.int32, np.int64])
@@ -393,14 +423,15 @@ def test_lowered_integer_offset(dtype, offset, expected):
     size = dSymbol('bx_size', dtype=dtype)
     other = dSymbol('a_size', dtype=dtype)
 
-    lowered = unevaluate(size + offset)
-    assert lowered.args == (size, offset)
+    expr = size + offset
+    lowered = unevaluate(expr)
+    assert lowered.args == expr.args
     assert ccode(lowered) == 'bx_size' + expected
 
-    # Renaming retains the order chosen before freezing
+    # Renaming preserves the tree, while printing remains canonical
     lowered = unevaluate(size + other + offset)
     renamed = uxreplace(lowered, {size: other, other: size})
-    assert ccode(renamed) == 'bx_size + a_size' + expected
+    assert ccode(renamed) == 'a_size + bx_size' + expected
 
     # Result types do not affect how the arithmetic order is frozen
     value = dSymbol('value', dtype=np.float32)
@@ -409,19 +440,20 @@ def test_lowered_integer_offset(dtype, offset, expected):
         assert ccode(unevaluate(expr)) == ccode(expr)
 
 
-@pytest.mark.parametrize('cls, separator', [(sympy.Add, ' + '), (sympy.Mul, '*')])
+@pytest.mark.parametrize('cls', [sympy.Add, sympy.Mul])
 @pytest.mark.parametrize('names', [('r9', 'r10', 'r11'), ('r21', 'r20', 'r19'),
                                    ('later', 'middle', 'earlier')])
-def test_lowered_temporary_order(cls, separator, names):
+def test_noop_temporary_order(cls, names):
     grid = Grid(shape=(4,))
     f, g, h, out = [Function(name=n, grid=grid) for n in ('f', 'g', 'h', 'out')]
     a, b, c = [Temp(name=n, dtype=np.float32) for n in names]
+    rhs = cls(a, b, c)
     op = Operator([Eq(a, cos(f)), Eq(b, sin(g)), Eq(c, cos(h)),
-                   Eq(out, cls(a, b, c))], opt='noop')
+                   Eq(out, rhs)], opt='noop')
     expr, = [i for i in FindNodes(Expression).visit(op) if i.write == out]
 
-    assert expr.expr.rhs.args == (a, b, c)
-    assert str(expr).endswith(f' = {separator.join(names)};')
+    assert tuple(i.name for i in expr.expr.rhs.args) == tuple(i.name for i in rhs.args)
+    assert ccode(expr.expr.rhs) == ccode(rhs)
 
 
 def test_integer_abs():
