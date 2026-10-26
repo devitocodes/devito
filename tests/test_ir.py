@@ -10,7 +10,7 @@ from devito import (  # noqa
 from devito.finite_differences.differentiable import IndexSum, LocalSum
 from devito.ir.cgen import ccode
 from devito.ir.clusters import Cluster, ClusterGroup
-from devito.ir.equations import LoweredEq
+from devito.ir.equations import DummyEq, LoweredEq
 from devito.ir.equations.algorithms import dimension_sort
 from devito.ir.iet import FindNodes, Iteration
 from devito.ir.stree import stree_build
@@ -1574,6 +1574,25 @@ class TestParallelismAnalysis:
 
 
 class TestEquationAlgorithms:
+
+    def test_dummyeq_does_not_relower(self):
+        """
+        `DummyEq(lhs, rhs)` builds already-lowered IR, so it must not re-apply
+        the DSL-to-IR rewrites. Re-lowering turns a ConditionalDimension LHS
+        into `IntDiv(parent, factor)`, which is not assignable: a backend that
+        emits an index assignment -- as the SYCL one does for the parallel_for
+        indices -- then produces `IntDiv(x, ctf) = ...` and trips over
+        `LoweredEq.dtype`.
+        """
+        grid = Grid(shape=(16,))
+        x, = grid.dimensions
+        cd = ConditionalDimension(name='ct', parent=x, factor=4)
+
+        for d in (cd, x):
+            eq = DummyEq(d, 7)
+            assert eq.lhs is d
+            # A valid assignment target carries a dtype
+            assert eq.dtype is not None
 
     @pytest.mark.parametrize('expr,expected', [
         ('Eq(a[time, p], b[time, c[p, 0]+r, c[p, 1]] * f[p, r])', '[time, p, r, d]')
