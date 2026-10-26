@@ -22,7 +22,7 @@ from devito.finite_differences.tools import coeff_priority, make_shift_x0
 from devito.logger import warning
 from devito.tools import (
     Pickable, Tag, as_tuple, extract_dtype, filter_ordered, flatten, frozendict,
-    infer_dtype, is_integer, is_number, memoized_func, split
+    infer_dtype, infer_dtype_from_args, is_integer, is_number, memoized_func, split
 )
 from devito.types import Array, DimensionTuple, Evaluable, StencilDimension
 from devito.types.basic import AbstractFunction, Indexed
@@ -594,8 +594,7 @@ class DifferentiableOp(Differentiable):
     @cached_property
     def dtype(self):
         # Typed operands may carry vector types or casts absent from `_functions`
-        dtypes = {extract_dtype(i) for i in self.args} - {None}
-        return infer_dtype(dtypes, vector=True)
+        return infer_dtype_from_args(self.args)
 
     def subs(self, *args, **kwargs):
         return self.func(

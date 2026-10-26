@@ -15,8 +15,8 @@ __all__ = ['int2', 'int3', 'int4', 'float2', 'float3', 'float4', 'double2',  # n
            'double3', 'double4', 'dtypes_vector_mapper', 'dtype_to_mpidtype',
            'dtype_to_cstr', 'dtype_to_ctype', 'infer_datasize', 'dtype_to_mpitype',
            'dtype_len', 'ctypes_to_cstr', 'c_restrict_void_p', 'ctypes_vector_mapper',
-           'is_external_ctype', 'infer_dtype', 'extract_dtype', 'CustomDtype',
-           'mpi4py_mapper', 'as_fp64_decimal']
+           'is_external_ctype', 'infer_dtype', 'infer_dtype_from_args', 'extract_dtype',
+           'CustomDtype', 'mpi4py_mapper', 'as_fp64_decimal']
 
 
 def as_fp64_decimal(v):
@@ -402,6 +402,13 @@ def extract_dtype(expr):
         if dtype is not None:
             return dtype
 
-    dtypes = {extract_dtype(i) for i in expr.args} - {None}
+    return infer_dtype_from_args(expr.args)
+
+
+def infer_dtype_from_args(args):
+    """
+    Infer the result dtype from expression operands, retaining vector types.
+    """
+    dtypes = {extract_dtype(i) for i in args} - {None}
 
     return infer_dtype(dtypes, vector=True)
