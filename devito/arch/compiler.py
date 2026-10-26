@@ -963,7 +963,6 @@ class OneapiCompiler(Compiler):
             elif isinstance(platform, IntelDevice):
                 self.cflags.append('-fiopenmp')
                 self.cflags.append('-fopenmp-targets=spir64')
-                self.cflags.append('-fopenmp-target-simd')
 
                 self.cflags.remove('-g')  # -g disables some optimizations in IGC
                 self.cflags.append('-gline-tables-only')
