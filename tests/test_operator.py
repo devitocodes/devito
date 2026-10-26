@@ -206,7 +206,7 @@ class TestOperatorSetup:
         x, y = np.indices(f.data_with_halo.shape, dtype=np.float32)
         f.data_with_halo[:] = x + 2*y
 
-        op = Operator(Eq(u, f.dx + f.dy), name='names_inputs')
+        op = Operator(Eq(u, f.dx + f.dy))
         op.apply()
 
         np.testing.assert_allclose(u.data, 3., rtol=1.e-5, atol=1.e-6)

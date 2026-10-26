@@ -293,6 +293,7 @@ def _toposort(exprs):
             if e0.lhs in e1.rhs.free_symbols:
                 dag.add_edge(e0, e1, force_add=True)
 
+    # Cache positions to avoid repeated linear scans while choosing ready nodes
     ordering = {e: n for n, e in enumerate(exprs)}
 
     def choose_element(queue, scheduled):
