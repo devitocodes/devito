@@ -98,7 +98,9 @@ def cse(cluster, sregistry=None, options=None, **kwargs):
     min_cost = options['cse-min-cost']
     mode = options['cse-algo']
     try:
-        dtype = np.promote_types(options['scalar-min-type'], cluster.dtype).type
+        dtype = cluster.dtype
+        if not np.issubdtype(dtype, np.integer):
+            dtype = np.promote_types(options['scalar-min-type'], dtype).type
     except TypeError:
         dtype = cluster.dtype
 
