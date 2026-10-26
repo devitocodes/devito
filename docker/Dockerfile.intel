@@ -59,6 +59,9 @@ RUN apt-get update -y && apt-get dist-upgrade -y && \
 
 ENV MPI4PY_FLAGS='. /opt/intel/oneapi/setvars.sh intel64 && '
 ENV MPI4PY_RC_RECV_MPROBE=0
+# Intel MPI 2021.19 picks the `shm` fabric alone on a single node, which
+# refuses `MPI_Comm_spawn` (as used by the DevitoPRO decoupler)
+ENV I_MPI_FABRICS="shm:ofi"
 
 RUN apt-get clean && apt-get autoclean && apt-get autoremove -y && rm -rf /var/lib/apt/lists/*
 
