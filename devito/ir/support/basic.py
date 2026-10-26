@@ -869,15 +869,17 @@ class Dependence(Relation, CacheInstances):
         """
         for d in self.findices:
             if d._defines & set(as_tuple(dims)):  # noqa: SIM102
-                # An injective Dimension maps distinct iterations to distinct
-                # locations by construction -- e.g. a factor-based
-                # ConditionalDimension, whose guard admits only
-                # `parent % factor == 0` and whose `i -> i//factor` is
-                # one-to-one on those. Unlike, say, a SteppingDimension, where
-                # `time % 2` deliberately revisits the same slot
-                nonlinear = [i for i in d._defines
-                             if i.is_NonlinearDerived and not i.is_Injective]
-                if nonlinear or self.is_const(d):
+                if self.is_const(d):
+                    return True
+                for i in d._defines:
+                    if not i.is_NonlinearDerived:
+                        continue
+                    # An injective Dimension maps distinct iterations to
+                    # distinct locations, so only the *same* iteration can
+                    # reach the same location -- unlike a SteppingDimension,
+                    # where `time % 2` has distinct iterations revisit a slot
+                    if i.is_Injective and not self.distance_mapper.get(i):
+                        continue
                     return True
         return False
 

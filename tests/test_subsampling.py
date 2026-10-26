@@ -5,8 +5,8 @@ import pytest
 from sympy import Or
 
 from devito import (
-    CondEq, ConditionalDimension, Constant, Eq, Function, Grid, Inc, Operator, SubGrid,
-    TimeFunction, switchconfig
+    CondEq, ConditionalDimension, Constant, Eq, Function, Grid, Inc, Operator,
+    SpaceDimension, SubGrid, TimeFunction, switchconfig
 )
 from devito.ir.iet import Conditional, Expression, FindNodes, Iteration
 from devito.symbolics import retrieve_indexed
@@ -217,6 +217,43 @@ class TestStridedCodegen:
 class TestNumerics:
 
     """Results must match an independent reference."""
+
+    def test_or_relation_stays_fused(self):
+        """
+        Two `Or`-related guards writing overlapping slots of the same Function
+        must stay in one loop. Splitting them into separate loops reorders the
+        writes: `f[ci]` and `f[ci+1]` alias, so the second loop would overwrite
+        what the first produced instead of interleaving per iteration.
+
+        Injectivity says distinct iterations map to distinct indices, so only
+        the *same* iteration can reach the same location. It does not say two
+        different offsets off that Dimension cannot collide, which is why the
+        exemption is keyed on a zero distance.
+        """
+        size, factor = 18, 4
+        i = SpaceDimension(name='i')
+        grid = Grid(shape=(size,), dimensions=(i,))
+
+        ci = ConditionalDimension(name='ci', parent=i, factor=factor,
+                                  relation=Or)
+        cend = ConditionalDimension(name='cend', parent=i,
+                                    condition=CondEq(i, size - 1), relation=Or)
+
+        g = Function(name='g', grid=grid, shape=(size,), dimensions=(i,))
+        f = Function(name='f', grid=grid, shape=(size//factor + 2,),
+                     dimensions=(ci,))
+
+        op = Operator([Eq(g, i), Eq(f, g),
+                       Eq(f[ci + 1], g, implicit_dims=cend)])
+        op.apply()
+
+        # One loop, not one per guard
+        assert len(FindNodes(Iteration).visit(op)) == 1
+
+        assert np.array_equal(g.data, np.arange(size, dtype=g.dtype))
+        for j in range(size//factor + 1):
+            assert f.data[j] == g.data[j*factor]
+        assert f.data[-1] == g.data[-1]
 
     @pytest.mark.parametrize('shape,factor,ndim', [
         ((12,), 2, 1), ((12,), 3, 1), ((13,), 4, 1),
