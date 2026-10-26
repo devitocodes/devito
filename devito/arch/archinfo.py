@@ -384,13 +384,30 @@ def get_gpu_info():
 
         gpu_info = homogenise_gpus(list(gpu_infos.values()))
 
-        # Also attach callbacks to retrieve instantaneous memory info
-        # Now this should be done using xpu-smi but for some reason
-        # it throws a lot of weird errors in docker so skipping for now
+        # Also attach callbacks to retrieve instantaneous memory info.
+        # `deviceid` is a physical device ID, like `nvidia-smi`'s, while
+        # `xpu-smi` only numbers the devices left visible by `ZE_AFFINITY_MASK`
+        def xpusmi_mem_info(deviceid):
+            cmd = ['xpu-smi', 'discovery', '-d', str(deviceid), '-j']
+            env = {k: v for k, v in os.environ.items() if k != 'ZE_AFFINITY_MASK'}
+            try:
+                proc = run(cmd, stdout=PIPE, stderr=DEVNULL, text=True, check=True,
+                           env=env)
+                info = json.loads(proc.stdout)
+                total = int(info['memory_physical_size_byte'])
+                free = int(info['memory_free_size_byte'])
+            except (OSError, CalledProcessError, json.JSONDecodeError,
+                    KeyError, ValueError):
+                return None
+            return {'total': total, 'free': free, 'used': total - free}
+
         for i in ['total', 'free', 'used']:
             def make_cbk(i):
                 def cbk(deviceid=0):
-                    return None
+                    try:
+                        return xpusmi_mem_info(deviceid)[i]
+                    except TypeError:
+                        return None
                 return cbk
 
             gpu_info[f'mem.{i}'] = make_cbk(i)
@@ -499,7 +516,8 @@ device_vars = (
     'CUDA_VISIBLE_DEVICES',
     'NVIDIA_VISIBLE_DEVICES',
     'ROCR_VISIBLE_DEVICES',
-    'HIP_VISIBLE_DEVICES'
+    'HIP_VISIBLE_DEVICES',
+    'ZE_AFFINITY_MASK'
 )
 
 
