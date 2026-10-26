@@ -2194,6 +2194,30 @@ class TestLoopScheduling:
         op2 = Operator(eqns2, opt=('advanced', {'openmp': True}))
         assert_structure(op2, ['t,x,y,z', 't', 't,z'], 't,x,y,z,z')
 
+    @pytest.mark.parametrize('shift,expected', [
+        (1, ['t,x,y', 't,y', 't,x,y']),
+        (0, ['t,x,y', 't,y']),
+        (-1, ['t,x,y', 't,y']),
+    ])
+    def test_break_halts_topofuse(self, shift, expected):
+        grid = Grid(shape=(4, 4))
+        x, y = grid.dimensions
+        time = grid.time_dim
+
+        f = TimeFunction(name='f', grid=grid, save=10)
+        g = TimeFunction(name='g', grid=grid)
+        h = TimeFunction(name='h', grid=grid)
+
+        eqns = [Eq(g.forward, f[time + shift, x, y]),
+                Eq(f[time, 0, y], 1),
+                Eq(h.forward, h + 1)]
+
+        # Reading `f` ahead of its write along `time` is an anti-dependence
+        # carried by `time`, so the third equation can't be hoisted above the
+        # second one to be fused with the first one
+        op = Operator(eqns)
+        assert_structure(op, expected)
+
     def test_array_shared_w_topofuse(self):
         grid = Grid(shape=(4, 4))
         x, y = grid.dimensions

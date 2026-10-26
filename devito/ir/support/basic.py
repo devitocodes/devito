@@ -280,6 +280,17 @@ class TimedAccess(IterationInstance, AccessMode, CacheInstances):
         return self.function.is_Symbol
 
     @cached_property
+    def expanded(self):
+        """
+        The accesses `self` may perform once its StencilDimensions are resolved;
+        see `Scope.reads_smart_gen`.
+        """
+        if any(d.is_Sub for d in self.ispace.dimensions):
+            return erange(self.access)
+        else:
+            return extrema(self.access)
+
+    @cached_property
     def is_regular(self):
         if not super().is_regular:
             return False
@@ -339,7 +350,6 @@ class TimedAccess(IterationInstance, AccessMode, CacheInstances):
 
         return TimedAccess(access, mode, timestamp, ispace)
 
-    @memoized_meth
     def distance(self, other, logical=False):
         """
         Compute the distance from ``self`` to ``other``.
@@ -351,7 +361,19 @@ class TimedAccess(IterationInstance, AccessMode, CacheInstances):
         logical : bool
             Compute a logical distance rather than true distance (i.e. ignoring
             degenerating indices created by size 1 buffers etc).
+
+        Notes
+        -----
+        The distance depends on the two accesses (including their Functions'
+        metadata), their IterationSpaces and `logical`, but never on the
+        timestamps or access modes. Hence it is cached on the former, and thus
+        shared by all TimedAccesses with the same geometry, such as the
+        timestamp-shifted copies created by `Scope.from_scopes`.
         """
+        return _cached_distance(self.access, self.ispace, other.access,
+                                other.ispace, logical)
+
+    def _distance(self, other, logical=False):
         if isinstance(self.access, ComponentAccess) and \
            isinstance(other.access, ComponentAccess) and \
            self.access.index != other.access.index:
@@ -1182,13 +1204,9 @@ class Scope(CacheInstances):
         be found. For example, a DiscreteFunction would never appear among
         the iteration symbols.
         """
-        uses_subdims = lambda i: any(d.is_Sub for d in i.ispace.dimensions)
-
         if isinstance(f, (Function, Temp, TempArray, TBArray)):
             for i in self.getreads(f):
-                expand = erange if uses_subdims(i) else extrema
-
-                for j in expand(i.access):
+                for j in i.expanded:
                     yield TimedAccess(j, i.mode, i.timestamp, i.ispace)
 
         else:
@@ -1604,6 +1622,16 @@ def skippable_interval(d, ispace, it):
     return d is None or (d in ispace and not d._defines & it.dim._defines)
 
 
+@memoized_func(scope='build')
+def _cached_distance(access0, ispace0, access1, ispace1, logical):
+    """
+    The geometry-keyed cache behind `TimedAccess.distance`.
+    """
+    a0 = TimedAccess(access0, 'R', 0, ispace0)
+    a1 = TimedAccess(access1, 'R', 0, ispace1)
+    return a0._distance(a1, logical)
+
+
 def disjoint_subdims(a0, a1):
     """
     Determine whether two TimedAccesses touch disjoint SubDimension regions
@@ -1644,7 +1672,9 @@ def disjoint_subdims(a0, a1):
 
         f = a0.function.c0
         space_order = f.space_order if isinstance(f, Function) else 0
-        if disjoint_subdims_axis(e0, e1, d0, d1, it0, it1, space_order):
+        # The result doesn't depend on stamps; drop them from the cache key
+        if disjoint_subdims_axis(e0, e1, d0, d1, it0.reset(), it1.reset(),
+                                 space_order):
             return True
 
     return False
@@ -1748,10 +1778,8 @@ def disjoint_test(e0, e1, d, it):
     if any(not i.is_Number for i in [p00, p01, p10, p11]):
         return False
 
-    i0 = sympy.Interval(min(p00, p01), max(p00, p01))
-    i1 = sympy.Interval(min(p10, p11), max(p10, p11))
-
-    return not bool(i0.intersect(i1))
+    # Closed intervals, hence touching endpoints still overlap
+    return bool(max(p00, p01) < min(p10, p11) or max(p10, p11) < min(p00, p01))
 
 
 def degenerating_indices(i0, i1, function, logical=False):

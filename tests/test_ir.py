@@ -7,7 +7,9 @@ from devito import (  # noqa
     Constant, Dimension, Eq, Function, Grid, Inc, Operator, SubDimension, TimeDimension,
     TimeFunction, switchconfig
 )
-from devito.finite_differences.differentiable import IndexSum, LocalSum
+from devito.finite_differences.differentiable import (
+    IndexDerivative, IndexSum, LocalSum, Weights
+)
 from devito.ir.cgen import ccode
 from devito.ir.clusters import Cluster, ClusterGroup
 from devito.ir.equations import LoweredEq
@@ -16,7 +18,7 @@ from devito.ir.iet import FindNodes, Iteration
 from devito.ir.stree import stree_build
 from devito.ir.support.basic import (
     AFFINE, IRREGULAR, REGULAR, IterationInstance, Relation, Scope, TimedAccess, Vector,
-    mocksym0, mocksym1
+    disjoint_subdims_axis, disjoint_test, mocksym0, mocksym1
 )
 from devito.ir.support.guards import GuardOverflow
 from devito.ir.support.space import (
@@ -24,12 +26,13 @@ from devito.ir.support.space import (
     NullInterval, null_ispace
 )
 from devito.ir.support.utils import detect_halo_writes
+from devito.passes.clusters.fusion import Fusion, _maybe_break
 from devito.symbolics import DefFunction, FieldFromPointer, uxreplace
-from devito.tools import prod
+from devito.tools import Stamp, prod
 from devito.tools.data_structures import frozendict
 from devito.types import (
-    Array, BlockDimension, Bundle, ConditionalDimension, CriticalRegion, CustomDimension,
-    Jump, Scalar, StencilDimension, Symbol
+    Array, BlockDimension, Bundle, ComponentAccess, ConditionalDimension, CriticalRegion,
+    CustomDimension, Jump, Scalar, StencilDimension, Symbol
 )
 
 
@@ -676,6 +679,113 @@ class TestVectorHierarchy:
             b = TimedAccess(f[xr - 8], 'R', 1, right)
             expected = S.ImaginaryUnit if order == 8 else S.Infinity
             assert a.distance(b) == b.distance(a) == (expected,)
+
+    def test_distance_cache(self):
+        grid = Grid(shape=(8, 8))
+        x, y = grid.dimensions
+        f = Function(name='f', grid=grid)
+        g = Function(name='g', grid=grid)
+        ispace = IterationSpace([Interval(x), Interval(y)])
+        a = TimedAccess(f[x + 1, y], 'W', 0, ispace)
+        b = TimedAccess(f[x, y], 'R', 1, ispace)
+
+        d = a.distance(b)
+        assert d == (1, 0)
+
+        # Timestamps and access modes are not part of the geometry, hence a cache hit
+        assert a.rebuild(timestamp=5).distance(b.rebuild(mode='W')) is d
+
+        # Anything else is
+        rev = IterationSpace([Interval(x), Interval(y)], directions={x: Backward})
+        shifted = IterationSpace([Interval(x, 0, 1), Interval(y)])
+        c0 = a.rebuild(access=ComponentAccess(f[x, y], 0))
+        c1 = a.rebuild(access=ComponentAccess(f[x, y], 1))
+        pairs = [
+            (b, a, False),
+            (a.rebuild(ispace=rev), b.rebuild(ispace=rev), False),
+            (a.rebuild(ispace=shifted), b, False),
+            (a.rebuild(access=g[x + 1, y]), b.rebuild(access=g[x, y]), False),
+            (a, b, True),
+            (c0, c1, False),
+        ]
+        for i, j, logical in pairs:
+            assert i.distance(j, logical=logical) is not d
+
+        assert b.distance(a) == (-1, 0)
+        assert c0.distance(c1) == (S.ImaginaryUnit,)
+
+        # Cleared at the end of each Operator build
+        Operator(Eq(f, 1))
+        assert a.distance(b) == d
+        assert a.distance(b) is not d
+
+    def test_expand_read(self):
+        grid = Grid(shape=(8,))
+        x, = grid.dimensions
+        xl = SubDimension.left('xl', x, 4)
+        f = Function(name='f', grid=grid)
+        h = StencilDimension('h', 0, 2)
+        w = Weights(name='w', dimensions=h, initvalue=[1., 2., 3.])
+
+        plain = IterationSpace([Interval(x)])
+        sub = IterationSpace([Interval(xl)])
+
+        def expanded(access, ispace):
+            return tuple(TimedAccess(access, 'R', 0, ispace).expanded)
+
+        # Unbounded StencilDimension: every point over SubDimensions, else the extrema
+        assert expanded(f[x + h], sub) == (f[x], f[x + 1], f[x + 2])
+        assert expanded(f[x + h], plain) == (f[x], f[x + 2])
+
+        assert expanded(f[x], sub) == (f[x],)
+        assert expanded(f[x], plain) == (f[x], f[x])
+
+        # A StencilDimension bound by an IndexDerivative isn't expanded
+        bound = IndexDerivative(f[x + h]*w, {x: h})
+        assert expanded(bound, sub) == (bound,)
+
+    def test_disjoint_subdims_cache(self):
+        grid = Grid(shape=(24, 24))
+        x, y = grid.dimensions
+        xl = SubDimension.left('xl', x, 4, separated=True)
+        xm = SubDimension.middle('xm', x, 4, 4, separated=True)
+        xm = xm._rebuild(thickness=(xl.ltkn, xm.rtkn))
+        f = Function(name='f', grid=grid)
+
+        def accesses(stamp):
+            il, im = Interval(xl, 0, 0, stamp), Interval(xm, 0, 0, stamp)
+            left = TimedAccess(f[xl, y], 'W', 0, IterationSpace([il, Interval(y)]))
+            middle = TimedAccess(f[xm, y], 'R', 1, IterationSpace([im, Interval(y)]))
+            return il, left, middle
+
+        il0, left0, middle0 = accesses(Stamp())
+        il1, left1, middle1 = accesses(Stamp())
+        assert il0 != il1 and il0.reset() == il1.reset()
+
+        disjoint_subdims_axis.clear()
+
+        d0 = left0.distance(middle0)
+        assert d0 == (S.ImaginaryUnit,)
+        assert len(disjoint_subdims_axis.cache) == 1
+
+        # Stamps aren't part of the per-axis cache key, unlike the distance one
+        d1 = left1.distance(middle1)
+        assert d1 == d0
+        assert d1 is not d0
+        assert len(disjoint_subdims_axis.cache) == 1
+
+    @pytest.mark.parametrize('offset,expected', [(4, True), (6, False), (8, False)])
+    @pytest.mark.parametrize('swap', [False, True])
+    def test_disjoint_test(self, offset, expected, swap):
+        grid = Grid(shape=(16,))
+        x, = grid.dimensions
+        xl = SubDimension.left('xl', x, 4)
+
+        # `12 - xl` spans [9, 12]; `xl + offset` spans [offset, offset + 3]
+        e0, e1 = 12 - xl, xl + offset
+        if swap:
+            e0, e1 = e1, e0
+        assert disjoint_test(e0, e1, xl, Interval(xl)) is expected
 
 
 class TestSpace:
@@ -1712,6 +1822,50 @@ class TestClusterGroup:
         assert ClusterGroup([rebuilt]).local_sums == (inner,)
         assert cluster.local_sums == (inner, outer)
         assert not cluster.rebuild(exprs=[Eq(f[x], 0)]).local_sums
+
+
+class TestFusionDAG:
+
+    @pytest.fixture
+    def setup(self):
+        d = Dimension(name='d')
+        x = Dimension(name='x')
+        ispace = IterationSpace([Interval(d), Interval(x)])
+        f, g, h = [Function(name=n, dimensions=(d, x), shape=(4, 4)) for n in 'fgh']
+
+        def cgroups(*exprs):
+            return [ClusterGroup(Cluster(e, ispace), ispace) for e in exprs]
+
+        return d, x, f, g, h, cgroups
+
+    def test_break_stencil_reads(self):
+        x = Dimension(name='x')
+        s = StencilDimension('s', 0, 1)
+        ispace = IterationSpace([Interval(x)])
+        f, g = [Function(name=n, dimensions=(x,), shape=(4,)) for n in 'fg']
+
+        # The read `f[x + s]` expands to `f[x]` and `f[x + 1]`, the latter
+        # being ahead of the write along `x`
+        cgs = [ClusterGroup(Cluster(e, ispace), ispace)
+               for e in (Eq(g[x], f[x + s]), Eq(f[x + s], 1))]
+        assert _maybe_break(cgs, frozenset({x}))
+
+    def test_transitive_reduction(self, setup):
+        d, x, f, g, h, cgroups = setup
+
+        # `h` depends on both `f` and `g`, but `(cg0, cg2)` is implied by
+        # `cg0 -> cg1 -> cg2`
+        cgs = cgroups(Eq(f[d, x], 1), Eq(g[d, x], f[d, x]),
+                      Eq(h[d, x], f[d, x] + g[d, x]))
+        dag = Fusion(toposort=True)._build_dag(cgs, [Interval(d)])
+        assert set(dag.edges) == {(cgs[0], cgs[1]), (cgs[1], cgs[2])}
+        assert dag.all_downstreams(cgs[0]) == [cgs[1], cgs[2]]
+
+        # A fence orders everything around it, even absent data dependences
+        cgs = cgroups(Eq(f[d, x], 1), Eq(Symbol(name='s'), CriticalRegion(True)),
+                      Eq(g[d, x], 1))
+        dag = Fusion(toposort=True)._build_dag(cgs, [Interval(d)])
+        assert set(dag.edges) == {(cgs[0], cgs[1]), (cgs[1], cgs[2])}
 
 
 class TestGuards:
