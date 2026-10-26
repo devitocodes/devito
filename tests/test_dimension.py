@@ -1535,11 +1535,11 @@ class TestConditionalDimension:
         # ```
         #   if (g[t0][x + 1][y + 1] <= 10)
         #   {
-        #     g[t1][x + 1][y + 1] = g[t0][x + 1][y + 1] + 1
+        #     g[t1][x + 1][y + 1] = 1 + g[t0][x + 1][y + 1]
         # ```
         # is in the generated code, but indentation etc. seems to vary.
         part1 = 'if (g[t0][x + 1][y + 1] <= 10)\n'
-        part2 = 'g[t1][x + 1][y + 1] = g[t0][x + 1][y + 1] + 1'
+        part2 = 'g[t1][x + 1][y + 1] = 1 + g[t0][x + 1][y + 1]'
         whole_code = str(op.ccode)
 
         try:
@@ -1549,7 +1549,7 @@ class TestConditionalDimension:
         except AssertionError:
             # Try the alternative string
             part1 = 'if (gL0(t0, x + 1, y + 1) <= 10)\n'
-            part2 = 'gL0(t1, x + 1, y + 1) = gL0(t0, x + 1, y + 1) + 1'
+            part2 = 'gL0(t1, x + 1, y + 1) = 1 + gL0(t0, x + 1, y + 1)'
             loc = whole_code.find(part1)
             assert loc != -1
             assert whole_code.find(part2, loc + len(part1)) != -1
