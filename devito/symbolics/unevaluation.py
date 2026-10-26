@@ -13,10 +13,6 @@ class UnevaluableMixin:
 class Add(sympy.Add, UnevaluableMixin):
     __new__ = UnevaluableMixin.__new__
 
-    def as_ordered_terms(self, order=None, data=False):
-        # Lowered arithmetic already carries its code-generation order
-        return self.as_terms() if data else list(self.args)
-
 
 class Mod(sympy.Mod, UnevaluableMixin):
     __new__ = UnevaluableMixin.__new__
@@ -29,9 +25,6 @@ class Mul(sympy.Mul, UnevaluableMixin):
             return sympy.S.Zero
 
         return super().__new__(cls, *args, evaluate=False, **kwargs)
-
-    def as_ordered_factors(self, order=None):
-        return list(self.args)
 
 
 class Pow(sympy.Pow, UnevaluableMixin):

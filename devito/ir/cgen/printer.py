@@ -19,7 +19,6 @@ from devito.arch.compiler import AOMPCompiler
 from devito.symbolics.extended_sympy import BitwiseAnd
 from devito.symbolics.inspection import has_integer_args, sympy_dtype
 from devito.symbolics.queries import q_leaf
-from devito.symbolics.unevaluation import Add as UnevalAdd
 from devito.tools import (
     ctypes_to_cstr, ctypes_vector_mapper, dtype_to_ctype, memoized_func
 )
@@ -281,13 +280,16 @@ class BasePrinter(CodePrinter):
         return '%'.join(args)
 
     def _print_Mul(self, expr):
-        args = [a for a in expr.args if a != -1]
-        neg = (len(expr.args) - len(args)) % 2
-
-        # SymPy's sign extraction rebuilds a plain Mul, losing frozen factor order
-        if args and args[0].is_Number and args[0].is_negative:
-            args[0] = -args[0]
-            neg ^= 1
+        args, neg = [], False
+        # Extract numeric signs before SymPy can rebuild a plain Mul
+        for a in expr.args:
+            if a.is_Number and a.is_negative:
+                a = -a
+                neg = not neg
+                if a == 1:
+                    continue
+            args.append(a)
+        args = args or [S.One]
 
         if len(args) > 1:
             term = super()._print_Mul(expr.func(*args, evaluate=False))
@@ -360,7 +362,7 @@ class BasePrinter(CodePrinter):
         l = []
         for term in terms:
             t = self._print(term)
-            if precedence(term) < PREC or (isinstance(expr, UnevalAdd) and term.is_Add):
+            if precedence(term) < PREC:
                 l.extend(["+", f"({t})"])
             elif t.startswith('-'):
                 l.extend(["-", t[1:]])
