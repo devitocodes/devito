@@ -580,10 +580,13 @@ class PragmaDeviceAwareTransformer(DeviceAwareMixin, PragmaShmTransformer):
             return super()._make_guard(parregion, *args)
 
         cond = []
-        # There must be at least one iteration or potential crash
-        if not parregion.is_Affine:
-            trees = retrieve_iteration_tree(parregion.root)
-            tree = trees[0][:parregion.ncollapsed]
+        # There must be at least one iteration or potential crash. The bounds of
+        # a SubDimension depend on runtime thicknesses, so its iteration space may
+        # be empty, possibly with a negative size, even if the region is affine;
+        # some compilers (e.g., nvc) then launch a huge number of empty gangs
+        trees = retrieve_iteration_tree(parregion.root)
+        tree = trees[0][:parregion.ncollapsed]
+        if not parregion.is_Affine or any(i.dim.is_AbstractSub for i in tree):
             cond.extend([i.symbolic_size > 0 for i in tree])
 
         # SparseFunctions may occasionally degenerate to zero-size arrays. In such
