@@ -365,6 +365,9 @@ class BasePrinter(CodePrinter):
         Print an addition.
         """
         terms = self._as_ordered_terms(expr, order=order)
+        if expr.is_commutative and terms[0].is_Number and has_integer_args(*expr.args):
+            # Keep integer offsets last without sorting symbolic operands
+            terms = sorted(terms, key=lambda i: i.is_Number)
 
         PREC = precedence(expr)
         l = []

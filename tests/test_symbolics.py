@@ -360,6 +360,20 @@ def test_lowered_arithmetic_printing(cls, separator):
     assert ccode(UnevalMul(b, UnevalAdd(c, a))) == 'b*(c + a)'
 
 
+@pytest.mark.parametrize('dtype', [np.int32, np.int64])
+@pytest.mark.parametrize('offset, expected', [(-1, ' - 1'), (1, ' + 1')])
+def test_lowered_integer_offset(dtype, offset, expected):
+    size = dSymbol('bx_size', dtype=dtype)
+    other = dSymbol('a_size', dtype=dtype)
+
+    assert ccode(UnevalAdd(offset, size)) == 'bx_size' + expected
+    assert ccode(UnevalAdd(offset, size, other)) == 'bx_size + a_size' + expected
+
+    # A floating-point addend requires preserving the original summation order
+    value = dSymbol('value', dtype=np.float32)
+    assert ccode(UnevalAdd(offset, size, value)) == f'{offset} + bx_size + value'
+
+
 def test_integer_abs():
     i1 = Dimension(name="i1")
     assert ccode(Abs(i1 - 1)) == "abs(i1 - 1)"
