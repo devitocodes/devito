@@ -116,6 +116,7 @@ class Dimension(ArgProvider):
     is_Custom = False
     is_Derived = False
     is_NonlinearDerived = False
+    is_Injective = False
     is_AbstractSub = False
     is_Sub = False
     is_MultiSub = False
@@ -1091,6 +1092,19 @@ class ConditionalDimension(DerivedDimension):
         self._relation = relation
 
     @property
+    def is_Injective(self):
+        """
+        True if distinct iterations of the parent that pass the guard map to
+        distinct indices of `self`, so that no two iterations can access the
+        same memory location through it.
+
+        A pure factor subsampling is injective: the guard admits only
+        `parent % factor == 0`, and `i -> i//factor` is one-to-one on those.
+        An arbitrary `condition` carries no such promise.
+        """
+        return self._factor is not None and self._condition is None
+
+    @property
     def uses_symbolic_factor(self):
         return self._factor is not None
 
@@ -1153,13 +1167,18 @@ class ConditionalDimension(DerivedDimension):
         if isinstance(fact, Constant):
             fact = fact.data
 
-        toint = lambda x: math.ceil(x / fact)
         vals = {}
-        with suppress(KeyError, TypeError):
-            vals[self.min_name] = toint(kwargs.get(self.parent.min_name))
 
+        # The first subsampled point at or after the parent's min...
         with suppress(KeyError, TypeError):
-            vals[self.max_name] = toint(kwargs.get(self.parent.max_name))
+            vals[self.min_name] = math.ceil(kwargs.get(self.parent.min_name) / fact)
+
+        # ...and the last one at or before its max. Note `floor` rather than
+        # `ceil`: with e.g. `factor=3` and `x_M=11` the last subsampled point
+        # is `x=9`, hence index 3, while `ceil(11/3) == 4` would overshoot the
+        # Function by one
+        with suppress(KeyError, TypeError):
+            vals[self.max_name] = kwargs.get(self.parent.max_name) // fact
 
         vals[self.symbolic_factor.name] = fact
 
