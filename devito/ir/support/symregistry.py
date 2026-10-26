@@ -39,7 +39,7 @@ class SymbolRegistry:
         self.reserved.update(i.name for e in exprs for i in e.free_symbols)
 
         # Before indexification, a Function's free symbols omit its own name
-        self.reserved.update(i.name for i in retrieve_functions(exprs))
+        self.reserved.update(i.name for i in retrieve_functions(exprs, mode='unique'))
 
     def make_name(self, prefix=None, increment_first=True):
         # By default we're creating a new symbol

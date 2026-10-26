@@ -81,6 +81,10 @@ def uxreplace(expr, rule):
 
 @singledispatch
 def _uxreplace(expr, rule):
+    return _uxreplace_default(expr, rule)
+
+
+def _uxreplace_default(expr, rule):
     if expr in rule:
         v = rule[expr]
         if not isinstance(v, dict):
@@ -124,7 +128,7 @@ def _uxreplace(expr, rule):
 @_uxreplace.register(CallFromPointer)
 def _(expr, rule):
     if expr in rule or expr.__class__ in rule:
-        return _uxreplace.dispatch(object)(expr, rule)
+        return _uxreplace_default(expr, rule)
 
     args, changed = _uxreplace_dispatch((expr.pointer, expr.params), rule)
     if changed:
@@ -143,7 +147,7 @@ def _(expr, rule):
             mapper[d] = d._rebuild(**kwargs)
 
     # Apply the same dimension substitutions to the summand and its bindings
-    return _uxreplace.dispatch(object)(expr, {**mapper, **rule})
+    return _uxreplace_default(expr, {**mapper, **rule})
 
 
 @singledispatch
