@@ -373,7 +373,10 @@ def infer_dtype(dtypes):
     fdtypes = {i for i in dtypes if np.issubdtype(i, np.floating) or
                np.issubdtype(i, np.complexfloating)}
     if len(fdtypes) > 1:
-        return max(fdtypes, key=lambda i: np.dtype(i).itemsize)
+        # NOTE: ranking by itemsize alone is not enough, since e.g. np.complex64
+        # and np.float64 are both 8 bytes wide, yet only np.complex128 can hold
+        # the result of an operation between the two
+        return np.result_type(*fdtypes).type
     elif len(fdtypes) == 1:
         return fdtypes.pop()
     elif len(dtypes) == 1:
