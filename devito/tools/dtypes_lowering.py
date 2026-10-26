@@ -357,7 +357,7 @@ def is_numpy_dtype(dtype):
         return False
 
 
-def infer_dtype(dtypes, *, vector=False):
+def infer_dtype(dtypes, vector=False):
     """
     Given a set of np.dtypes, return the "winning" dtype:
 
@@ -394,9 +394,13 @@ def extract_dtype(expr):
     """
     Extract the result dtype, retaining typed vector operands such as float2.
     """
-    dtype = getattr(expr, 'dtype', None)
-    if dtype is not None:
-        return dtype
+    try:
+        dtype = expr.dtype
+    except AttributeError:
+        pass
+    else:
+        if dtype is not None:
+            return dtype
 
     dtypes = {extract_dtype(i) for i in expr.args} - {None}
 
