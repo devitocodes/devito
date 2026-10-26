@@ -15,9 +15,7 @@ from devito.finite_differences.differentiable import (
 )
 from devito.finite_differences.finite_difference import _PRECISION
 from devito.ir import Cluster, SymbolRegistry
-from devito.passes.clusters.derivatives import (
-    _lower_index_derivatives, deriv_schedule_registry
-)
+from devito.passes.clusters.derivatives import _lower_index_derivatives
 from devito.symbolics import DefFunction, ListInitializer, indexify, retrieve_indexed
 from devito.tools import dtypes_vector_mapper
 from devito.types import Array, Temp
@@ -1199,18 +1197,14 @@ class TestTwoStageEvaluation:
 
     @pytest.mark.parametrize('width', [1, 2])
     @pytest.mark.parametrize('reuse', [False, True])
-    @pytest.mark.parametrize('initial', [0, 1])
-    def test_index_derivative_vector(self, width, reuse, initial, monkeypatch):
+    def test_index_derivative_vector(self, width, reuse):
         grid = Grid((10,))
         x, = grid.dimensions
         i = StencilDimension('i', 0, 2)
         dtype = dtypes_vector_mapper[np.float32, width]
         v = Temp(name='v', dtype=dtype)
         w = Weights(name='w', dimensions=i, initvalue=[-1., 0., 1.])
-        prop = IndexDerivativeProperty('initial')
-        monkeypatch.setitem(deriv_schedule_registry, prop,
-                            lambda e: (sympify(initial), e))
-        ideriv = IndexDerivative(w[i]*v, {x: i}, properties=(prop,))
+        ideriv = IndexDerivative(w[i]*v, {x: i})
 
         assert ideriv._rebuild() == ideriv
         assert ideriv.dtype == dtype
@@ -1229,7 +1223,7 @@ class TestTwoStageEvaluation:
         init = clusters[0].exprs[0]
         increment = clusters[1].exprs[0]
         assert init.lhs.dtype == dtype
-        expected = initial if width == 1 else ListInitializer(*([initial]*width))
+        expected = 0 if width == 1 else ListInitializer(0, 0)
         assert init.rhs == expected
         assert increment.lhs == init.lhs
         assert (init.lhs == out) == reuse
