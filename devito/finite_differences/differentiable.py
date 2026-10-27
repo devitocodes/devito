@@ -917,6 +917,25 @@ class Conj(ComplexPart):
     _name = 'conj'
 
 
+def expands(expand, dimensions):
+    """
+    Whether a derivative over `dimensions` should be expanded under the
+    `expand` setting.
+
+    `expand` is either a bool or, as `Operator` passes when `expand=False`, a
+    predicate on the Dimension being differentiated -- and a callable is
+    truthy, so it has to be applied rather than tested.
+
+    `dimensions` are the *differentiated* Dimensions, not the
+    StencilDimensions the expansion runs over: the predicate is written
+    against the former and knows nothing of the latter.
+    """
+    if not callable(expand):
+        return bool(expand)
+
+    return any(expand(d) for d in dimensions)
+
+
 class IndexSum(sympy.Expr, Evaluable):
 
     """
@@ -993,7 +1012,7 @@ class IndexSum(sympy.Expr, Evaluable):
             # SymPy object rather than an Evaluable
             expr = Evaluable._evaluate_maybe_nested(self.expr, **kwargs)
 
-        if not kwargs.get('expand', True):
+        if not expands(kwargs.get('expand', True), self.dimensions):
             return self._rebuild(expr)
 
         values = product(*[list(d.range) for d in self.dimensions])
@@ -1345,7 +1364,7 @@ class IndexDerivative(IndexSum):
     def _evaluate(self, **kwargs):
         expr = super()._evaluate(**kwargs)
 
-        if not kwargs.get('expand', True):
+        if not expands(kwargs.get('expand', True), self.mapper):
             return expr
 
         w = self.weights
