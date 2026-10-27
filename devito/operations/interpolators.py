@@ -13,6 +13,7 @@ except ImportError:
 
 from devito.finite_differences.differentiable import LocalSum, Mul
 from devito.finite_differences.elementary import floor
+from devito.finite_differences.tools import kaiser_b, sinc_weights
 from devito.logger import warning
 from devito.symbolics import INT, retrieve_function_carriers, retrieve_functions
 from devito.tools import (
@@ -701,13 +702,12 @@ def _sinc_weights(coords, grid, shifts, j, dtype, spacing, origin, r, b):
     surrounding the base index returned by `_cell_indices`. `b` is the Kaiser
     window parameter for radius `r`."""
     frac = _cell_fractions(coords, grid, shifts, j, spacing, origin)
-    b0 = i0(b)
-    data = np.zeros((frac.size, 2*r), dtype=dtype)
-    for ri in range(2*r):
-        rpos = ri - r + 1 - frac
-        num = i0(b*np.sqrt(1 - (rpos/r)**2))
-        data[:, ri] = num / b0 * np.sinc(rpos)
-    return data
+    offsets = np.arange(-r + 1, r + 1)
+    # One row of taps per point: offsets along the columns, less that point's
+    # fractional position within its cell
+    positions = offsets[np.newaxis, :] - frac[:, np.newaxis]
+
+    return sinc_weights(positions, r, b).astype(dtype)
 
 
 class LinearInterpolator(WeightedInterpolator):
@@ -850,10 +850,8 @@ class SincInterpolator(WeightedInterpolator):
 
     _name = 'sinc'
 
-    # Table 1
-    _b_table = {2: 2.94, 3: 4.53,
-                4: 4.14, 5: 5.26, 6: 6.40,
-                7: 7.51, 8: 8.56, 9: 9.56, 10: 10.64}
+    # Hicks (2002), Table 1 -- keyed by radius here, so `r` indexes it directly
+    _b_table = kaiser_b
 
     def __init__(self, sfunction, shifts=()):
         if i0 is np.i0:

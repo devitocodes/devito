@@ -2,6 +2,11 @@ from functools import cached_property, partial, wraps
 from itertools import product
 
 import numpy as np
+
+try:
+    from scipy.special import i0
+except ImportError:
+    from numpy import i0
 from sympy import Expr, Rational, S, cacheit, finite_diff_weights, nsimplify, sympify
 
 from devito.logger import warning
@@ -248,6 +253,46 @@ def numeric_weights(function, deriv_order, indices, x0):
     # Compute exact weights even for a float `x0`, e.g. `x + 0.5*h_x`
     x0 = nsimplify(x0, rational=True, rational_conversion='exact')
     return _numeric_weights(deriv_order, indices, x0)
+
+
+# Kaiser window parameter for windowed-sinc interpolation. Hicks (2002),
+# Table 1: https://library.seg.org/doi/10.1190/1.1451454
+#
+# The key is the scheme's `r` as Hicks defines it, which is the *half*-width in
+# his sampling convention; a stencil of `n` taps centred on the interpolation
+# interval takes `kaiser_b[n]`. `SincInterpolator` names its own half-width `r`
+# and indexes with that, which coincides for its convention. Choosing the wrong
+# key is not an error, just a markedly worse window -- so index deliberately.
+kaiser_b = {2: 2.94, 3: 4.53, 4: 4.14, 5: 5.26, 6: 6.40,
+            7: 7.51, 8: 8.56, 9: 9.56, 10: 10.64}
+
+
+def sinc_weights(positions, r, b, normalize=False):
+    """
+    Kaiser windowed sinc weights at `positions`, the tap offsets measured from
+    the evaluation point. After Hicks (2002).
+
+    Parameters
+    ----------
+    positions : array-like
+        Tap offsets relative to the evaluation point, in cells.
+    r : int
+        Window radius, in cells.
+    b : float
+        Kaiser window parameter; see `kaiser_b`.
+    normalize : bool, optional
+        Rescale to a unit sum. Truncating the window costs a few tenths of a
+        percent of it, which appears as a constant bias wherever the weights
+        are used on their own rather than as a correction.
+    """
+    positions = np.asarray(positions, dtype=np.float64)
+    window = i0(b*np.sqrt(np.maximum(0., 1. - (positions/r)**2)))/i0(b)
+    weights = window*np.sinc(positions)
+
+    if normalize:
+        weights = weights/weights.sum()
+
+    return weights
 
 
 fd_weights_registry = {'taylor': numeric_weights, 'standard': numeric_weights,
