@@ -6,18 +6,19 @@ import pytest
 import sympy
 
 from devito import (  # noqa
-    Dimension, Eq, Function, Grid, Operator, TimeFunction, switchconfig
+    Dimension, Eq, Function, Grid, Operator, SubDimension, TimeFunction, switchconfig
 )
 from devito.ir import SymbolRegistry
 from devito.ir.iet import (
-    Call, Callable, CGen, Conditional, Definition, Dereference, DeviceCall, DummyExpr,
-    ElementalFunction, FindNodes, FindSymbols, Iteration, KernelLaunch, Lambda, List,
-    Switch, Transformer, Uxreplace, filter_iterations, make_callable, make_efunc,
-    retrieve_iteration_tree
+    Call, Callable, CGen, Conditional, Definition, Dereference, DeviceCall,
+    DeviceFunction, DummyExpr, ElementalFunction, EntryFunction, FindNodes, FindSymbols,
+    Iteration, KernelLaunch, Lambda, List, Switch, Transformer, Uxreplace,
+    filter_iterations, make_callable, make_efunc, retrieve_iteration_tree
 )
 from devito.ir.iet.visitors import sorted_efuncs
 from devito.passes.iet.engine import Graph, reuse_efuncs
 from devito.passes.iet.languages.C import CDataManager
+from devito.passes.iet.misc import abridge_dim_names
 from devito.symbolics import (
     FLOAT, Byref, Class, FieldFromComposite, IndexedPointer, InlineIf, ListInitializer,
     Macro, SizeOf, String
@@ -588,6 +589,27 @@ def test_graph_parameter_bindings():
     assert [c.arguments for c in FindNodes(Call).visit(graph.root)] == [
         (a + b + 1,), (a + b + 2,)
     ]
+
+
+@pytest.mark.parametrize('ftype', [EntryFunction, DeviceFunction])
+@pytest.mark.parametrize('pointer', [False, True])
+@pytest.mark.parametrize('clash', [False, True])
+def test_abridge_pointer_dimensions(ftype, pointer, clash):
+    x = Dimension(name='x')
+    xi = SubDimension.left(name='xi', parent=x, thickness=4)
+    a = Array(name='a', dimensions=(x,), shape=(16,))
+    index = xi + x if clash else xi
+    access = IndexedPointer(a, index) if pointer else a[index]
+    loop = Iteration(DummyExpr(access, access + 1), xi,
+                     (xi.symbolic_min, xi.symbolic_max, 1))
+    body = Iteration(loop, x, (0, 15, 1)) if clash else loop
+    foo = ftype('foo', body, 'void', parameters=(a,))
+
+    foo = abridge_dim_names(foo)
+
+    inner = FindNodes(Iteration).visit(foo)[-1]
+    assert inner.dim.name == ('xi' if clash else 'x')
+    assert inner.limits == loop.limits
 
 
 @pytest.mark.parametrize('copy_symbols', [False, True])
