@@ -19,7 +19,7 @@ from devito.passes.iet.languages.C import CBB, CPrinter
 from devito.passes.iet.languages.CXX import CXXPrinter
 from devito.passes.iet.languages.openacc import AccBB, AccPrinter
 from devito.passes.iet.languages.openmp import CXXOmpBB, OmpBB
-from devito.symbolics import sympy_dtype
+from devito.symbolics import DefFunction, sympy_dtype
 from devito.symbolics.extended_dtypes import ctypes_vector_mapper
 from devito.tools import dtype_to_cstr, dtypes_vector_mapper, extract_dtype, infer_dtype
 from devito.types import ComponentAccess
@@ -267,6 +267,15 @@ def test_printer_registry() -> None:
 
     float16 = get_printer(CPrinter, np.float16)
     assert get_printer(CPrinter, np.float16) is float16
+
+
+@pytest.mark.parametrize('cls', [CPrinter, CXXPrinter])
+@pytest.mark.parametrize('dtype,suffix', [(np.float32, 'F'), (np.float64, '')])
+def test_vector_operand_precision(cls, dtype, suffix):
+    printer = cls({'dtype': dtypes_vector_mapper[dtype, 2]})
+    a = Symbol(name='a', dtype=dtype)
+    expr = DefFunction('make_float2', [a + sympy.Float('0.1'), sympy.Float('0.2')])
+    assert printer.doprint(expr) == f'make_float2(a + 1.0e-1{suffix},2.0e-1{suffix})'
 
 
 @pytest.mark.parametrize('dtype', [np.complex64, np.complex128])

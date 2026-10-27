@@ -20,7 +20,8 @@ from devito.symbolics.extended_sympy import BitwiseAnd
 from devito.symbolics.inspection import has_integer_args, sympy_dtype
 from devito.symbolics.queries import q_leaf
 from devito.tools import (
-    ctypes_to_cstr, ctypes_vector_mapper, dtype_to_ctype, memoized_func
+    ctypes_to_cstr, ctypes_vector_mapper, dtype_to_ctype, dtypes_vector_mapper,
+    memoized_func
 )
 from devito.types.basic import AbstractFunction
 
@@ -62,9 +63,12 @@ class BasePrinter(CodePrinter):
     @property
     def dtype(self):
         try:
-            return self._settings['dtype'].nptype
+            dtype = self._settings['dtype'].nptype
         except AttributeError:
-            return self._settings['dtype']
+            dtype = self._settings['dtype']
+
+        # Use scalar precision in vector operands, e.g. `make_float2(a + 0.1F, b)`
+        return dtypes_vector_mapper.get_base_dtype(dtype, dtype)
 
     @property
     def compiler(self):
