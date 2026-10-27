@@ -299,8 +299,13 @@ def generate_indices(expr, dim, order, side=None, matvec=None, x0=None, nweights
         iexpr = x0 + d * dim.spacing
         return IndexSet(dim, expr=iexpr), x0
 
-    # Evaluation point relative to the expression's grid
-    mid = (x0 - expr.indices_ref[dim]).subs({dim: 0, dim.spacing: 1})
+    # Evaluation point relative to the expression's grid, in units of `dim`'s
+    # own spacing. Dividing rather than substituting `dim.spacing -> 1` matters
+    # for a Dimension whose spacing is itself an expression -- a
+    # ConditionalDimension's is `factor*h_x`, so the substitution would leave
+    # `h_x` behind and `mid` would not reduce to a number
+    mid = ((x0 - expr.indices_ref[dim])/dim.spacing).subs({dim: 0})
+    mid = sympify(mid).simplify()
 
     # Shift for side
     side = side or centered
