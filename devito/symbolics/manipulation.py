@@ -3,7 +3,7 @@ from collections.abc import Iterable
 from functools import singledispatch
 
 import numpy as np
-from sympy import Add, Max, Min, Mul, Pow, S, SympifyError, Tuple, sympify
+from sympy import Add, Max, Min, Mul, Pow, S, SympifyError, Tuple, ceiling, floor, sympify
 from sympy.core import Basic as SympyBasic
 from sympy.core.add import _addsort
 from sympy.core.mul import _mulsort
@@ -12,7 +12,7 @@ from devito.finite_differences.differentiable import (
     EvalDerivative, IndexDerivative, LocalSum
 )
 from devito.symbolics.extended_dtypes import LONG
-from devito.symbolics.extended_sympy import DefFunction, rfunc
+from devito.symbolics.extended_sympy import CallFromPointer, DefFunction, rfunc
 from devito.symbolics.queries import q_leaf
 from devito.symbolics.search import (
     retrieve_functions, retrieve_indexed, retrieve_terminals
@@ -21,12 +21,15 @@ from devito.symbolics.unevaluation import Add as UnevalAdd
 from devito.symbolics.unevaluation import Mul as UnevalMul
 from devito.symbolics.unevaluation import Pow as UnevalPow
 from devito.symbolics.unevaluation import UnevaluableMixin
+from devito.symbolics.unevaluation import ceiling as UnevalCeil
+from devito.symbolics.unevaluation import floor as UnevalFloor
 from devito.tools import (
-    EnrichedTuple, as_list, as_tuple, flatten, split, transitive_closure
+    EnrichedTuple, as_list, as_tuple, flatten, frozendict, split, transitive_closure
 )
 from devito.types.array import ComponentAccess
 from devito.types.basic import Basic, Indexed
 from devito.types.equation import Eq
+from devito.types.misc import FIndexed
 from devito.types.relational import Ge, Gt, Le, Lt
 
 __all__ = [
@@ -53,8 +56,9 @@ def uxreplace(expr, rule):
     be avoided at all costs (e.g., to prevent SymPy from unpicking Devito
     transformations, such as factorization).
 
-    The canonical ordering of the arguments is however guaranteed; where this is
-    not possible, a re-evaluation will be enforced.
+    Evaluated expressions retain canonical argument ordering. Lowered,
+    unevaluated arithmetic retains its operand order and grouping unless
+    substitution makes it completely numeric.
 
     By avoiding re-evaluations, this function is typically much quicker than
     SymPy's xreplace.
@@ -77,6 +81,10 @@ def uxreplace(expr, rule):
 
 @singledispatch
 def _uxreplace(expr, rule):
+    return _uxreplace_default(expr, rule)
+
+
+def _uxreplace_default(expr, rule):
     if expr in rule:
         v = rule[expr]
         if not isinstance(v, dict):
@@ -117,6 +125,17 @@ def _uxreplace(expr, rule):
     return expr, False
 
 
+@_uxreplace.register(CallFromPointer)
+def _(expr, rule):
+    if expr in rule or expr.__class__ in rule:
+        return _uxreplace_default(expr, rule)
+
+    args, changed = _uxreplace_dispatch((expr.pointer, expr.params), rule)
+    if changed:
+        return expr.func(expr.call, *args), True
+    return expr, False
+
+
 @_uxreplace.register(LocalSum)
 def _(expr, rule):
     # Only the sum owns these guards; ordinary ConditionalDimensions stay atomic
@@ -128,7 +147,7 @@ def _(expr, rule):
             mapper[d] = d._rebuild(**kwargs)
 
     # Apply the same dimension substitutions to the summand and its bindings
-    return _uxreplace.dispatch(object)(expr, {**mapper, **rule})
+    return _uxreplace_default(expr, {**mapper, **rule})
 
 
 @singledispatch
@@ -165,6 +184,7 @@ def _(iterable, rule):
 
 
 @_uxreplace_dispatch.register(dict)
+@_uxreplace_dispatch.register(frozendict)
 def _(mapper, rule):
     ret = {}
     changed = False
@@ -172,7 +192,7 @@ def _(mapper, rule):
         vx, flag = _uxreplace_dispatch(v, rule)
         ret[k] = vx
         changed |= flag
-    return (ret, True) if changed else (mapper, False)
+    return (mapper.__class__(ret), True) if changed else (mapper, False)
 
 
 @singledispatch
@@ -183,12 +203,28 @@ def _uxreplace_handle(expr, args, kwargs):
         return expr.func(*args)
 
 
+@_uxreplace_handle.register(CallFromPointer)
+def _(expr, args, kwargs):
+    # C member names belong to their compound type, rather than the local scope
+    return expr.func(expr.call, *args[1:])
+
+
 @_uxreplace_handle.register(Min)
 @_uxreplace_handle.register(Max)
 @_uxreplace_handle.register(Pow)
 def _(expr, args, kwargs):
     evaluate = all(i.is_Number for i in args)
     return expr.func(*args, evaluate=evaluate)
+
+
+# The SymPy bases precede UnevaluableMixin in these classes' dispatch MRO
+@_uxreplace_handle.register(UnevalAdd)
+@_uxreplace_handle.register(UnevalMul)
+def _(expr, args, kwargs):
+    # Lowered arithmetic must survive substitutions without reassociation
+    if all(i.is_Number for i in args):
+        return expr.func.__base__(*args)
+    return expr.func(*args)
 
 
 @_uxreplace_handle.register(Add)
@@ -252,6 +288,7 @@ _uxreplace_registry = UxreplaceRegistry()
 _uxreplace_registry.register(Eq)
 _uxreplace_registry.register(DefFunction)
 _uxreplace_registry.register(ComponentAccess)
+_uxreplace_registry.register(FIndexed)
 _uxreplace_registry.register(LocalSum)
 
 
@@ -585,10 +622,14 @@ def evalrel(func=min, input=None, assumptions=None):
     return rfunc(func, *input)
 
 
-uneval_mapper = {Add: UnevalAdd, Mul: UnevalMul, Pow: UnevalPow}
+# Rounding functions also need freezing: reconstruction otherwise reevaluates
+# their lowered arguments, including during Operator unpickling.
+uneval_mapper = {Add: UnevalAdd, Mul: UnevalMul, Pow: UnevalPow,
+                 ceiling: UnevalCeil, floor: UnevalFloor}
 
 
 def unevaluate(expr):
+    """Protect lowered arithmetic from reevaluation during reconstruction."""
     if q_leaf(expr):
         return expr
 

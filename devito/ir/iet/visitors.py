@@ -23,7 +23,7 @@ from devito.ir.iet.nodes import (
 )
 from devito.ir.support.space import Backward
 from devito.symbolics import (
-    FieldFromComposite, FieldFromPointer, ListInitializer, uxreplace
+    FieldFromComposite, FieldFromPointer, IndexedPointer, ListInitializer, uxreplace
 )
 from devito.symbolics.extended_dtypes import NoDeclStruct
 from devito.tools import (
@@ -342,7 +342,7 @@ class CGen(Visitor):
                 strtype = f'{strtype}{self._restrict_keyword}'
         strtype = ' '.join(qualifiers + [strtype])
 
-        if obj.is_LocalObject and obj._C_modifier is not None and mode == 2:
+        if obj._C_modifier is not None and mode == 2:
             strtype += obj._C_modifier
 
         strname = obj._C_name
@@ -615,7 +615,7 @@ class CGen(Visitor):
             call = MultilineCall(o.name, arguments, True, o.is_indirect, cast,
                                  o.templates)
             if retobj.is_Indexed or \
-               isinstance(retobj, (FieldFromComposite, FieldFromPointer)):
+               isinstance(retobj, (FieldFromComposite, FieldFromPointer, IndexedPointer)):
                 return c.Assign(self.ccode(retobj), call)
             else:
                 return c.Initializer(c.Value(rettype, retobj._C_name), call)
@@ -1506,7 +1506,8 @@ class Uxreplace(Transformer):
     def visit_Dereference(self, o):
         pointee = self.mapper.get(o.pointee, o.pointee)
         pointer = self.mapper.get(o.pointer, o.pointer)
-        return reuse_if_unchanged(o, pointee=pointee, pointer=pointer)
+        offset = uxreplace(o.offset, self.mapper)
+        return reuse_if_unchanged(o, pointee=pointee, pointer=pointer, offset=offset)
 
     def visit_Pragma(self, o):
         arguments = [uxreplace(i, self.mapper) for i in o.arguments]

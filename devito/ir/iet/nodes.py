@@ -18,7 +18,7 @@ from devito.ir.support import (
     AFFINE, INBOUND, PARALLEL, PARALLEL_IF_ATOMIC, PARALLEL_IF_PVT, SEQUENTIAL,
     VECTORIZED, Forward, PrefetchUpdate, Property, WithLock
 )
-from devito.symbolics import CallFromPointer, ListInitializer
+from devito.symbolics import CallFromPointer, IndexedPointer, ListInitializer
 from devito.tools import (
     Signer, as_tuple, ctypes_to_cstr, filter_ordered, filter_sorted, flatten
 )
@@ -344,6 +344,10 @@ class Call(ExprStmt, Node):
             kwargs['arguments'] = [mapper.get(i, i) for i in self.arguments]
         return super()._rebuild(**kwargs)
 
+    def rebuild_args(self, func):
+        """Rebuild the Call, applying `func` to its callee's arguments."""
+        return self._rebuild(arguments=func(self.arguments))
+
     @property
     def children(self):
         return tuple(i for i in self.arguments if isinstance(i, (Call, Lambda)))
@@ -394,7 +398,7 @@ class Call(ExprStmt, Node):
         if self.base is not None:
             retval.append(self.base)
 
-        if isinstance(self.retobj, Indexed):
+        if isinstance(self.retobj, (Indexed, IndexedPointer)):
             retval.extend(self.retobj.free_symbols)
         elif self.retobj is not None:
             retval.append(self.retobj)

@@ -115,6 +115,7 @@ class DeviceOperatorMixin:
         o['linearize'] = oo.pop('linearize', False)
         o['mapify-reduce'] = oo.pop('mapify-reduce', cls.MAPIFY_REDUCE)
         o['index-mode'] = oo.pop('index-mode', cls.INDEX_MODE)
+        o['split-modulo-buffers'] = False
         o['place-transfers'] = oo.pop('place-transfers', True)
         o['errctl'] = oo.pop('errctl', cls.ERRCTL)
         o['scalar-min-type'] = oo.pop('scalar-min-type', cls.SCALAR_MIN_TYPE)
@@ -151,6 +152,8 @@ class DeviceOperatorMixin:
             options = options or {}
 
             if mode == 'host':
+                options = {'split-modulo-buffers': options0['split-modulo-buffers'],
+                           **options}
                 target = {
                     'platform': 'cpu64',
                     'language': 'C' if options0['par-disabled'] else 'openmp',

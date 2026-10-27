@@ -547,6 +547,8 @@ class IndexedPointer(Expr, Pickable, BasicWrapperMixin, Terminal):
     def index(self):
         return self._index
 
+    indices = index
+
     def __str__(self):
         indices = ''.join(f'[{i}]' for i in self.index)
         return f"{self.base}{indices}"

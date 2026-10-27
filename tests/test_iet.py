@@ -6,21 +6,22 @@ import pytest
 import sympy
 
 from devito import (  # noqa
-    Dimension, Eq, Function, Grid, Operator, TimeFunction, switchconfig
+    Dimension, Eq, Function, Grid, Operator, SubDimension, TimeFunction, switchconfig
 )
 from devito.ir import SymbolRegistry
 from devito.ir.iet import (
-    Call, Callable, CGen, Conditional, Definition, Dereference, DeviceCall, DummyExpr,
-    ElementalFunction, FindNodes, FindSymbols, Iteration, KernelLaunch, Lambda, List,
-    Switch, Transformer, filter_iterations, make_callable, make_efunc,
-    retrieve_iteration_tree
+    Call, Callable, CGen, Conditional, Definition, Dereference, DeviceCall,
+    DeviceFunction, DummyExpr, ElementalFunction, EntryFunction, FindNodes, FindSymbols,
+    Iteration, KernelLaunch, Lambda, List, Switch, Transformer, Uxreplace,
+    filter_iterations, make_callable, make_efunc, retrieve_iteration_tree
 )
 from devito.ir.iet.visitors import sorted_efuncs
 from devito.passes.iet.engine import Graph, reuse_efuncs
 from devito.passes.iet.languages.C import CDataManager
+from devito.passes.iet.misc import abridge_dim_names
 from devito.symbolics import (
-    FLOAT, Byref, Class, FieldFromComposite, InlineIf, ListInitializer, Macro, SizeOf,
-    String
+    FLOAT, Byref, Class, FieldFromComposite, IndexedPointer, InlineIf, ListInitializer,
+    Macro, SizeOf, String
 )
 from devito.symbolics.extended_dtypes import c_complex
 from devito.tools import CustomDtype, as_tuple, dtype_to_ctype
@@ -118,6 +119,20 @@ def test_nested_calls_cgen():
     code = CGen().visit(call)
 
     assert str(code) == 'foo(bar());'
+
+
+def test_uxreplace_dereference_offset():
+    d = CustomDimension(name='d', symbolic_size=4)
+    array = Array(name='a0', dimensions=(d,), shape=(4,), scope='shared')
+    pointer = Pointer(name='sm7')
+    old, new = Symbol(name='off7'), Symbol(name='off0')
+    node = Dereference(array, pointer, offset=old + 32)
+
+    replaced = Uxreplace({old: new}).visit(node)
+
+    assert replaced.offset == new + 32
+    assert replaced.pointee is array
+    assert replaced.pointer is pointer
 
 
 @pytest.mark.parametrize('mode,expected', [
@@ -430,17 +445,20 @@ void foo(struct dataobj *restrict u_vec, float *restrict u)
 }"""
 
 
-def test_call_retobj_indexed():
+@pytest.mark.parametrize('pointer', [False, True])
+def test_call_retobj_indexed(pointer):
     grid = Grid(shape=(10, 10))
 
     u = Function(name='u', grid=grid)
     v = Function(name='v', grid=grid)
 
-    call = Call('foo', [u], retobj=v.indexify())
+    retobj = IndexedPointer(v.indexed, grid.dimensions) if pointer else v.indexify()
+    call = Call('foo', [u], retobj=retobj)
 
     assert str(call) == "v[x][y] = foo(u_vec);"
 
     assert not call.defines
+    assert set(grid.dimensions).issubset(call.expr_symbols)
 
 
 def test_call_lambda_transform():
@@ -542,14 +560,69 @@ def test_codegen_quality0():
     assert foo1.parameters[0] is a
 
 
-def test_reuse_efuncs_natural_numbering():
+def test_const_pointer_parameter():
+    class ConstPointer(Symbol):
+        _C_modifier = ' const'
 
-    def make_foo(name, start):
+    p = ConstPointer(name='p', dtype=POINTER(dtype_to_ctype(np.float32)))
+    foo = Callable('foo', Call('external', (p,)), 'void', parameters=(p,))
+
+    assert 'void foo(float * const p)' in str(foo)
+
+
+def test_graph_parameter_bindings():
+    x, y, a, b, p = [Symbol(name=n) for n in ('x', 'y', 'a', 'b', 'p')]
+    inner = Callable('inner', Call('external', (x, y)), 'void', parameters=(x, y))
+    root = make_callable('root', [Call('inner', (a + 1, b)),
+                                  Call('inner', (b, a + 2))])
+    graph = Graph(root)
+    graph.apply(lambda iet: (iet, {'efuncs': [inner]}))
+
+    def transform(iet):
+        if iet.name != 'inner':
+            return iet, {}
+        return iet._rebuild(body=Call('external', (p,))), {'args': {p: x + y}}
+
+    graph.apply(transform)
+
+    assert graph.efuncs['inner'].parameters == (p,)
+    assert [c.arguments for c in FindNodes(Call).visit(graph.root)] == [
+        (a + b + 1,), (a + b + 2,)
+    ]
+
+
+@pytest.mark.parametrize('ftype', [EntryFunction, DeviceFunction])
+@pytest.mark.parametrize('pointer', [False, True])
+@pytest.mark.parametrize('clash', [False, True])
+def test_abridge_pointer_dimensions(ftype, pointer, clash):
+    x = Dimension(name='x')
+    xi = SubDimension.left(name='xi', parent=x, thickness=4)
+    a = Array(name='a', dimensions=(x,), shape=(16,))
+    index = xi + x if clash else xi
+    access = IndexedPointer(a, index) if pointer else a[index]
+    loop = Iteration(DummyExpr(access, access + 1), xi,
+                     (xi.symbolic_min, xi.symbolic_max, 1))
+    body = Iteration(loop, x, (0, 15, 1)) if clash else loop
+    foo = ftype('foo', body, 'void', parameters=(a,))
+
+    foo = abridge_dim_names(foo)
+
+    inner = FindNodes(Iteration).visit(foo)[-1]
+    assert inner.dim.name == ('xi' if clash else 'x')
+    assert inner.limits == loop.limits
+
+
+@pytest.mark.parametrize('copy_symbols', [False, True])
+def test_reuse_efuncs_natural_numbering(copy_symbols):
+
+    def make_foo(name, start, copies=False):
         pointers = [Pointer(name=f'p{i}') for i in range(start, start + 3)]
-        return make_callable(name, Call('bar', pointers))
+        aliases = [p._rebuild() for p in pointers] if copies else pointers
+        return make_callable(name, List(body=[Call('bar', pointers),
+                                              Call('bar', aliases)]))
 
     foo0 = make_foo('foo0', 0)
-    foo1 = make_foo('foo1', 9)
+    foo1 = make_foo('foo1', 9, copies=copy_symbols)
 
     root = make_callable('root', List(body=[
         Call(foo0.name, foo0.parameters),

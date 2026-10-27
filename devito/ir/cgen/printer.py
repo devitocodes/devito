@@ -280,8 +280,20 @@ class BasePrinter(CodePrinter):
         return '%'.join(args)
 
     def _print_Mul(self, expr):
-        args = [a for a in expr.args if a != -1]
-        neg = (len(expr.args) - len(args)) % 2
+        args, neg = [], False
+        # SymPy's CodePrinter extracts negative coefficients with the standalone
+        # _keep_coeff helper, which can rebuild a plain SymPy Mul. Since this
+        # is not a method, UnevalMul cannot override it. Extract signs before
+        # delegating to preserve the product's class without patching SymPy or
+        # copying its multiplication printer.
+        for a in expr.args:
+            if a.is_Number and a.is_negative:
+                a = -a
+                neg = not neg
+                if a == 1:
+                    continue
+            args.append(a)
+        args = args or [S.One]
 
         if len(args) > 1:
             term = super()._print_Mul(expr.func(*args, evaluate=False))
@@ -289,7 +301,7 @@ class BasePrinter(CodePrinter):
             term = self.parenthesize(args[0], precedence(expr))
 
         if neg:
-            return f'-{term}'
+            return term[1:] if term.startswith('-') else f'-{term}'
         else:
             return term
 
