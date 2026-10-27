@@ -1444,7 +1444,9 @@ class ArgumentsMap(dict):
             if logical_deviceid < 0:
                 rank = self.comm.Get_rank() if self.comm != MPI.COMM_NULL else 0
                 if visible_devices is None:
-                    logical_deviceid = rank
+                    # Mirror the generated code, which sets device `rank % ngpus`
+                    ngpus = self.platform.numa_domains
+                    logical_deviceid = rank % ngpus if ngpus else rank
                 else:
                     logical_deviceid = rank % len(visible_devices)
             if visible_devices is None:
