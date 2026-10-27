@@ -393,8 +393,15 @@ class DummyEq(ClusterizedEq):
             input_expr = args[0]
             assert isinstance(input_expr, Eq)
             obj = LoweredEq(input_expr)
+            return ClusterizedEq.__new__(cls, obj, ispace=obj.ispace)
         elif len(args) == 2:
-            obj = LoweredEq(Eq(*args, evaluate=False))
+            # `lhs` and `rhs` are already lowered -- a pass built them out of
+            # IR objects -- so go straight to a ClusterizedEq. Lowering them
+            # again would re-apply the DSL-to-IR rewrites: a ConditionalDimension
+            # LHS would become `IntDiv(parent, factor)`, which no backend can
+            # assign to
+            return ClusterizedEq.__new__(cls, *args, ispace=IterationSpace([]),
+                                         conditionals={}, implicit_dims=(),
+                                         operation=None)
         else:
             raise ValueError(f"Cannot construct DummyEq from args={str(args)}")
-        return ClusterizedEq.__new__(cls, obj, ispace=obj.ispace)

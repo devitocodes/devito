@@ -869,8 +869,17 @@ class Dependence(Relation, CacheInstances):
         """
         for d in self.findices:
             if d._defines & set(as_tuple(dims)):  # noqa: SIM102
-                if any(i.is_NonlinearDerived for i in d._defines) or \
-                   self.is_const(d):
+                if self.is_const(d):
+                    return True
+                for i in d._defines:
+                    if not i.is_NonlinearDerived:
+                        continue
+                    # An injective Dimension maps distinct iterations to
+                    # distinct locations, so only the *same* iteration can
+                    # reach the same location -- unlike a SteppingDimension,
+                    # where `time % 2` has distinct iterations revisit a slot
+                    if i.is_Injective and not self.distance_mapper.get(i):
+                        continue
                     return True
         return False
 

@@ -1,3 +1,4 @@
+import math
 from collections import namedtuple
 from functools import cached_property
 from itertools import product
@@ -11,17 +12,17 @@ from devito.deprecations import deprecations
 from devito.finite_differences.elementary import Max, Min
 from devito.logger import warning
 from devito.mpi import MPI, Distributor, SubDistributor
-from devito.tools import ReducerMap, as_tuple, frozendict
+from devito.tools import ReducerMap, as_tuple, frozendict, is_integer
 from devito.types.args import ArgProvider
 from devito.types.basic import Scalar
 from devito.types.dense import Function
 from devito.types.dimension import (
-    DefaultDimension, Dimension, MultiSubDimension, SpaceDimension, Spacing,
-    SteppingDimension, SubDimension, TimeDimension
+    ConditionalDimension, DefaultDimension, Dimension, MultiSubDimension, SpaceDimension,
+    Spacing, SteppingDimension, SubDimension, TimeDimension
 )
 from devito.types.utils import DimensionTuple
 
-__all__ = ['Border', 'Grid', 'SubDomain', 'SubDomainSet']
+__all__ = ['Border', 'Grid', 'SubDomain', 'SubDomainSet', 'SubGrid']
 
 
 GlobalLocal = namedtuple('GlobalLocal', 'glb loc')
@@ -426,6 +427,169 @@ class Grid(CartesianDiscretization, ArgProvider):
         for k, v in state.items():
             setattr(self, k, v)
         self._distributor = Distributor(self.shape, self.dimensions, MPI.COMM_SELF)
+
+
+class SubGrid(Grid):
+
+    """
+    A coarser Grid whose points are a subset of a parent Grid's points.
+
+    Along each Dimension subsampled by `factor`, the SubGrid retains every
+    `factor`-th point of the parent, so point `i` of the SubGrid sits at parent
+    index `i*factor`. The physical spacing is `factor` times the parent's, and
+    the origin is shared.
+
+    Parameters
+    ----------
+    parent : Grid
+        The Grid being subsampled.
+    factor : int or tuple of int
+        Subsampling factor, either one value per space Dimension of `parent`,
+        or a single value applied to all of them. A factor of 1 leaves the
+        corresponding Dimension untouched.
+    name : str, optional
+        Prefix for the names of the subsampled Dimensions; each is named
+        `f'{parent_dimension}{name}'`. Defaults to `'s'`, giving `xs`, `ys`.
+
+    Examples
+    --------
+    >>> from devito import Grid, SubGrid, Function
+    >>> grid = Grid(shape=(9, 9), extent=(8., 8.))
+    >>> sub = SubGrid(grid, factor=2)
+    >>> sub.shape
+    (5, 5)
+    >>> sub.dimensions
+    (xs, ys)
+
+    A Function defined on a SubGrid needs neither `shape` nor `dimensions`;
+    both are derived.
+
+    >>> f = Function(name='f', grid=sub, space_order=0)
+    >>> f.shape
+    (5, 5)
+
+    The spacing is scaled by the factor, so derivatives are taken with respect
+    to the coarser grid.
+
+    >>> sub.spacing
+    (2.0, 2.0)
+
+    A per-Dimension factor subsamples each axis independently; `1` leaves an
+    axis alone.
+
+    >>> sub = SubGrid(grid, factor=(2, 1))
+    >>> sub.shape
+    (5, 9)
+
+    Notes
+    -----
+    Because the subsampled points coincide with parent points, no interpolation
+    is involved: an `Eq` writing a SubGrid Function from a parent Function is a
+    strided copy, and the compiler emits a strided loop for it.
+    """
+
+    def __init__(self, parent, factor, name='s', **kwargs):
+        if not parent.is_Grid:
+            raise ValueError("`parent` must be a Grid, got "
+                             f"`{type(parent).__name__}`")
+
+        factors = self.__factors_setup__(parent, factor)
+
+        if isinstance(parent, SubGrid):
+            # Nesting would need a ConditionalDimension to parent another one.
+            # Spell out the equivalent single-level call, since the composed
+            # factor is just the product of the two
+            combined = tuple(f0*f1 for f0, f1 in
+                             zip(parent._factors, factors, strict=True))
+            raise ValueError(
+                f"Cannot subsample a SubGrid. `{factor}` applied to a SubGrid "
+                f"of factor `{tuple(parent._factors)}` is the same as factor "
+                f"`{combined}` applied to its parent Grid directly, so use "
+                f"`SubGrid(parent.parent, factor={combined})`"
+            )
+
+        dimensions = tuple(
+            d if f == 1 else ConditionalDimension(f'{d.name}{name}', parent=d,
+                                                  factor=f)
+            for d, f in zip(parent.dimensions, factors, strict=True)
+        )
+
+        # A subsampled axis keeps the parent's endpoints, so the number of
+        # retained points is `ceil(n/factor)` and the extent is unchanged up to
+        # the last retained point
+        shape = tuple((n + f - 1)//f
+                      for n, f in zip(parent.shape, factors, strict=True))
+        extent = tuple(s*(n - 1) for s, n in
+                       zip(self.__spacing_setup__(parent, factors), shape,
+                           strict=True))
+
+        self._parent = parent
+        self._factors = factors
+
+        super().__init__(shape=shape, extent=extent, origin=parent.origin,
+                         dimensions=dimensions, dtype=parent.dtype,
+                         time_dimension=parent.time_dim,
+                         comm=parent.distributor.comm, **kwargs)
+
+        # Share the parent's stepping Dimension rather than the fresh
+        # `{time}_s` that Grid derives for a supplied `time_dimension`: a
+        # SubGrid coarsens space only, so a TimeFunction on it must step over
+        # the very same buffer indices as one on the parent
+        self._stepping_dim = parent.stepping_dim
+
+    @classmethod
+    def __factors_setup__(cls, parent, factor):
+        factors = as_tuple(factor)
+        if len(factors) == 1:
+            factors = factors*len(parent.dimensions)
+        elif len(factors) != len(parent.dimensions):
+            raise ValueError(f"Expected 1 or {len(parent.dimensions)} factors "
+                             f"for a {len(parent.dimensions)}D parent Grid, "
+                             f"got {len(factors)}")
+
+        for f in factors:
+            if not is_integer(f):
+                # Non-integer factors place SubGrid points between parent
+                # points, which requires interpolation rather than striding
+                raise ValueError(
+                    f"Non-integer subsampling factor `{f}`. A SubGrid's points "
+                    "must coincide with its parent's, so the factor must be a "
+                    f"whole number of parent cells -- use "
+                    f"`{max(1, math.floor(f))}` or `{max(1, math.ceil(f))}`. "
+                    "Subsampling onto points that fall "
+                    "between parent points requires interpolation, which "
+                    "SubGrid does not perform"
+                )
+            if f < 1:
+                raise ValueError(f"Subsampling factor must be >= 1, got `{f}`")
+
+        return tuple(int(f) for f in factors)
+
+    @classmethod
+    def __spacing_setup__(cls, parent, factors):
+        return tuple(s*f for s, f in zip(parent.spacing, factors, strict=True))
+
+    @property
+    def parent(self):
+        """The Grid being subsampled."""
+        return self._parent
+
+    @property
+    def factor(self):
+        """The subsampling factor along each Dimension."""
+        return DimensionTuple(*self._factors, getters=self.dimensions)
+
+    @property
+    def root(self):
+        # A SubGrid is a view of its parent, not a Grid in its own right, just
+        # as a SubDomain is. `Operator._prepare_arguments` collapses the
+        # discretizations it finds by `root` to tell "several views of one
+        # Grid" apart from "several unrelated Grids", and rejects the latter
+        # under MPI
+        return self._parent.root
+
+    def __repr__(self):
+        return f"SubGrid[shape={self.shape}, factor={tuple(self._factors)}]"
 
 
 class AbstractSubDomain(CartesianDiscretization):
