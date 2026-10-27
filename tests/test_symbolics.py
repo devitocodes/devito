@@ -747,6 +747,32 @@ def test_findexed():
     assert new_fi.strides_map == strides_map
 
 
+@pytest.mark.parametrize('name', ['a', 'z'])
+@pytest.mark.parametrize('kind', ['sum', 'product'])
+@pytest.mark.parametrize('form', ['indexed', 'linearized', 'pointer'])
+def test_access_arithmetic_order(name, kind, form):
+    grid = Grid(shape=(8,))
+    x, = grid.dimensions
+    f = Function(name=name, grid=grid)
+    s = Array(name='s', dimensions=(x,), shape=grid.shape)
+    r = dSymbol('r', dtype=np.float32)
+    accesses = {
+        'indexed': (f[x], f'{name}[x]'),
+        'linearized': (FIndexed(f.indexed, x), f'{name}(x)'),
+        'pointer': (IndexedPointer(dSymbol(f'{name}_buf0'), x), f'{name}_buf0[x]')
+    }
+    access, code = accesses[form]
+    if kind == 'sum':
+        expr = r*access - 2*r*s[x]
+        expected = f'-2*r*s[x] + r*{code}'
+    else:
+        expr = access*s[x]
+        expected = f's[x]*{code}'
+
+    assert ccode(expr) == expected
+    assert ccode(unevaluate(expr)) == expected
+
+
 def test_component_access():
     grid = Grid(shape=(3, 3, 3))
     x, y, z = grid.dimensions
