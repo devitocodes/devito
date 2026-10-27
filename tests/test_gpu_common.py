@@ -35,6 +35,18 @@ class TestGPUInfo:
             # as we're not really exploiting this info yet...
             pytest.xfail("Unsupported platform for get_gpu_info")
 
+    def test_memavail(self):
+        """
+        The device memory budget of an Operator (e.g., for snapshotting)
+        needs the available memory of the target device.
+        """
+        plat = configuration['platform']
+
+        memavail = plat.memavail()
+
+        assert isinstance(memavail, int)
+        assert 0 < memavail <= plat.memtotal
+
     def custom_compiler(self):
         grid = Grid(shape=(4, 4))
 
@@ -84,7 +96,8 @@ class TestDeviceID:
         'CUDA_VISIBLE_DEVICES',
         'NVIDIA_VISIBLE_DEVICES',
         'ROCR_VISIBLE_DEVICES',
-        'HIP_VISIBLE_DEVICES'
+        'HIP_VISIBLE_DEVICES',
+        'ZE_AFFINITY_MASK'
     )
 
     @pytest.mark.parametrize('env_variables', [{"CUDA_VISIBLE_DEVICES": "1"},
@@ -93,7 +106,8 @@ class TestDeviceID:
                                                {"NVIDIA_VISIBLE_DEVICES": "1"},
                                                {"NVIDIA_VISIBLE_DEVICES": "1,2"},
                                                {"ROCR_VISIBLE_DEVICES": "1"},
-                                               {"HIP_VISIBLE_DEVICES": " 1"}])
+                                               {"HIP_VISIBLE_DEVICES": " 1"},
+                                               {"ZE_AFFINITY_MASK": "1"}])
     def test_visible_devices(self, env_variables):
         """
         Test that physical device IDs used for querying memory on a device via

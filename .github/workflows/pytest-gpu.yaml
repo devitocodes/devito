@@ -1,6 +1,7 @@
 # Workflow information:
 #  - OpenACC/OpenMP on NVIDIA runs on runners labeled `nvidiagpu`
 #  - OpenMP on AMD runs on runners labeled `amdgpu`
+#  - OpenMP on Intel runs on runners labeled `INTELGPU`; ZE_AFFINITY_MASK selects the device
 #  - Respect CUDA_VISIBLE_DEVICES for NVIDIA jobs by passing it AND restricting Docker with --gpus "device=…"
 #  - Tag images and container names to avoid cross-runner races and maximize cache reuse
 
@@ -36,7 +37,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        name: [pytest-gpu-acc-nvidia, pytest-gpu-omp-amd]
+        name: [pytest-gpu-acc-nvidia, pytest-gpu-omp-amd, pytest-gpu-omp-intel]
         test_examples: ["examples/seismic/tti/tti_example.py examples/seismic/acoustic/acoustic_example.py examples/seismic/viscoacoustic/viscoacoustic_example.py examples/seismic/viscoelastic/viscoelastic_example.py examples/seismic/elastic/elastic_example.py"]
 
         include:
@@ -68,6 +69,22 @@ jobs:
             --device=/dev/kfd --device=/dev/dri/${HIP_DEVICE_NAME}
             --group-add video --group-add "$(getent group render | cut -d: -f3)"
             --cap-add=SYS_PTRACE --security-opt seccomp=unconfined
+
+        # -------------------- Intel job ---------------------
+        - name: pytest-gpu-omp-intel
+          test_files: "tests/test_adjoint.py tests/test_gpu_common.py tests/test_gpu_openmp.py tests/test_operator.py::TestEstimateMemory"
+          runner_label: INTELGPU
+          base: "devitocodes/bases:gpu-icx"
+          test_drive_cmd: "sycl-ls"
+          # Respect ZE_AFFINITY_MASK, set by the runner like CUDA_VISIBLE_DEVICES
+          dockerflags: >-
+            --cpuset-cpus="${AVAILABLE_CPUSET}"
+            --memory="${AVAILABLE_MEM}"
+            --memory-swap="${AVAILABLE_MEM}"
+            -v /dev/dri/by-path:/dev/dri/by-path
+            --device=/dev/dri:/dev/dri
+            --group-add "$(getent group render | cut -d: -f3)"
+            --env ZE_AFFINITY_MASK="${ZE_AFFINITY_MASK}"
 
     steps:
     - name: Checkout devito

@@ -1474,11 +1474,16 @@ class Uxreplace(Transformer):
                 arguments.append(self._visit(i))
             else:
                 arguments.append(uxreplace(i, self.mapper))
+        kwargs = {'arguments': arguments}
+        if o.base is not None:
+            # A call through an object, e.g. `obj.method(...)`, where `obj`
+            # may be in the mapper too
+            callee = uxreplace(o.callee, self.mapper)
+            if callee is not o.callee:
+                kwargs['name'] = callee
         if o.retobj is not None:
-            retobj = uxreplace(o.retobj, self.mapper)
-            return reuse_if_unchanged(o, arguments=arguments, retobj=retobj)
-        else:
-            return reuse_if_unchanged(o, arguments=arguments)
+            kwargs['retobj'] = uxreplace(o.retobj, self.mapper)
+        return reuse_if_unchanged(o, **kwargs)
 
     def visit_Lambda(self, o):
         body = self._visit(o.body)

@@ -322,6 +322,9 @@ class Call(ExprStmt, Node):
             self.base = name.base
         else:
             self.base = None
+        # The called object: a str or, for a call through an object such as
+        # `obj.method(...)`, a CallFromPointer
+        self.callee = name
         self.name = str(name)
         self.arguments = as_tuple(arguments)
         self.retobj = retobj

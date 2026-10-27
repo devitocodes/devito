@@ -19,8 +19,8 @@ from devito.ir.iet.visitors import sorted_efuncs
 from devito.passes.iet.engine import Graph, reuse_efuncs
 from devito.passes.iet.languages.C import CDataManager
 from devito.symbolics import (
-    FLOAT, Byref, Class, FieldFromComposite, InlineIf, ListInitializer, Macro, SizeOf,
-    String
+    FLOAT, Byref, Class, FieldFromComposite, FieldFromPointer, InlineIf, ListInitializer,
+    Macro, SizeOf, String
 )
 from devito.symbolics.extended_dtypes import c_complex
 from devito.tools import CustomDtype, as_tuple, dtype_to_ctype
@@ -562,6 +562,40 @@ def test_reuse_efuncs_natural_numbering():
     assert set(efuncs) == {'root', 'foo0'}
     calls = FindNodes(Call).visit(efuncs[root.name])
     assert [i.name for i in calls] == ['foo0', 'foo0']
+
+
+def test_reuse_efuncs_call_through_object():
+    """
+    Callables that differ only in the object a method is called through,
+    as in `q0->wait()` vs `q1->wait()`, must map to the same efunc.
+
+    No OSS backend emits such Calls, hence an IET-level test. Downstream, the
+    SYCL backend emits `queue.memcpy(...)` in its streaming threads, and two
+    streamed Functions used to get two otherwise identical thread functions.
+    """
+
+    def make_foo(name, q):
+        p = Pointer(name=f'p{q.name}')
+        return make_callable(name, List(body=[
+            Call(FieldFromPointer('copy', q), [p]),
+            Call(FieldFromPointer('wait', q))
+        ]))
+
+    foo0 = make_foo('foo0', Pointer(name='q0'))
+    foo1 = make_foo('foo1', Pointer(name='q1'))
+
+    root = make_callable('root', List(body=[
+        Call(foo0.name, foo0.parameters),
+        Call(foo1.name, foo1.parameters)
+    ]))
+    efuncs = {i.name: i for i in (root, foo0, foo1)}
+
+    efuncs = reuse_efuncs(root, efuncs)
+
+    assert set(efuncs) == {'root', 'foo0'}
+    calls = FindNodes(Call).visit(efuncs[root.name])
+    assert [i.name for i in calls] == ['foo0', 'foo0']
+    assert [str(i.arguments[1]) for i in calls] == ['q0', 'q1']
 
 
 def test_sorted_efuncs_natural_numbering():

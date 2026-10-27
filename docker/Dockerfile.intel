@@ -37,13 +37,17 @@ RUN apt-get update -y && \
 
 # Drivers mandatory for intel gpu
 # https://dgpu-docs.intel.com/driver/installation.html#ubuntu-install-steps
+# NOTE: The Data Center GPU Max (PVC) user-space stack comes from the LTS channels.
+# The legacy `graphics/ubuntu jammy unified` channel stops at compute-runtime 23.17,
+# with which the oneAPI 2026 compilers cannot drive a Max 1100 (SYCL finds no Level
+# Zero device and OpenMP offload images fail to load)
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
-RUN wget -qO - https://repositories.intel.com/graphics/intel-graphics.key | gpg --dearmor > /usr/share/keyrings/intel-graphics.gpg
-RUN echo "deb [arch=amd64 signed-by=/usr/share/keyrings/intel-graphics.gpg] https://repositories.intel.com/graphics/ubuntu jammy unified" >  /etc/apt/sources.list.d/intel-gpu-jammy.list
+RUN wget -qO - https://repositories.intel.com/gpu/intel-graphics.key | gpg --dearmor > /usr/share/keyrings/intel-graphics.gpg
+RUN echo "deb [arch=amd64 signed-by=/usr/share/keyrings/intel-graphics.gpg] https://repositories.intel.com/gpu/ubuntu jammy/lts/2523 unified" >  /etc/apt/sources.list.d/intel-gpu-jammy.list
 
 RUN apt-get update -y && apt-get dist-upgrade -y && \
     # Compute and media runtime
-    apt-get install -y intel-opencl-icd intel-level-zero-gpu level-zero \
+    apt-get install -y intel-opencl-icd libze-intel-gpu1 libze1 \
             intel-media-va-driver-non-free libmfx1 libmfxgen1 libvpl2 \
             libegl-mesa0 libegl1-mesa libegl1-mesa-dev libgbm1 libgl1-mesa-dev libgl1-mesa-dri \
             libglapi-mesa libgles2-mesa-dev libglx-mesa0 libigdgmm12 libxatracker2 mesa-va-drivers \
@@ -51,10 +55,13 @@ RUN apt-get update -y && apt-get dist-upgrade -y && \
             # XPU-SMI
             pciutils libkmod-dev intel-fw-gpu xpu-smi \
             # Development packages
-            libigc-dev intel-igc-cm libigdfcl-dev libigfxcmrt-dev level-zero-dev
+            libigc-dev intel-igc-cm libigdfcl-dev libigfxcmrt-dev libze-dev
 
 ENV MPI4PY_FLAGS='. /opt/intel/oneapi/setvars.sh intel64 && '
 ENV MPI4PY_RC_RECV_MPROBE=0
+# Intel MPI 2021.19 picks the `shm` fabric alone on a single node, which
+# refuses `MPI_Comm_spawn` (as used by the DevitoPRO decoupler)
+ENV I_MPI_FABRICS="shm:ofi"
 
 RUN apt-get clean && apt-get autoclean && apt-get autoremove -y && rm -rf /var/lib/apt/lists/*
 
@@ -103,6 +110,14 @@ FROM icx AS cpu-sycl
 ENV DEVITO_ARCH="sycl"
 ENV DEVITO_LANGUAGE="sycl"
 ENV DEVITO_PLATFORM="intel64"
+
+##############################################################
+# ICX OpenMP GPU image
+##############################################################
+FROM icx AS gpu-icx
+
+# Devito config
+ENV DEVITO_PLATFORM="intelgpuX"
 
 ##############################################################
 # ICX SYCL GPU image
