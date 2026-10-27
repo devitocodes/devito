@@ -2002,11 +2002,11 @@ class TestSolverParameters:
 
         # Check that the `ksp_divtol` and `ksp_type` options are NOT set
         # or cleared explicitly since they ARE set via the command line.
-        assert f'PetscOptionsSetValue(NULL,"-{prefix}_div_tol",' \
+        assert f'PetscOptionsSetValue(NULL,"-{prefix}_ksp_divtol",' \
             not in set_options_callback
         assert f'PetscOptionsSetValue(NULL,"-{prefix}_ksp_type",' \
             not in set_options_callback
-        assert f'PetscOptionsClearValue(NULL,"-{prefix}_div_tol"));' \
+        assert f'PetscOptionsClearValue(NULL,"-{prefix}_ksp_divtol"));' \
             not in clear_options_callback
         assert f'PetscOptionsClearValue(NULL,"-{prefix}_ksp_type"));' \
             not in clear_options_callback
@@ -2150,6 +2150,35 @@ class TestGetInfo:
 
         assert not hasattr(entry2, "KSPGetIterationNumber")
         assert hasattr(entry2, "SNESGetIterationNumber")
+
+    @skipif('petsc')
+    def test_access_by_prefix(self):
+        """
+        Test that an entry can be accessed by its options prefix alone
+        """
+        solver1 = petscsolve(
+            self.eq1, target=self.e, options_prefix='pde1',
+            get_info=['kspgetiterationnumber']
+        )
+        solver2 = petscsolve(
+            self.eq2, target=self.g, options_prefix='pde2',
+            get_info=['snesgetiterationnumber']
+        )
+        with switchconfig(language='petsc'):
+            op = Operator([solver1, solver2])
+            summary = op.apply()
+
+        petsc_summary = summary.petsc
+
+        assert petsc_summary['pde1'] is petsc_summary[('section0', 'pde1')]
+        assert petsc_summary['pde2'] is petsc_summary[('section1', 'pde2')]
+        # A trailing underscore on the prefix is accepted
+        assert petsc_summary['pde1_'] is petsc_summary['pde1']
+        # Function names still take priority over prefixes
+        assert len(petsc_summary['kspgetiterationnumber']) == 1
+
+        with pytest.raises(KeyError):
+            petsc_summary['pde3']
 
     @skipif('petsc')
     def test_case_insensitive(self):

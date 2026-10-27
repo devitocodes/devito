@@ -13,7 +13,7 @@ from devito.types.equation import PetscEq
 __all__ = ['petscsolve']
 
 
-def petscsolve(target_exprs, target=None, solver_parameters=None,
+def petscsolve(expressions, target=None, solver_parameters=None,
                options_prefix=None, get_info=None, constrain_bcs=False,
                hierarchy=None, restriction='interpolation_transpose'):
     """
@@ -27,7 +27,7 @@ def petscsolve(target_exprs, target=None, solver_parameters=None,
 
     Parameters
     ----------
-    target_exprs : Eq or list of Eq, or dict of Function-like -> Eq or list of Eq
+    expressions : Eq or list of Eq, or dict of Function-like -> Eq or list of Eq
         The targets and symbolic expressions defining the system to be solved.
 
         - Single-field problem:
@@ -96,11 +96,11 @@ def petscsolve(target_exprs, target=None, solver_parameters=None,
         This can be passed directly to a Devito Operator.
     """
     if target is not None:
-        return InjectSolve(solver_parameters, {target: target_exprs},
+        return InjectSolve(solver_parameters, {target: expressions},
                            options_prefix, get_info, constrain_bcs,
                            hierarchy, restriction).build_expr()
     else:
-        return InjectMixedSolve(solver_parameters, target_exprs,
+        return InjectMixedSolve(solver_parameters, expressions,
                                 options_prefix, get_info, constrain_bcs).build_expr()
 
 
@@ -316,6 +316,11 @@ def _out_of_domain_bc(target):
     zero, or None if the target has no staggered out-of-domain nodes. Using
     constrain=True on these BCs ensures that the corresponding DOFs are excluded from the
     global solver.
+
+    TODO: constrain=True relies on a PetscSection/DMDA setup that is not yet
+    supported on 3D grids (mirrors the explicit `constrain_bcs=True` guard in
+    `InjectSolve.build_expr`). Until that lands, fall back to a plain
+    (unconstrained) EssentialBC on 3D grids
     """
     if target.staggered.on_node:
         return None
@@ -330,7 +335,8 @@ def _out_of_domain_bc(target):
                     name=f'_stagger_border_{target.name}',
                     corners='nooverlap')
     rhs = Constant(name='zero', dtype=target.dtype)
-    return EssentialBC(target, rhs, subdomain=border, constrain=True)
+    constrain = len(grid.dimensions) != 3
+    return EssentialBC(target, rhs, subdomain=border, constrain=constrain)
 
 
 def get_funcs(exprs):

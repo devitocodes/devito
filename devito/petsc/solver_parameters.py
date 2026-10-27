@@ -1,5 +1,7 @@
 import itertools
 
+from devito.petsc.config import petsc_variables
+
 try:
     from petsctools import flatten_parameters
 except ImportError:
@@ -7,13 +9,15 @@ except ImportError:
     def flatten_parameters():
         raise ImportError("petsctools is not installed")
 
+_default_atol = 1.e-25 if petsc_variables.get('PETSC_PRECISION') == 'single' else 1.e-50
+
 # NOTE: Will be extended, the default preconditioner is not going to be 'none'
 base_solve_defaults = {
     'ksp_type': 'gmres',
     'pc_type': 'none',
     'ksp_rtol': 1.e-5,
-    'ksp_atol': 1.e-50,
-    'ksp_divtol': 1e5,
+    'ksp_atol': _default_atol,
+    'ksp_divtol': 1.e4,
     'ksp_max_it': int(1e4)
 }
 

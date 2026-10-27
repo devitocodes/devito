@@ -117,13 +117,29 @@ class PetscSummary(dict):
             )
         return self[key]
 
+    def get_entry_by_prefix(self, options_prefix):
+        """
+        Retrieve the PetscEntry of the solve with the given options_prefix.
+        Prefixes are unique within an Operator, so at most one entry matches.
+        """
+        prefix = options_prefix.rstrip('_')
+        matches = [v for k, v in self.items()
+                   if k.options_prefix.rstrip('_') == prefix]
+        if not matches:
+            raise KeyError(f"No PETSc function or options_prefix named "
+                           f"'{options_prefix}'")
+        if len(matches) > 1:
+            raise ValueError(f"Several solves have options_prefix '{options_prefix}'")
+        return matches[0]
+
     def __getitem__(self, key):
         if isinstance(key, str):
             # Allow case insensitive key access
             original = self._property_name_map.get(key.lower())
             if original:
                 return getattr(self, original)
-            raise KeyError(f"No PETSc function named '{key}'")
+            # Otherwise, allow access by options prefix alone
+            return self.get_entry_by_prefix(key)
         elif isinstance(key, tuple) and len(key) == 2:
             # Allow tuple keys (name, options_prefix)
             key = self.PetscKey(*key)

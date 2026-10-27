@@ -1,6 +1,7 @@
 from functools import cached_property
 from itertools import chain
 
+import numpy as np
 import sympy
 
 from devito.operations.solve import eval_time_derivatives
@@ -11,7 +12,6 @@ from devito.petsc.types.equation import (
 from devito.petsc.types.object import PetscInt
 from devito.symbolics.extraction import centre_stencil, generate_targets, separate_eqn
 from devito.tools import Reconstructable, as_tuple, frozendict, sympy_mutex
-from devito.tools.dtypes_lowering import dtype_mapper
 from devito.types.equation import Eq
 
 
@@ -123,6 +123,34 @@ class NonLinearSolverMetaData(SolverMetaData):
     pass
 
 
+# Precisions of PETSc builds that Devito can generate code for
+_petsc_precision_dtype = {'single': np.float32, 'double': np.float64}
+
+
+def check_petsc_dtype(targets):
+    """
+    PETSc wraps the data of each target directly, so every target must have
+    the scalar type of the PETSc build.
+    """
+    scalar = petsc_variables['PETSC_SCALAR']
+    if scalar != 'real':
+        raise NotImplementedError(f"PETSc built with {scalar} scalars is not supported.")
+    precision = petsc_variables['PETSC_PRECISION']
+    try:
+        dtype = _petsc_precision_dtype[precision]
+    except KeyError:
+        raise NotImplementedError(
+            f"PETSc built in {precision} precision is not supported."
+        )
+    for t in as_tuple(targets):
+        if t.dtype != dtype:
+            raise TypeError(
+                "Your target dtype must match the precision of your "
+                "PETSc configuration. "
+                f"Expected {dtype}, but got {t.dtype} for {t.name}."
+            )
+
+
 class FieldData:
     """
     Metadata for a single `target` field passed to `SolverMetaData`.
@@ -151,13 +179,7 @@ class FieldData:
                  initial_guess=None, constrain_bc=None, arrays=None,
                  diagonal=None, **kwargs):
         self._target = target
-        petsc_precision = dtype_mapper[petsc_variables['PETSC_PRECISION']]
-        if self._target.dtype != petsc_precision:
-            raise TypeError(
-                "Your target dtype must match the precision of your "
-                "PETSc configuration. "
-                f"Expected {petsc_precision}, but got {self._target.dtype}."
-            )
+        check_petsc_dtype(target)
         self._jacobian = jacobian
         self._residual = residual
         self._initial_guess = initial_guess
@@ -232,6 +254,7 @@ class MultipleFieldData(FieldData):
     """
     def __init__(self, targets, arrays, jacobian=None, residual=None, constrain_bc=None):
         self._targets = as_tuple(targets)
+        check_petsc_dtype(self._targets)
         self._arrays = arrays
         self._jacobian = jacobian
         self._residual = residual

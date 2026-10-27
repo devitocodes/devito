@@ -39,7 +39,7 @@ class BaseCallbackBuilder:
         self.solver_objs = kwargs.get('solver_objs')
         self.inject_solve = kwargs.get('inject_solve')
         self.solve_expr = self.inject_solve.expr.rhs
-        self._struct_params = []
+        self._struct_params = list(self.field_data.targets)
 
         self._efuncs = OrderedDict()
         self._set_options_efunc = None
@@ -66,7 +66,7 @@ class BaseCallbackBuilder:
 
     @property
     def filtered_struct_params(self):
-        return filter_ordered(self.struct_params)
+        return filter_ordered(self.struct_params, key=lambda f: getattr(f, 'name', f))
 
     @property
     def main_matvec_efunc(self):
