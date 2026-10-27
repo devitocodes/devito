@@ -49,6 +49,7 @@ __all__ = [
     'Lambda',
     'List',
     'ListMajor',
+    'MacroStatement',
     'MetaCall',
     'MultiTraversable',
     'Node',
@@ -1329,6 +1330,24 @@ class Prodder(Call):
     @property
     def periodic(self):
         return self._periodic
+
+
+class MacroStatement(ExprStmt, Node):
+
+    """
+    A standalone macro invocation, such as ``MY_MACRO;``.
+
+    Parameters
+    ----------
+    name : str
+        The macro name, without a trailing semicolon.
+    """
+
+    def __init__(self, name):
+        self.name = name
+
+    def __repr__(self):
+        return f"<MacroStatement({self.name})>"
 
 
 class Using(Node):

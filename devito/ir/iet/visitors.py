@@ -572,6 +572,9 @@ class CGen(Visitor):
     def visit_Break(self, o):
         return c.Statement('break')
 
+    def visit_MacroStatement(self, o):
+        return c.Statement(o.name)
+
     def visit_Return(self, o):
         v = 'return'
         if o.value is not None:

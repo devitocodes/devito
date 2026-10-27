@@ -12,8 +12,8 @@ from devito.ir import SymbolRegistry
 from devito.ir.iet import (
     Call, Callable, CGen, Conditional, Definition, Dereference, DeviceCall, DummyExpr,
     ElementalFunction, FindNodes, FindSymbols, Iteration, KernelLaunch, Lambda, List,
-    Switch, Transformer, filter_iterations, make_callable, make_efunc,
-    retrieve_iteration_tree
+    MacroStatement, MapExprStmts, Switch, Transformer, filter_iterations, make_callable,
+    make_efunc, retrieve_iteration_tree
 )
 from devito.ir.iet.visitors import sorted_efuncs
 from devito.passes.iet.engine import Graph, reuse_efuncs
@@ -118,6 +118,35 @@ def test_nested_calls_cgen():
     code = CGen().visit(call)
 
     assert str(code) == 'foo(bar());'
+
+
+def test_macro_statement_codegen():
+    macro = MacroStatement('MY_MACRO')
+
+    assert str(CGen().visit(macro)) == 'MY_MACRO;'
+    assert macro.view_cir == 'MY_MACRO;'
+
+    func = Callable('foo', [macro, Call('bar')], 'void', (), prefix=())
+    assert str(func) == """\
+void foo()
+{
+  MY_MACRO;
+  bar();
+}"""
+
+
+def test_macro_statement_visitors():
+    macro = MacroStatement('MY_MACRO')
+    body = List(body=[macro, Call('bar')])
+
+    assert FindNodes(MacroStatement).visit(body) == [macro]
+    assert macro in MapExprStmts().visit(body)
+    assert FindSymbols('basics').visit(body) == []
+
+    replacement = macro._rebuild(name='OTHER_MACRO')
+    rebuilt = Transformer({macro: replacement}).visit(body)
+    assert str(rebuilt) == 'OTHER_MACRO;\nbar();'
+    assert str(body) == 'MY_MACRO;\nbar();'
 
 
 @pytest.mark.parametrize('mode,expected', [
