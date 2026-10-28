@@ -1102,7 +1102,9 @@ class TestStreaming:
         op1 = Operator(eqns, opt=('buffering', 'tasking', 'orchestrate'))
 
         # Check generated code -- thanks to buffering only expect 1 lock!
-        assert len(retrieve_iteration_tree(op0)) == 2
+        # In `op0`, the SubDomain loop nest is guarded against an empty iteration
+        # space, so the time loop also hosts a Conditional (an extra section)
+        assert len(retrieve_iteration_tree(op0)) == 3
         assert len(retrieve_iteration_tree(op1)) == 3
         symbols = FindSymbols().visit(op1)
         assert len([i for i in symbols if isinstance(i, Lock)]) == 1
@@ -1141,7 +1143,9 @@ class TestStreaming:
                                    'npthreads': 1}))
 
         # Check generated code -- thanks to buffering only expect 1 lock!
-        assert len(retrieve_iteration_tree(op0)) == 2
+        # In `op0`, the SubDomain loop nest is guarded against an empty iteration
+        # space, so the time loop also hosts a Conditional (an extra section)
+        assert len(retrieve_iteration_tree(op0)) == 3
         assert len(retrieve_iteration_tree(op1)) == 4
         assert len(retrieve_iteration_tree(op2)) == 3
         symbols = FindSymbols().visit(op1)
