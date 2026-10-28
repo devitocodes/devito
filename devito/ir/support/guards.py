@@ -76,7 +76,9 @@ class GuardFactor(Guard, CondEq, Pickable):
         d, = args
         assert d.is_Conditional
 
-        obj = super().__new__(cls, d.parent % d.symbolic_factor, 0)
+        # A point is retained where `q*parent % p == 0`, for a `p/q` factor.
+        # At `q == 1`, the usual `parent % factor == 0`
+        obj = super().__new__(cls, d.factor_den*d.parent % d.symbolic_factor, 0)
         obj.d = d
 
         return obj

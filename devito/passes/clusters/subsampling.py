@@ -80,10 +80,10 @@ class Subsampling(Queue):
             # rescale every parent access `d` to `cd*factor`
             ispace = c.ispace.switch(d, cd)
 
-            # `IntDiv(d, factor)` is how the subsampled access was lowered;
-            # with `d -> cd*factor` it collapses to `cd`, so rewrite it
-            # directly rather than leaving `(cd*factor)/factor` behind
-            subs = {IntDiv(d, factor): cd, d: cd*factor}
+            # `cd`'s parent index is `cd*p//q`, and the lowered access
+            # `IntDiv(q*d, p)` collapses to `cd` under it
+            index = IntDiv(cd*factor, cd.factor_den)
+            subs = {IntDiv(cd.factor_den*d, factor): cd, d: index}
             exprs = [uxreplace(e, subs) for e in c.exprs]
 
             # `cd` inherits `d`'s computational properties: it covers the very

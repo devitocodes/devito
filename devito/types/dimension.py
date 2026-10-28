@@ -258,7 +258,7 @@ class Dimension(ArgProvider):
         """Tuple of argument names introduced by the Dimension."""
         return (self.name, self.size_name, self.max_name, self.min_name)
 
-    def _arg_defaults(self, _min=None, size=None, alias=None):
+    def _arg_defaults(self, _min=None, size=None, alias=None, **kwargs):
         """
         A map of default argument values defined by the Dimension.
 
@@ -436,7 +436,7 @@ class DefaultDimension(Dimension, DataSymbol):
     def symbolic_size(self):
         return sympy.Number(self._default_value)
 
-    def _arg_defaults(self, _min=None, size=None, alias=None):
+    def _arg_defaults(self, _min=None, size=None, alias=None, **kwargs):
         dim = alias or self
         size = size or dim._default_value
         return {dim.min_name: _min or 0, dim.size_name: size,
@@ -938,6 +938,12 @@ class MultiSubDimension(AbstractSubDimension):
         return self.parent.bound_symbols
 
 
+# Largest denominator a non-integer subsampling factor is resolved to. Such a
+# factor is typically given as a float, so it is taken as the nearest rational
+# with at most this denominator
+_MAX_FACTOR_DENOMINATOR = 10**6
+
+
 class SubsamplingFactor(Scalar):
     pass
 
@@ -1076,16 +1082,19 @@ class ConditionalDimension(DerivedDimension):
 
         super().__init_finalize__(name, parent)
 
-        # Process subsampling factor
+        # Process subsampling factor. A non-integer `p/q` is kept exact: the
+        # retained points are those with `q*parent % p == 0`, and the index
+        # `q*parent // p`, which reduce to the integer case at `q == 1`
         if factor is None:
             self._factor = None
         elif is_number(factor):
-            self._factor = int(factor)
+            self._factor = sympy.Rational(factor).limit_denominator(
+                _MAX_FACTOR_DENOMINATOR)
         elif factor.is_Constant:
             _ = deprecations.constant_factor_warn
             self._factor = factor
         else:
-            raise ValueError("factor must be an integer")
+            raise ValueError("factor must be a number")
 
         self._condition = condition
         self._indirect = indirect
@@ -1125,6 +1134,48 @@ class ConditionalDimension(DerivedDimension):
     def factor(self):
         return self._factor
 
+    def subsampled_index(self, index=None, shift=0):
+        """
+        Where `index` of the parent lands in `self`, as `q*index // p` for a
+        `p/q` factor. Defaults to the parent itself, and is what an access to
+        `self` from the parent's iteration space lowers to.
+
+        `shift`, a fraction of a parent cell, moves the evaluation point -- a
+        staggered read is half a cell along. Both it and the factor are scaled
+        out so the division stays integral.
+        """
+        from devito.symbolics import IntDiv
+
+        if index is None:
+            index = self.parent
+
+        shift = sympy.Rational(shift)
+        q = self.factor_den
+
+        if not shift:
+            # The factor stays symbolic, so it can be overridden at run time
+            return IntDiv(q*index, self.symbolic_factor)
+
+        # Scaled by the shift's denominator to keep the division integral.
+        # `IntDiv` takes a bare symbol or an integer as divisor, so the factor
+        # is inlined here -- a shifted read cannot be overridden
+        b = shift.q
+
+        return IntDiv(b*q*index + shift.p*q, b*self.factor_num)
+
+    @property
+    def factor_num(self):
+        """The factor's numerator, `p` of `p/q`."""
+        return sympy.Rational(self.factor_data).p
+
+    @property
+    def factor_den(self):
+        """
+        The factor's denominator, `q` of `p/q`. Greater than one only for a
+        non-integer factor, whose points fall between the parent's.
+        """
+        return sympy.Rational(self.factor_data).q
+
     @cached_property
     def symbolic_factor(self):
         if not self.uses_symbolic_factor:
@@ -1163,28 +1214,33 @@ class ConditionalDimension(DerivedDimension):
 
         args = args or {}
         fname = self.symbolic_factor.name
-        fact = kwargs.get(fname, args.get(fname, self.factor_data))
+        fact = kwargs.get(fname, args.get(fname, self.factor_num))
         if isinstance(fact, Constant):
             fact = fact.data
+
+        # `fact` is the numerator; the factor itself is `p/q`
+        factor = sympy.Rational(fact, self.factor_den)
 
         vals = {}
 
         # The first subsampled point at or after the parent's min...
         with suppress(KeyError, TypeError):
-            vals[self.min_name] = math.ceil(kwargs.get(self.parent.min_name) / fact)
+            vals[self.min_name] = math.ceil(
+                kwargs.get(self.parent.min_name) / factor)
 
         # ...and the last one at or before its max. Note `floor` rather than
         # `ceil`: with e.g. `factor=3` and `x_M=11` the last subsampled point
         # is `x=9`, hence index 3, while `ceil(11/3) == 4` would overshoot the
         # Function by one
         with suppress(KeyError, TypeError):
-            vals[self.max_name] = kwargs.get(self.parent.max_name) // fact
+            vals[self.max_name] = int(
+                kwargs.get(self.parent.max_name) // factor)
 
         vals[self.symbolic_factor.name] = fact
 
         return vals
 
-    def _arg_defaults(self, _min=None, size=None, alias=None):
+    def _arg_defaults(self, _min=None, size=None, alias=None, **kwargs):
         defaults = super()._arg_defaults(_min=_min, size=size, alias=alias)
 
         # We can also add the parent's default endpoint. Note that exactly
@@ -1192,7 +1248,12 @@ class ConditionalDimension(DerivedDimension):
         # up to the caller to decide which one to pick upon reduction
         dim = alias or self
         if dim.uses_symbolic_factor:
-            factor = defaults[dim.symbolic_factor.name] = self.factor_data
+            # The symbol is the *numerator*: the guard and the index are
+            # `q*parent % p` and `q*parent // p`, both integer arithmetic.
+            # Taken from `self`, which under an override is the overriding
+            # Dimension while `dim` names the symbol being filled
+            defaults[dim.symbolic_factor.name] = self.factor_num
+            factor = self.factor_data
             if dim.condition is None:
                 d0 = 0
                 d1 = sympy.S.Infinity
@@ -1206,9 +1267,16 @@ class ConditionalDimension(DerivedDimension):
                     raise ValueError(f"Incompatible size for ConditionalDimension "
                                      f"{self.name}: {size} < {size0}")
             else:
-                # Given a factor the last time index is factor*(size - 1)
-                # The maximum allowed value is then factor*size - 1
-                defaults[dim.parent.max_name] = range(d0, d0 + factor*size)
+                # The last retained point is at parent `(size - 1)*p//q`,
+                # and any index up to the next one is a legal endpoint. All
+                # integer arithmetic, so a `p/q` factor stays exact
+                p, q = dim.factor_num, dim.factor_den
+                # On the *parent*, hence global: under MPI a rank's own
+                # `size` covers only its share
+                gsize = kwargs.get('size_global') or size
+                last = ((gsize - 1)*p)//q
+                hi = max((gsize*p)//q, last + q)
+                defaults[dim.parent.max_name] = range(d0, d0 + hi)
 
         return defaults
 

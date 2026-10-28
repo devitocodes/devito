@@ -6,7 +6,7 @@ from devito.finite_differences.differentiable import diff2sympy
 from devito.ir.support import GuardFactor, bounded
 from devito.logger import warning
 from devito.symbolics import (
-    IntDiv, retrieve_dimensions, retrieve_functions, retrieve_indexed, uxreplace
+    retrieve_dimensions, retrieve_functions, retrieve_indexed, uxreplace
 )
 from devito.tools import (
     Ordering, as_tuple, filter_ordered, filter_sorted, flatten, frozendict
@@ -394,6 +394,6 @@ def generate_conditionals(expr, input_expr, ordering):
         if d.condition is not None and expr.has(d):
             index = index - relational_min(cond, d.parent)
         shift = relational_shift(cond, d.parent, d.symbolic_factor)
-        expr = uxreplace(expr, {d: IntDiv(index, d.symbolic_factor) + shift})
+        expr = uxreplace(expr, {d: d.subsampled_index(index) + shift})
 
     return expr, conditionals

@@ -256,13 +256,8 @@ def numeric_weights(function, deriv_order, indices, x0):
 
 
 # Kaiser window parameter for windowed-sinc interpolation. Hicks (2002),
-# Table 1: https://library.seg.org/doi/10.1190/1.1451454
-#
-# The key is the scheme's `r` as Hicks defines it, which is the *half*-width in
-# his sampling convention; a stencil of `n` taps centred on the interpolation
-# interval takes `kaiser_b[n]`. `SincInterpolator` names its own half-width `r`
-# and indexes with that, which coincides for its convention. Choosing the wrong
-# key is not an error, just a markedly worse window -- so index deliberately.
+# Table 1: https://library.seg.org/doi/10.1190/1.1451454. Keyed by Hicks' `r`,
+# the half-width: a stencil of `n` taps centred on the cell takes `kaiser_b[n]`
 kaiser_b = {2: 2.94, 3: 4.53, 4: 4.14, 5: 5.26, 6: 6.40,
             7: 7.51, 8: 8.56, 9: 9.56, 10: 10.64}
 
@@ -344,11 +339,8 @@ def generate_indices(expr, dim, order, side=None, matvec=None, x0=None, nweights
         iexpr = x0 + d * dim.spacing
         return IndexSet(dim, expr=iexpr), x0
 
-    # Evaluation point relative to the expression's grid, in units of `dim`'s
-    # own spacing. Dividing rather than substituting `dim.spacing -> 1` matters
-    # for a Dimension whose spacing is itself an expression -- a
-    # ConditionalDimension's is `factor*h_x`, so the substitution would leave
-    # `h_x` behind and `mid` would not reduce to a number
+    # Evaluation point relative to the expression's grid, in units of
+    # `dim.spacing` -- which may itself be an expression, e.g. `factor*h_x`
     mid = ((x0 - expr.indices_ref[dim])/dim.spacing).subs({dim: 0})
     mid = sympify(mid).simplify()
 
