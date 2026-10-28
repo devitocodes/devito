@@ -1,5 +1,3 @@
-import re
-
 import numpy as np
 import pytest
 from sympy import Or
@@ -771,9 +769,8 @@ class TestSubGrid:
         assert np.allclose(d.data[1:-1, 1:-1], 3., atol=1e-4)
 
     @pytest.mark.parametrize('factor,err', [
-        (0, 'must be >= 1'),
-        (-1, 'must be >= 1'),
-        (2.5, 'Non-integer'),
+        (0, 'must be > 0'),
+        (-1, 'must be > 0'),
         ((2, 2, 2), 'Expected 1 or 2 factors'),
     ])
     def test_invalid_factor(self, factor, err):
@@ -828,18 +825,15 @@ class TestSubGrid:
 
         assert np.array_equal(f.data, two_step)
 
-    def test_non_integer_factor_suggests_valid_factors(self):
-        """The suggested fallbacks must themselves be legal factors."""
+    def test_non_integer_factor_is_interpolated(self):
+        """
+        A non-integer factor is legal; it puts the SubGrid in the interpolated
+        regime, covered by `tests/test_subgrid.py`.
+        """
         grid = Grid(shape=(9, 9))
 
-        for bad in (0.5, 1.2, 2.5):
-            with pytest.raises(ValueError) as e:
-                SubGrid(grid, factor=bad)
-            suggested = re.findall(r'use `(\d+)` or `(\d+)`', str(e.value))
-            assert suggested, str(e.value)
-            for v in suggested[0]:
-                assert int(v) >= 1
-                SubGrid(grid, factor=int(v))        # must not raise
+        assert SubGrid(grid, factor=1.5).is_interpolated
+        assert not SubGrid(grid, factor=2).is_interpolated
 
     def test_parent_must_be_grid(self):
         with pytest.raises(ValueError, match='must be a Grid'):

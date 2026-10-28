@@ -1147,8 +1147,9 @@ class Weights(Array):
 
         assert len(dimensions) == 1
         d = dimensions[0]
-        assert isinstance(d, StencilDimension) and d.symbolic_size == len(weights)
+        assert isinstance(d, StencilDimension)
         assert isinstance(weights, (list, tuple, np.ndarray))
+        assert len(weights) % d.symbolic_size == 0
 
         # Normalize `weights`
         from devito.symbolics import pow_to_mul
@@ -1158,6 +1159,35 @@ class Weights(Array):
         kwargs['initvalue'] = weights
 
         super().__init_finalize__(*args, **kwargs)
+
+    @property
+    def nsets(self):
+        """
+        How many sets of weights the table holds. More than one when the
+        evaluation point is decided at run time, each set belonging to one
+        possible point.
+        """
+        return len(self.weights)//self.dimension.symbolic_size
+
+    @property
+    def nweights(self):
+        """The number of weights in one set."""
+        return self.dimension.symbolic_size
+
+    @property
+    def offsets(self):
+        """The stencil offsets one set of weights applies to."""
+        return tuple(self.dimension.range)
+
+    def index(self, tap, selector=None):
+        """
+        Where the weight for tap position `tap` sits in the table. `selector`
+        picks the set, for a table holding more than one.
+        """
+        if selector is None:
+            return tap
+
+        return self.nweights*selector + tap
 
     @classmethod
     def class_key(cls):
@@ -1181,7 +1211,19 @@ class Weights(Array):
 
     @property
     def dimension(self):
+        """The stencil's own Dimension."""
         return self.dimensions[0]
+
+    @cached_property
+    def shape(self):
+        # Not `Array.shape`, which spans one set: the table holds `nsets`
+        return DimensionTuple(sympy.Integer(len(self.weights)),
+                              getters=self.dimensions)
+
+    @property
+    def symbolic_shape(self):
+        # A Weights carries neither halo nor padding
+        return self.shape
 
     weights = Array.initvalue
 
@@ -1370,7 +1412,15 @@ class IndexDerivative(IndexSum):
         w = self.weights
         f = w.function
         d = w.dimension
-        mapper = {w.subs(d, i): f.weights[n] for n, i in enumerate(d.range)}
+
+        # An index that does not resolve to a number is decided at run time,
+        # so it stays a read of the table
+        mapper = {}
+        for i in d.range:
+            wi = w.subs(d, i)
+            index = wi.indices[-1]
+            if index.is_Integer:
+                mapper[wi] = f.weights[index - d._min]
         expr = expr.xreplace(mapper)
 
         return EvalDerivative(*expr.args, base=self.base)

@@ -82,6 +82,16 @@ class Eq(sympy.Eq, Evaluable, Pickable):
 
         obj = sympy.Eq.__new__(cls, lhs, rhs, **kwargs)
 
+        if subdomain is not None and subdomain.is_SubGrid and \
+                subdomain.is_interpolated:
+            raise ValueError(
+                f"Cannot iterate the SubGrid `{subdomain}`: with factor "
+                f"{tuple(subdomain.factor)} only some of its points fall on "
+                "the parent Grid, so iterating it would also write the ones "
+                "in between, where the parent has no value to scatter. Drop "
+                "`subdomain=` to interpolate onto every parent point instead"
+            )
+
         obj._subdomain = subdomain
         obj._substitutions = coefficients
         obj._implicit_dims = as_tuple(implicit_dims)
@@ -170,7 +180,11 @@ class Eq(sympy.Eq, Evaluable, Pickable):
 
     @cached_property
     def subdomain(self):
-        """The SubDomain in which the Eq is defined."""
+        """
+        The iteration domain of the Eq: a SubDomain, or a SubGrid to visit a
+        coarser grid's points alone (a scatter, rather than interpolating the
+        SubGrid onto the parent).
+        """
         if self._subdomain is not None:
             return self._subdomain
 

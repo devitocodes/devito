@@ -16,6 +16,7 @@ from devito.deprecations import deprecations
 from devito.exceptions import InvalidArgument
 from devito.finite_differences import Differentiable, generate_fd_shortcuts
 from devito.finite_differences.interpolation import interp_mapper
+from devito.finite_differences.subgrid import is_subgrid_read, subgrid_interp
 from devito.finite_differences.tools import fd_weights_registry
 from devito.logger import debug, warning
 from devito.mpi import MPI
@@ -892,9 +893,12 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
         else:
             args = ReducerMap({key.name: self._data_buffer(metadata=metadata)})
 
-        # Collect default dimension arguments from all indices
-        for a, i, s in zip(key.dimensions, self.dimensions, self.shape, strict=True):
-            args.update(i._arg_defaults(_min=0, size=s, alias=a))
+        # Collect default dimension arguments from all indices. A Dimension
+        # may derive a bound on its parent, which is global, hence `size_global`
+        for a, i, s, g in zip(key.dimensions, self.dimensions, self.shape,
+                              self.shape_global, strict=True):
+            args.update(i._arg_defaults(_min=0, size=s, alias=a,
+                                        size_global=g))
 
         return args
 
@@ -1099,12 +1103,7 @@ class Function(DiscreteFunction):
             raise TypeError("Invalid `space_order`")
 
         # Interpolation order
-        interp_order = kwargs.get('interp_order', 2)
-        if not is_integer(interp_order):
-            raise TypeError("`interp_order` must be an integer")
-        elif interp_order > self._space_order and self._space_order > 1:
-            raise ValueError("`interp_order` must be <= `space_order`")
-        self._interp_order = interp_order
+        self._interp_order = self.__interp_order_setup__(**kwargs)
 
         # Acquire derivative shortcuts
         if self is self.function:
@@ -1130,7 +1129,18 @@ class Function(DiscreteFunction):
         return 1.2 if self.staggered.on_node else 1.1
 
     def _eval_at(self, func, **kwargs):
-        if self.staggered == func.staggered or self.interp_order == 0:
+        # Same convention as staggering: the RHS is evaluated at the LHS's
+        # location. For a SubGrid that means re-expressing its indices in the
+        # parent's
+        if self.interp_order == 0:
+            # No relocation requested
+            return self
+
+        if is_subgrid_read(self, func, kwargs.get('subdomain')):
+            return subgrid_interp(self, func,
+                                  expand=kwargs.get('expand', True))
+
+        if self.staggered == func.staggered:
             return self
 
         # Dims where self and func indices differ -> {dim: func_idx}
@@ -1242,6 +1252,25 @@ class Function(DiscreteFunction):
                     loc_shape.append(s)
             shape = tuple(loc_shape)
         return shape
+
+    def __interp_order_setup__(self, **kwargs):
+        """
+        The width, in points, of the stencil that reads this Function at a
+        location other than its own -- a staggered shift, or a SubGrid read at
+        the parent's points.
+        """
+        interp_order = kwargs.get('interp_order', 2)
+
+        if not is_integer(interp_order):
+            raise TypeError("`interp_order` must be an integer")
+        if interp_order > self._space_order and self._space_order > 1:
+            raise ValueError("`interp_order` must be <= `space_order`")
+
+        if self.grid is not None and self.grid.is_SubGrid:
+            # The usable widths depend on the interpolation scheme
+            self.grid._arg_check_interp_order(interp_order, self._space_order)
+
+        return interp_order
 
     def __halo_setup__(self, **kwargs):
         if self._distributor and self._distributor.loc_empty:

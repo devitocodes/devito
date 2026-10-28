@@ -1,5 +1,6 @@
 import math
 from collections import namedtuple
+from fractions import Fraction
 from functools import cached_property
 from itertools import product
 
@@ -10,9 +11,10 @@ from devito import configuration
 from devito.data import CENTER, LEFT, RIGHT
 from devito.deprecations import deprecations
 from devito.finite_differences.elementary import Max, Min
+from devito.finite_differences.subgrid import interp_schemes_registry, supported_radii
 from devito.logger import warning
 from devito.mpi import MPI, Distributor, SubDistributor
-from devito.tools import ReducerMap, as_tuple, frozendict, is_integer
+from devito.tools import ReducerMap, as_tuple, frozendict, is_integer, is_number
 from devito.types.args import ArgProvider
 from devito.types.basic import Scalar
 from devito.types.dense import Function
@@ -36,6 +38,7 @@ class CartesianDiscretization:
     """
 
     is_Grid = False
+    is_SubGrid = False
     is_SubDomain = False
     is_MultiSubDomain = False
 
@@ -429,26 +432,43 @@ class Grid(CartesianDiscretization, ArgProvider):
         self._distributor = Distributor(self.shape, self.dimensions, MPI.COMM_SELF)
 
 
+# Largest denominator a SubGrid factor is resolved to. A factor is given as a
+# float, so it is converted to the nearest rational with at most this
+# denominator
+_MAX_FACTOR_DENOMINATOR = 10**6
+
+
 class SubGrid(Grid):
 
     """
-    A coarser Grid whose points are a subset of a parent Grid's points.
+    A Grid whose points are derived from a parent Grid's by a factor.
 
-    Along each Dimension subsampled by `factor`, the SubGrid retains every
-    `factor`-th point of the parent, so point `i` of the SubGrid sits at parent
-    index `i*factor`. The physical spacing is `factor` times the parent's, and
-    the origin is shared.
+    Along each Dimension scaled by `factor`, point `i` of the SubGrid sits at
+    parent index `i*factor`. The physical spacing is `factor` times the
+    parent's, and the origin is shared.
+
+    An **integer** factor puts SubGrid points exactly on parent points, so the
+    SubGrid is a subsample of the parent and *writing* it is a strided copy.
+    A **non-integer** factor puts them in between, so even a strided write is
+    impossible; `is_interpolated` distinguishes the two. A factor below 1
+    refines rather than coarsens.
+
+    *Reading* a SubGrid Function on the parent grid interpolates either way,
+    since the equation is evaluated at every parent point and only every
+    `factor`-th of them coincides with a SubGrid point. The Function's own
+    `interp_order` sets the stencil width, exactly as it does for a staggered
+    relocation.
 
     Parameters
     ----------
     parent : Grid
-        The Grid being subsampled.
-    factor : int or tuple of int
-        Subsampling factor, either one value per space Dimension of `parent`,
-        or a single value applied to all of them. A factor of 1 leaves the
-        corresponding Dimension untouched.
+        The Grid being rescaled.
+    factor : int or float or tuple
+        Scaling factor, either one value per space Dimension of `parent`, or a
+        single value applied to all of them. Must be positive. A factor of 1
+        leaves the corresponding Dimension untouched.
     name : str, optional
-        Prefix for the names of the subsampled Dimensions; each is named
+        Prefix for the names of the derived Dimensions; each is named
         `f'{parent_dimension}{name}'`. Defaults to `'s'`, giving `xs`, `ys`.
 
     Examples
@@ -483,15 +503,39 @@ class SubGrid(Grid):
 
     Notes
     -----
-    Because the subsampled points coincide with parent points, no interpolation
-    is involved: an `Eq` writing a SubGrid Function from a parent Function is a
-    strided copy, and the compiler emits a strided loop for it.
+    A SubGrid Function appearing in an equation is read at the *left-hand
+    side's* location, the same convention a staggered Function follows. It
+    lowers to a plain stencil whose weights come from a compile-time table
+    indexed by the phase, so the loops stay unit-stride and branch-free.
+
+    The direction matters. `Eq(g, u)` *writes* the SubGrid, so only its own
+    points are visited: with an integer factor that is a strided copy with no
+    interpolation at all. `Eq(u, g)` *reads* it onto the parent grid, so every
+    parent point is computed and the ones falling between two SubGrid points
+    are interpolated -- including when the factor is an integer.
+
+    To write the parent's SubGrid-aligned points alone, leaving the others
+    untouched, make the SubGrid the equation's iteration domain:
+
+        Eq(u, g, subdomain=sub)      # scatter, no interpolation
+
+    which needs the points to coincide, so it requires an integer factor.
     """
 
-    def __init__(self, parent, factor, name='s', **kwargs):
+    is_SubGrid = True
+
+    def __init__(self, parent, factor, name='s', interpolation='fd',
+                 **kwargs):
         if not parent.is_Grid:
             raise ValueError("`parent` must be a Grid, got "
                              f"`{type(parent).__name__}`")
+
+        if interpolation not in interp_schemes_registry:
+            raise ValueError(
+                f"Unknown interpolation scheme `{interpolation}`, expected "
+                f"one of {sorted(interp_schemes_registry)}"
+            )
+        self._interpolation = interpolation
 
         factors = self.__factors_setup__(parent, factor)
 
@@ -508,17 +552,19 @@ class SubGrid(Grid):
                 f"`SubGrid(parent.parent, factor={combined})`"
             )
 
+        # A SubGrid axis is its parent's, subsampled: a ConditionalDimension
+        # whose factor may be a ratio, so the points need not coincide with
+        # the parent's. That keeps the relation between the two Dimensions in
+        # the type system, where the compiler can use it
         dimensions = tuple(
-            d if f == 1 else ConditionalDimension(f'{d.name}{name}', parent=d,
-                                                  factor=f)
+            d if f == 1 else ConditionalDimension(f'{d.name}{name}',
+                                                  parent=d, factor=f)
             for d, f in zip(parent.dimensions, factors, strict=True)
         )
-
-        # A subsampled axis keeps the parent's endpoints, so the number of
-        # retained points is `ceil(n/factor)` and the extent is unchanged up to
-        # the last retained point
-        shape = tuple((n + f - 1)//f
+        # The last point must not overshoot the parent's domain
+        shape = tuple(int(math.floor((n - 1)/f)) + 1
                       for n, f in zip(parent.shape, factors, strict=True))
+
         extent = tuple(s*(n - 1) for s, n in
                        zip(self.__spacing_setup__(parent, factors), shape,
                            strict=True))
@@ -548,22 +594,34 @@ class SubGrid(Grid):
                              f"got {len(factors)}")
 
         for f in factors:
-            if not is_integer(f):
-                # Non-integer factors place SubGrid points between parent
-                # points, which requires interpolation rather than striding
-                raise ValueError(
-                    f"Non-integer subsampling factor `{f}`. A SubGrid's points "
-                    "must coincide with its parent's, so the factor must be a "
-                    f"whole number of parent cells -- use "
-                    f"`{max(1, math.floor(f))}` or `{max(1, math.ceil(f))}`. "
-                    "Subsampling onto points that fall "
-                    "between parent points requires interpolation, which "
-                    "SubGrid does not perform"
-                )
-            if f < 1:
-                raise ValueError(f"Subsampling factor must be >= 1, got `{f}`")
+            if not is_number(f):
+                raise ValueError(f"Subsampling factor must be a number, got `{f}`")
+            if f <= 0:
+                raise ValueError(f"Subsampling factor must be > 0, got `{f}`")
 
-        return tuple(int(f) for f in factors)
+        # Integer factors place SubGrid points exactly on parent points, which
+        # the compiler can reach by striding. Anything else falls between them
+        # and is read by interpolating
+        factors = tuple(int(f) if is_integer(f) or float(f).is_integer()
+                        else float(f) for f in factors)
+
+        return factors
+
+    @cached_property
+    def rational_factor(self):
+        """
+        The factor along each Dimension as an exact `Fraction`.
+
+        A factor of `p/q` puts the parent point `x` at SubGrid coordinate
+        `x*q/p`, so `p` and `q` are what the base index and the phase count are
+        built from. Canonicalised here, once, rather than re-derived from the
+        float wherever it is needed.
+        """
+        return DimensionTuple(
+            *[Fraction(f).limit_denominator(_MAX_FACTOR_DENOMINATOR)
+              for f in self._factors],
+            getters=self.dimensions
+        )
 
     @classmethod
     def __spacing_setup__(cls, parent, factors):
@@ -587,6 +645,138 @@ class SubGrid(Grid):
         # Grid" apart from "several unrelated Grids", and rejects the latter
         # under MPI
         return self._parent.root
+
+    @property
+    def interpolation(self):
+        """
+        How a Function on this SubGrid is read at its parent's points.
+
+        `'fd'` (the default) uses the ordinary finite-difference relocation,
+        the same one staggering uses, so the Function's own `interp_order`
+        sets the stencil width. `'sinc'` uses Kaiser windowed sinc weights
+        instead, which FD does not express; `interp_order` still sets the
+        number of taps.
+        """
+        return self._interpolation
+
+    def _arg_check_interp_order(self, interp_order, space_order):
+        """
+        Check that `interp_order` taps can actually be read off this SubGrid,
+        raising with an actionable message otherwise.
+
+        The rules belong here rather than in `Function`: which widths a scheme
+        supports, and how far its taps reach, are properties of the SubGrid and
+        of `self.interpolation`, not of the Function being declared.
+        """
+        if interp_order < 2 or interp_order % 2:
+            # A read is centred on the cell the position falls in, so the taps
+            # are split evenly either side of it. `0` would mean "no
+            # relocation", which is meaningful for a staggered shift but not
+            # here: the SubGrid's Dimensions are not the parent's, so there is
+            # no reading it without relocating
+            raise ValueError(
+                f"`interp_order` must be even and at least 2 for a Function "
+                f"on a SubGrid, got `{interp_order}`"
+            )
+
+        radius = interp_order//2
+
+        radii = supported_radii(self.interpolation)
+        if radii is not None and radius not in radii:
+            # E.g. the Kaiser window is tabulated per radius, so only the
+            # tabulated ones can be used. Fail here rather than with a
+            # `KeyError` once the weights are built
+            raise ValueError(
+                f"`interp_order` {interp_order} is not supported by the "
+                f"`{self.interpolation}` scheme, which covers radii "
+                f"{sorted(radii)}; use an `interp_order` in "
+                f"{sorted(2*i for i in radii)}"
+            )
+
+        if self.is_interpolated and radius > space_order:
+            # The taps reach `radius` past the base index, which under MPI
+            # must fit in the halo. Not covered by `interp_order <=
+            # space_order`, which is skipped for `space_order <= 1`.
+            # Integer factors are exempt: such a SubGrid is normally written
+            # as a strided copy, and whether it is instead read here is
+            # not known
+            raise ValueError(
+                f"`space_order` {space_order} is too small for `interp_order` "
+                f"{interp_order} on the interpolated SubGrid `{self}`: the "
+                f"interpolation taps reach {radius} points past the base "
+                f"index, which under MPI must fit in the halo. Give it a "
+                f"`space_order` of at least {radius}"
+            )
+
+    @property
+    def is_interpolated(self):
+        """
+        True if the SubGrid's points fall between its parent's, so that reading
+        such a Function on the parent grid interpolates rather than striding.
+        """
+        return not all(is_integer(f) for f in self._factors)
+
+    @cached_property
+    def ioffsets(self):
+        """
+        Symbols for the global index of this rank's first point, one pair per
+        space Dimension: `(parent_offset, subgrid_offset)`.
+
+        The interpolation base index `(x*q)//p` is *non-linear*, so it has to
+        be evaluated on the global index and then brought back into local
+        terms:
+
+            base_local = ((x_local + parent_offset)*q)//p - subgrid_offset
+
+        Evaluating it on the local index instead is correct only on the rank
+        whose offsets are both zero -- which, without domain decomposition, is
+        every rank. So in the serial case these are literal zeroes, keeping the
+        inner loop free of the extra arithmetic.
+        """
+        if not self.distributor.is_parallel:
+            zero = sympy.S.Zero
+            return DimensionTuple(
+                *[(zero, zero) for _ in self._parent.dimensions],
+                getters=self._parent.dimensions
+            )
+
+        return DimensionTuple(
+            *[(Scalar(name=f'oi_{d.name}', dtype=np.int32, is_const=True),
+               Scalar(name=f'oi_{ds.name}', dtype=np.int32, is_const=True))
+              for d, ds in zip(self._parent.dimensions, self.dimensions,
+                               strict=True)],
+            getters=self._parent.dimensions
+        )
+
+    @property
+    def ioffset_map(self):
+        """
+        Map from the `ioffsets` symbols to their per-rank values. Empty without
+        domain decomposition, where the offsets are literal zeroes.
+        """
+        if not self.distributor.is_parallel:
+            return {}
+
+        mapper = {}
+        for (po, so), pv, sv in zip(self.ioffsets,
+                                    self._parent.origin_ioffset,
+                                    self.origin_ioffset, strict=True):
+            mapper[po] = int(pv)
+            mapper[so] = int(sv)
+
+        return mapper
+
+    @cached_property
+    def _arg_names(self):
+        # `cached_property`, as `Grid._arg_names` is: it lands in `__dict__`
+        # and so in the pickled state, which `__setstate__` assigns back
+        return super()._arg_names + tuple(i.name for i in self.ioffset_map)
+
+    def _arg_defaults(self):
+        args = super()._arg_defaults()
+        args.update({k.name: v for k, v in self.ioffset_map.items()})
+
+        return args
 
     def __repr__(self):
         return f"SubGrid[shape={self.shape}, factor={tuple(self._factors)}]"
