@@ -5,7 +5,7 @@ import pytest
 from packaging.version import Version
 
 from devito import configuration, switchconfig
-from devito.arch import BLACKWELL, NVIDIAX
+from devito.arch import BLACKWELL, NVIDIAX, platform_registry
 from devito.arch.archinfo import AppleArm, get_apple_platform
 from devito.arch.compiler import (
     CudaCompiler, GNUCompiler, compiler_registry, sniff_compiler_version
@@ -108,3 +108,22 @@ def test_cuda_target(monkeypatch, platform, cc, target):
 
     flags = [i for i in compiler.cflags if i.startswith(('-arch=', '-gencode='))]
     assert flags == [target]
+
+
+@pytest.mark.parametrize('language', [None, 'cuda', 'openacc', 'hip', 'sycl'])
+@pytest.mark.parametrize('platform,cc,expected', [
+    ('nvidiaX', None, False),
+    ('nvidiaX', 90, False),
+    ('nvidiaX', 100, True),
+    ('nvidiaX', 120, True),
+    ('cpu64', 100, False),
+    ('volta', 100, True),
+    ('ampere', 100, True),
+    ('hopper', 100, True),
+    ('blackwell', None, True),
+    ('blackwell', 90, True)
+])
+def test_fp32x2_support(platform, cc, expected, language, monkeypatch):
+    monkeypatch.setattr('devito.arch.archinfo.get_nvidia_cc', lambda: cc)
+    platform = platform_registry[platform]()
+    assert platform.supports('fp32x2', language) is (expected and language == 'cuda')
