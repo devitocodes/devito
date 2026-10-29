@@ -255,6 +255,10 @@ class SeismicModel(GenericModel):
         Velocity in km/s.
     nbl : int, optional
         The number of absorbin layers for boundary damping.
+    fs : bool, optional
+        Enable a free surface at the top of the model (the lower boundary
+        of the last spatial dimension), omitting the absorbing layer there.
+        Defaults to False.
     bcs: str or callable
         Absorbing boundary type ("damp" or "mask") or initializer.
     dtype : np.float32 or np.float64
