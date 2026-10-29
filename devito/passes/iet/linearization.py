@@ -391,6 +391,11 @@ def linearize_transfers(iet, sregistry=None, **kwargs):
 
                 imask = [(wildcard, size)]
 
+        # Preserve snapshot metadata even when the flattened mask is empty:
+        # `_rebuild()` without positional arguments restores the original items.
+        if isinstance(imask0, IMask):
+            imask = IMask(*imask, **imask0.__dict__)
+
         rebuilt = n._rebuild(imask=imask)
 
         if exprs:
