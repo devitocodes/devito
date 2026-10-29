@@ -1,4 +1,5 @@
 from collections import defaultdict
+from functools import cache, partial
 from itertools import combinations
 
 from sympy import S
@@ -147,12 +148,13 @@ def _merge_halospots(iet):
             if _check_control_flow(hs0, hs1, cond_mapper):
                 continue
 
-            scope = _derive_scope(it, hs0, hs1)
+            scope = _lazy_scope(it, hs0, hs1)
 
             for f in hs1.fmapper:
                 hsf0 = mapper.get(hs0).halo_scheme
                 hsf1 = mapper.get(hs1).halo_scheme.project(f)
-                if not _is_mergeable(hsf0, hsf1, scope):
+                if not _is_compatible(hsf0, hsf1) or \
+                   not _is_iter_carried(hsf1, scope()):
                     continue
 
                 # All good -- `hsf1` can be merged within `hs0`
@@ -197,7 +199,7 @@ def _hoist_invariant(iet):
             if _check_control_flow(hs0, hs1, cond_mapper):
                 continue
 
-            scope = _derive_scope(it, hs0, hs1)
+            scope = _lazy_scope(it, hs0, hs1)
 
             for f in hs1.fmapper:
                 hsf0 = hs0.halo_scheme.project(f)
@@ -208,7 +210,7 @@ def _hoist_invariant(iet):
                 # Ensure there's another HaloScheme that could cover for
                 # us should we get hoisted while still satisfying the
                 # data dependences
-                if hsf1.issubset(hsf0) and _is_iter_carried(hsf1, scope):
+                if hsf1.issubset(hsf0) and _is_iter_carried(hsf1, scope()):
                     hs, hsf = hs1, hsf1
                 elif hsf0.issubset(hsf1) and hs0 is halo_spots[0]:
                     # Special case
@@ -476,6 +478,16 @@ def _derive_scope(it, hs0, hs1):
     return Scope(e.expr for e in expressions)
 
 
+def _lazy_scope(it, hs0, hs1):
+    """
+    As `_derive_scope`, but the Scope is only derived upon the first call,
+    and then reused. Deriving a Scope requires a visit of `it`, which is
+    wasted on the many HaloSpot pairs that turn out incompatible regardless
+    of the data dependences.
+    """
+    return cache(partial(_derive_scope, it, hs0, hs1))
+
+
 def _check_control_flow(hs0, hs1, cond_mapper):
     """
     If there are Conditionals involved, both `hs0` and `hs1` must be
@@ -513,22 +525,24 @@ def _is_iter_carried(hsf, scope):
     return True
 
 
-def _is_mergeable(hsf0, hsf1, scope):
+def _is_compatible(hsf0, hsf1):
     """
-    True if `hsf1` can be merged into `hsf0`, i.e., if they are compatible
-    and the data dependences would be satisfied, False otherwise.
+    True if `hsf1` is non-empty and compatible with `hsf0`, False otherwise.
     """
     # If `hsf1` is empty there's nothing to merge
     if hsf1.is_void:
         return False
 
-    # Ensure `hsf0` and `hsf1` are compatible
-    if not hsf0.dimensions.issubset(hsf1.dimensions) or \
-       not hsf0.functions & hsf1.functions:
-        return False
+    return (hsf0.dimensions.issubset(hsf1.dimensions) and
+            bool(hsf0.functions & hsf1.functions))
 
-    # Finally, check the data dependences would be satisfied
-    return _is_iter_carried(hsf1, scope)
+
+def _is_mergeable(hsf0, hsf1, scope):
+    """
+    True if `hsf1` can be merged into `hsf0`, i.e., if they are compatible
+    and the data dependences would be satisfied, False otherwise.
+    """
+    return _is_compatible(hsf0, hsf1) and _is_iter_carried(hsf1, scope)
 
 
 def _semantical_eq_loc_indices(hsf0, hsf1):

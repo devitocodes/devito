@@ -1,4 +1,5 @@
 from functools import cached_property
+from unittest.mock import patch
 
 import numpy as np
 import pytest
@@ -23,6 +24,7 @@ from devito.ir.support.space import Backward, Forward
 from devito.mpi import MPI
 from devito.mpi.distributed import CustomTopology
 from devito.mpi.routines import ComputeCall, HaloUpdateCall, HaloUpdateList, MPICall
+from devito.passes.iet import mpi as mpi_passes
 from devito.tools import Bunch
 from devito.types import Bundle
 from devito.types.dimension import ModuloDimension
@@ -2452,6 +2454,51 @@ class TestCodeGeneration:
         # Halo should not be considered touched, despite symbolic offsets in indices due
         # to Function on SubDomain
         check_halo_exchanges(op, 0, 0)
+
+    def test_merge_many_subdomains_linear(self):
+        """
+        Each Eq over its own row SubDomain carries its own HaloSpot. Merging
+        them must not derive a Scope for each of the quadratically many
+        HaloSpot pairs, most of which are incompatible.
+        """
+
+        class Row(SubDomain):
+
+            def __init__(self, i, n, **kwargs):
+                self.i, self.n = i, n
+                self.name = f'row{i}'
+                super().__init__(**kwargs)
+
+            def define(self, dimensions):
+                x, y = dimensions
+                return {x: ('middle', 1, 1), y: ('middle', self.i, self.n - 1 - self.i)}
+
+        n = 8
+        grid = Grid(shape=(8, n))
+        rows = [Row(i, n, grid=grid) for i in range(n)]
+        x, y = grid.dimensions
+        t = grid.stepping_dim
+
+        u = TimeFunction(name='u', grid=grid, space_order=2)
+        v = TimeFunction(name='v', grid=grid, space_order=2)
+        f = Function(name='f', grid=grid, space_order=2)
+        g = Function(name='g', grid=grid, space_order=2)
+
+        eqns = [Eq(f, (i + 1)*v[t, x, y + 1] + v[t, x + 1, y],
+                   subdomain=r, implicit_dims=t) for i, r in enumerate(rows)]
+        eqns += [Eq(u.forward, u + f)]
+        eqns += [Eq(g, (i + 1)*u[t + 1, x, y + 1] + u[t + 1, x - 1, y],
+                    subdomain=r, implicit_dims=t) for i, r in enumerate(rows)]
+        eqns += [Eq(v.forward, v + g)]
+
+        with patch('devito.passes.iet.mpi._derive_scope',
+                   wraps=mpi_passes._derive_scope) as derive_scope:
+            Operator(eqns)
+
+        # One HaloSpot per Eq over a SubDomain, i.e. `2*n`, whose pairs are
+        # quadratically many. Only the pairs that may actually merge, i.e.
+        # those reading the same Function, require a Scope
+        assert derive_scope.call_count <= 2*n
 
 
 class TestOperatorAdvanced:
