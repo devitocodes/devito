@@ -423,7 +423,7 @@ class TestMPI:
 
         # Make sure we've indeed generated OpenACC+MPI code
         assert 'acc parallel' in str(op)
-        assert len(op._func_table) == 4
+        assert len(op._func_table) == 5
 
         op(time_M=1)
 
