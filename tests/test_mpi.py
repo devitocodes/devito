@@ -2458,8 +2458,8 @@ class TestCodeGeneration:
     def test_merge_many_subdomains_linear(self):
         """
         Each Eq over its own row SubDomain carries its own HaloSpot. Merging
-        them must not derive a Scope for each of the quadratically many
-        HaloSpot pairs, most of which are incompatible.
+        and hoisting them must not derive a Scope for each of the quadratically
+        many HaloSpot pairs, most of which are incompatible.
         """
 
         class Row(SubDomain):
@@ -2481,14 +2481,17 @@ class TestCodeGeneration:
 
         u = TimeFunction(name='u', grid=grid, space_order=2)
         v = TimeFunction(name='v', grid=grid, space_order=2)
+        ws = [TimeFunction(name=f'w{i}', grid=grid, space_order=2) for i in range(n)]
         f = Function(name='f', grid=grid, space_order=2)
         g = Function(name='g', grid=grid, space_order=2)
 
+        # The HaloSpots of the first `n` Eqs share `v`, hence they may merge,
+        # while those of the last `n` Eqs are over distinct Functions
         eqns = [Eq(f, (i + 1)*v[t, x, y + 1] + v[t, x + 1, y],
                    subdomain=r, implicit_dims=t) for i, r in enumerate(rows)]
         eqns += [Eq(u.forward, u + f)]
-        eqns += [Eq(g, (i + 1)*u[t + 1, x, y + 1] + u[t + 1, x - 1, y],
-                    subdomain=r, implicit_dims=t) for i, r in enumerate(rows)]
+        eqns += [Eq(g, w[t, x, y + 1] + w[t, x - 1, y] + u[t + 1, x, y],
+                    subdomain=r, implicit_dims=t) for w, r in zip(ws, rows, strict=True)]
         eqns += [Eq(v.forward, v + g)]
 
         with patch('devito.passes.iet.mpi._derive_scope',
@@ -2496,9 +2499,9 @@ class TestCodeGeneration:
             Operator(eqns)
 
         # One HaloSpot per Eq over a SubDomain, i.e. `2*n`, whose pairs are
-        # quadratically many. Only the pairs that may actually merge, i.e.
-        # those reading the same Function, require a Scope
-        assert derive_scope.call_count <= 2*n
+        # quadratically many. Only the pairs that may actually merge or hoist,
+        # i.e. those exchanging the same Function, require a Scope
+        assert derive_scope.call_count < 2*n
 
 
 class TestOperatorAdvanced:
