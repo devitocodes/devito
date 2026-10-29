@@ -391,6 +391,10 @@ def linearize_transfers(iet, sregistry=None, **kwargs):
 
                 imask = [(wildcard, size)]
 
+        # Preserve snapshot metadata used to infer the transferred payload size.
+        if isinstance(imask0, IMask):
+            imask = imask0._rebuild(*imask)
+
         rebuilt = n._rebuild(imask=imask)
 
         if exprs:
