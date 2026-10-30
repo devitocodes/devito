@@ -226,6 +226,6 @@ def retrieve_dimensions(exprs, mode='all', deep=False):
     return search(exprs, q_dimension, mode, 'dfs', deep)
 
 
-def retrieve_derivatives(exprs, mode='all', deep=False):
+def retrieve_derivatives(exprs, mode='all', visit='dfs', deep=False):
     """Shorthand to retrieve the Derivatives in ``exprs``."""
-    return search(exprs, q_derivative, mode, 'dfs', deep)
+    return search(exprs, q_derivative, mode, visit, deep)
