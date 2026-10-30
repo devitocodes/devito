@@ -1,6 +1,6 @@
 import numpy as np
 import pytest
-from sympy import Float, Symbol, diff, simplify, sympify
+from sympy import Float, Rational, Symbol, diff, nsimplify, simplify, sympify
 
 from conftest import assert_structure
 from devito import (
@@ -617,6 +617,116 @@ class TestFD:
         a = np.dot(f_deriv.data.reshape(-1), g.data.reshape(-1))
         b = np.dot(g_deriv.data.reshape(-1), f.data.reshape(-1))
         assert np.isclose(1 - a/b, 0, atol=1e-5)
+
+    @pytest.mark.parametrize('staggered, offsets', [
+        (False, (0, 1, 2)),
+        (False, (-1, 0, 1, 2)),
+        (True, (.5, 1.5, 2.5)),
+        (True, (-.5, .5, 1.5))])
+    def test_offsets(self, staggered, offsets):
+        """
+        A derivative along the points `offsets`, in grid spacings from where it
+        is evaluated, e.g. one-sided, reads no other point and is exact for a
+        polynomial of their degree.
+        """
+        grid = Grid(shape=(11,), extent=(10.,), dtype=np.float64)
+        x, = grid.dimensions
+        shift = Rational(1, 2) if staggered else 0
+        f = Function(name='f', grid=grid, space_order=4,
+                     staggered=x if staggered else None)
+        out = Function(name='out', grid=grid, space_order=4)
+        degree = len(offsets) - 1
+        f.data[:] = (np.arange(11.) + float(shift))**degree
+        eq = Eq(out, f.dx(offsets=offsets))
+        read = {a.args[0] for a in eq.evaluate.rhs.atoms(type(f))}
+        assert read <= {x + nsimplify(o)*x.spacing for o in offsets}
+        Operator(eq).apply()
+        inner = slice(2, -4)
+        assert np.allclose(out.data[inner], degree*np.arange(11.)[inner]**(degree - 1),
+                           rtol=1e-10, atol=1e-10)
+
+    @pytest.mark.parametrize('source, target, offsets, weights', [
+        (False, False, (0, 1, 2), None),
+        (False, True, (-.5, .5, 1.5), None),
+        (True, False, (.5, 1.5, 2.5), None),
+        (False, True, (-.5, .5, 1.5), (-1., 2., -.5)),
+        (True, False, (.5,), (2.,))])
+    def test_offsets_adjoint(self, source, target, offsets, weights):
+        """
+        The transpose of a one-sided derivative from a Function at `source` to
+        `target`, the half points or the nodes, of the points `offsets` from
+        `target` and the Taylor weights there unless given, is its discrete
+        transpose, `g.dx(x0=2*x - source, offsets=...).T` for `g` at `target`:
+        as every transpose of Devito, it is mirrored about the node.
+        """
+        grid = Grid(shape=(21,), extent=(20.,), dtype=np.float64)
+        x, = grid.dimensions
+        rng = np.random.default_rng(0)
+        at = {False: (None, x), True: (x, x + x.spacing/2)}
+        f, f_out = (Function(name=n, grid=grid, space_order=4, staggered=at[k][0])
+                    for n, k in (('f', source), ('fo', target)))
+        g, g_out = (Function(name=n, grid=grid, space_order=4, staggered=at[k][0])
+                    for n, k in (('g', target), ('go', source)))
+        f.data[4:-6] = rng.standard_normal(11)
+        g.data[4:-6] = rng.standard_normal(11)
+        kwargs = {'offsets': offsets} if weights is None else \
+            {'offsets': offsets, 'weights': weights}
+        Operator([Eq(f_out, f.dx(x0={x: at[target][1]}, **kwargs)),
+                  Eq(g_out, g.dx(x0={x: 2*x - at[source][1]}, **kwargs).T)]).apply()
+        forward = np.dot(f_out.data, g.data)
+        backward = np.dot(f.data, g_out.data)
+        assert np.isclose(forward, backward, rtol=1e-12, atol=0)
+
+    def test_offsets_order_zero(self):
+        """A derivative of order zero given its points reads them, e.g. a shift."""
+        grid = Grid(shape=(11,), extent=(10.,), dtype=np.float64)
+        x, = grid.dimensions
+        f = Function(name='f', grid=grid, space_order=4)
+        out = Function(name='out', grid=grid, space_order=4)
+        f.data[:] = np.arange(11.)**2
+        Operator(Eq(out, f.diff((x, 0), x0={x: x}, offsets=(2,)))).apply()
+        assert np.allclose(out.data[:-2], f.data[2:], rtol=1e-12, atol=0)
+
+    def test_offsets_invalid(self):
+        """
+        Offsets are refused that are too few for the order of the derivative,
+        unless given their weights, or reach past the time order along time.
+        """
+        grid = Grid(shape=(11,), extent=(10.,))
+        x, = grid.dimensions
+        u = TimeFunction(name='u', grid=grid, space_order=4, time_order=1)
+
+        with pytest.raises(ValueError, match='too few'):
+            u.dx2(offsets=(0, 1))
+        assert u.dx2(offsets=(0, 1), weights=(1, -1)).offsets == {x: (0, 1)}
+        with pytest.raises(ValueError, match='reach past'):
+            u.dt(offsets=(0, 1, 2))
+
+    @pytest.mark.parametrize('ndim', [2, 3])
+    @pytest.mark.parametrize('staggered', [False, True])
+    def test_rsfd_adjoint(self, ndim, staggered):
+        """
+        Dot test `<D f, g> = <f, D.T g>` of rotated staggered derivatives, with
+        and without a staggered origin.
+        """
+        grid = Grid(shape=(21,)*ndim, extent=(20.,)*ndim, dtype=np.float64)
+        rng = np.random.default_rng(0)
+        x0 = {d: d + d.spacing/2 for d in grid.dimensions} if staggered else {}
+        for d in grid.dimensions:
+            f = Function(name='f', grid=grid, space_order=4)
+            g = Function(name='g', grid=grid, space_order=4)
+            f_out = Function(name='f_out', grid=grid, space_order=4)
+            g_out = Function(name='g_out', grid=grid, space_order=4)
+            f.data[:] = rng.standard_normal(grid.shape)
+            g.data[:] = rng.standard_normal(grid.shape)
+            deriv = f'd{d.name}'
+
+            Operator([Eq(f_out, getattr(f, deriv)(method='RSFD', x0=x0)),
+                      Eq(g_out, getattr(g, deriv)(method='RSFD', x0=x0).T)]).apply()
+
+            forward = np.dot(f_out.data.ravel(), g.data.ravel())
+            backward = np.dot(f.data.ravel(), g_out.data.ravel())
+            assert np.isclose(forward, backward, rtol=1e-12, atol=0)
 
     @pytest.mark.parametrize('dtype', [np.float32, np.float64])
     @pytest.mark.parametrize('shift, ndim', [(None, 2), (.5, 2), (.5, 3),
@@ -1834,6 +1944,118 @@ class TestHaloZero:
         assert np.linalg.norm(ref.data) > 0
         assert np.allclose(out.data, ref.data, rtol=1e-12, atol=1e-12)
 
+    @staticmethod
+    def rows(grid):
+        """The rows of a 2D grid but 7 at each end along `y`, the whole of `x`."""
+        return Region('rows', {'y': ('middle', 7, 7)}, grid=grid)
+
+    @staticmethod
+    def random(name, grid, staggered=None):
+        """A Function of random values, zero in its halo."""
+        f = Function(name=name, grid=grid, space_order=4, staggered=staggered,
+                     dtype=np.float64)
+        f.data[:] = np.random.default_rng(len(name)).normal(size=f.shape)
+        return f
+
+    @pytest.mark.parametrize('inner, outer', [('dy', 'dx'), ('dx', 'dy')])
+    def test_nested_shift(self, inner, outer):
+        """
+        A derivative of a derivative with `halo=0`, along a Dimension its
+        SubDomain spans or restricts, is that of the derivative of the argument
+        extended by zero outside the SubDomain: the indicators of the inner
+        derivative move with its stencil, and the equation is grown by the
+        reach of both.
+        """
+        grid = Grid(shape=(16, 24), extent=(15., 23.), dtype=np.float64)
+        rows = self.rows(grid)
+        g = self.random('g', grid)
+        g_zero = Function(name='g_zero', grid=grid, space_order=4, dtype=np.float64)
+        g_zero.data[:, 7:-7] = g.data[:, 7:-7]
+        out = Function(name='out', grid=grid, space_order=4, dtype=np.float64)
+        ref = Function(name='ref', grid=grid, space_order=4, dtype=np.float64)
+
+        nested = getattr(getattr(g, inner)(halo=0), outer)
+        Operator([Eq(out, nested, subdomain=rows),
+                  Eq(ref, getattr(getattr(g_zero, inner), outer))]).apply()
+
+        assert np.linalg.norm(ref.data) > 0
+        assert np.allclose(out.data, ref.data, rtol=1e-12, atol=1e-12)
+
+    def test_single_tap(self):
+        """
+        The transpose of a derivative of a single tap, with `halo=0`, writes
+        past the SubDomain to the point the tap reads: it is grown, as for any
+        other stencil, so that it is the adjoint of the derivative.
+        """
+        grid = Grid(shape=(24,), extent=(23.,), dtype=np.float64)
+        x, = grid.dimensions
+        subdomain = Region('s', {'x': ('middle', 7, 9)}, grid=grid)
+        g, out_bar = self.random('g', grid), self.random('out_bar', grid)
+        out = Function(name='out', grid=grid, space_order=4, dtype=np.float64)
+        g_bar = Function(name='g_bar', grid=grid, space_order=4, dtype=np.float64)
+
+        tap = {'offsets': {x: (2,)}, 'weights': (1,)}
+        transpose = Derivative(out_bar, x, x0={x: x}, halo=0, **tap).T
+        assert Inc(g_bar, transpose, subdomain=subdomain).evaluate.subdomain.growth == \
+            {x: 2}
+        Operator([Eq(out, Derivative(g, x, x0={x: x}, **tap), subdomain=subdomain),
+                  Inc(g_bar, transpose, subdomain=subdomain)]).apply()
+
+        lhs = np.vdot(out.data, out_bar.data)
+        assert abs(lhs - np.vdot(g.data, g_bar.data)) < 1e-12*abs(lhs)
+
+    def test_single_argument(self):
+        """
+        A stencil of a single nonzero tap is that tap, left as it is, here an
+        evaluated derivative, whose base is not changed.
+        """
+        grid = Grid(shape=(16, 24), extent=(15., 23.))
+        a = Function(name='a', grid=grid, space_order=4)
+        inner = a.dy.evaluate
+
+        assert EvalDerivative(0, inner, 0, base=a.dx) is inner
+        assert inner.base == a
+
+    def test_rational_sum(self):
+        """
+        A rational times a sum of derivatives with `halo=0`, distributed over
+        the sum, keeps its terms differentiable, so that the equation reaches
+        their derivatives: the adjoint of `Eq(out, (g.dx + g.dy)/4)`, scaled.
+        """
+        grid = Grid(shape=(16, 24), extent=(15., 23.), dtype=np.float64)
+        subdomain = Region('s', {'x': ('middle', 4, 5), 'y': ('middle', 7, 7)},
+                           grid=grid)
+        g, out_bar = self.random('g', grid), self.random('out_bar', grid)
+        out = Function(name='out', grid=grid, space_order=4, dtype=np.float64)
+        g_bar = Function(name='g_bar', grid=grid, space_order=4, dtype=np.float64)
+        transposes = out_bar.dx(halo=0).T + out_bar.dy(halo=0).T
+
+        assert all(isinstance(a, Differentiable) for a in (-transposes/2).args)
+        Operator([Eq(out, (g.dx + g.dy)/4, subdomain=subdomain),
+                  Inc(g_bar, 2*(-transposes/2)*(-Rational(1, 4))/2*2,
+                      subdomain=subdomain)]).apply()
+
+        lhs = np.vdot(out.data, out_bar.data)
+        assert abs(lhs - np.vdot(g.data, g_bar.data)) < 1e-12*abs(lhs)
+
+    def test_symmetric_product(self):
+        """
+        In a product evaluated in the symmetric mode, which re-associates its
+        factors, here along `x` the SubDomain spans, a derivative with `halo=0`
+        takes the SubDomain of the equation, and the equation is grown by its
+        reach.
+        """
+        grid = Grid(shape=(16, 24), extent=(15., 23.))
+        x, y = grid.dimensions
+        rows = self.rows(grid)
+        a, b = (Function(name=n, grid=grid, space_order=4, staggered=x) for n in 'ab')
+        g = Function(name='g', grid=grid, space_order=4)
+        f = Function(name='f', grid=grid, space_order=4)
+        eq = Inc(f, a*b*g.dy(halo=0), subdomain=rows, interp_mode='symmetric')
+
+        assert 'Max' in str(eq.evaluate.rhs)
+        assert eq.evaluate.subdomain.growth == {y: 2}
+
     def test_default_unchanged(self):
         """
         Without `halo=0`, `.T` in a SubDomain equation is the full-grid transpose
@@ -2022,14 +2244,29 @@ class TestHaloZero:
             f.dx(halo=1)
 
     def test_nested_halo(self):
-        """Differentiating a derivative with `halo=0` is not supported."""
-        grid = Grid(shape=(24,))
+        """
+        A derivative with `halo=0` of a derivative with `halo=0` reads each
+        argument as zero outside the SubDomain, `D(1_S D(1_S f))`, over the
+        SubDomain grown by the reach of both.
+        """
+        grid = Grid(shape=(24,), dtype=np.float64)
+        x, = grid.dimensions
         subdomain = Region('s', {'x': ('left', 6)}, grid=grid)
-        f = Function(name='f', grid=grid, space_order=4)
-        g = Function(name='g', grid=grid, space_order=4)
+        kwargs = {'grid': grid, 'space_order': 4, 'dtype': np.float64}
+        f = Function(name='f', **kwargs)
+        f.data[:] = np.random.default_rng(3).normal(size=f.shape)
+        g, f_zero, h, h_zero, ref = (Function(name=n, **kwargs)
+                                     for n in ('g', 'f_zero', 'h', 'h_zero', 'ref'))
+        f_zero.data[:6] = f.data[:6]
 
-        with pytest.raises(NotImplementedError):
-            _ = Eq(g, f.dx(halo=0).dx(halo=0), subdomain=subdomain).evaluate
+        eq = Eq(g, f.dx(halo=0).dx(halo=0), subdomain=subdomain)
+        Operator([eq, Eq(h, f_zero.dx)]).apply()
+        h_zero.data[:6] = h.data[:6]
+        Operator(Eq(ref, h_zero.dx)).apply()
+
+        assert eq.evaluate.subdomain.growth == {x: 4}
+        assert np.linalg.norm(ref.data) > 0
+        assert np.allclose(g.data, ref.data, rtol=1e-12, atol=1e-12)
 
     def test_growth(self):
         """

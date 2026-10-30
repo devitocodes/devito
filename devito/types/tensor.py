@@ -12,7 +12,6 @@ except ImportError:
 from sympy.core.sympify import converter as sympify_converter
 
 from devito.finite_differences import Differentiable
-from devito.finite_differences.differentiable import merge_growth
 from devito.finite_differences.tools import make_shift_x0
 from devito.types.basic import AbstractTensor
 from devito.types.dense import Function, TimeFunction
@@ -226,11 +225,6 @@ class TensorFunction(AbstractTensor):
     def _has_zero_halo(self):
         """True if a component has derivatives with `halo=0`."""
         return any(x._has_zero_halo for x in self.values() if x != 0)
-
-    @cached_property
-    def _growth(self):
-        """The growth of the components (see `Differentiable._growth`)."""
-        return merge_growth(x._growth for x in self.values() if x != 0)
 
     def _evaluate(self, **kwargs):
         def _do_evaluate(x):

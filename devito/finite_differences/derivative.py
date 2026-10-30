@@ -1,5 +1,5 @@
 from collections import defaultdict
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 from contextlib import suppress
 from functools import cached_property
 from itertools import chain
@@ -50,6 +50,21 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
     x0 : dict, optional
         Origin (where the finite-difference is evaluated at) for the finite-difference
         scheme, e.g. {x: x, y: y + h_y/2}.
+    offsets : tuple of numbers or dict of {Dimension: tuple of numbers}, optional
+        The points of the finite difference, in grid spacings from `x0`, in
+        place of those `fd_order` and `side` give, e.g. a one-sided stencil
+        next to a boundary. The weights are those of the Taylor expansion at
+        `x0`, unless `weights` is given. A tuple is for a derivative along a
+        single Dimension. On a CurvilinearGrid, offsets may also be given
+        along the other space Dimensions, for the computational derivatives
+        along them that the chain rule takes.
+    computational : bool, optional, default=False
+        Only relevant for an expression defined on a CurvilinearGrid, where a
+        Derivative w.r.t. a space Dimension is by default a derivative w.r.t.
+        the physical coordinate, evaluated through the chain rule with the
+        metric terms of the grid. If True, it is instead the plain
+        finite-difference derivative w.r.t. the computational coordinate
+        indexed by the Dimension.
 
     Examples
     --------
@@ -102,7 +117,8 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
 
     __rargs__ = ('expr', '*dims')
     __rkwargs__ = ('side', 'deriv_order', 'fd_order', 'transpose', '_ppsubs',
-                   'x0', 'method', 'weights', 'halo', 'subdomain')
+                   'x0', 'method', 'weights', 'halo', 'subdomain', 'computational',
+                   'offsets')
 
     def __new__(cls, expr, *dims, **kwargs):
         # Validate the input arguments `expr`, `dims` and `deriv_order`
@@ -163,6 +179,10 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
         obj._weights = cls._process_weights(**kwargs)
         obj._halo = cls._validate_halo(kwargs.get("halo"))
         obj._subdomain = kwargs.get("subdomain")
+        obj._computational = bool(kwargs.get("computational", False))
+        obj._offsets = cls._process_offsets(kwargs.get("offsets"), expr, obj._dims,
+                                            obj._computational, obj._deriv_order,
+                                            obj._weights is not None)
 
         ppsubs = kwargs.get("subs", kwargs.get("_ppsubs", []))
         processed = []
@@ -325,6 +345,47 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
         return x0
 
     @classmethod
+    def _process_offsets(cls, offsets, expr, dims, computational, deriv_order,
+                         weighted):
+        """
+        Validate `offsets` and return them as a frozendict of the offsets
+        along each Dimension. They are given along the Dimensions of the
+        derivative or, for a physical derivative on a CurvilinearGrid, along
+        any space Dimension of the grid; they stay within the halo of `expr`,
+        or its time order along time; and along a Dimension of the derivative,
+        unless `weighted`, they are at least one more than its order there.
+        """
+        if not offsets:
+            return frozendict()
+        if not isinstance(offsets, Mapping):
+            if len(dims) != 1:
+                raise ValueError(f"The offsets {offsets} of a derivative along {dims} "
+                                 "need a Dimension each, e.g. {x: (0, 1, 2)}")
+            offsets = {dims[0]: offsets}
+
+        allowed = set(dims)
+        grid = getattr(expr, 'grid', None)
+        if grid is not None and grid.root.is_Curvilinear and not computational:
+            allowed.update(grid.root.dimensions)
+        for d, values in offsets.items():
+            if d not in allowed and d.root not in allowed:
+                raise ValueError(f"Offsets along {d} for a derivative along {dims}: "
+                                 "they only apply along the Dimensions it takes")
+            reach = getattr(expr, 'time_order' if d.is_Time else 'space_order', None)
+            if reach is not None and max(abs(o) for o in values) > reach:
+                raise ValueError(f"The offsets {values} along {d} reach past the "
+                                 f"{reach} points {expr} holds there")
+            order = dict(zip(dims, deriv_order, strict=True)).get(d)
+            if order is not None and not weighted and len(values) <= order:
+                raise ValueError(f"The {len(values)} offsets {values} along {d} are "
+                                 f"too few for a derivative of order {order}: give "
+                                 f"{order + 1} at least, or their weights")
+
+        # Rational, so that a half-cell offset lands on a staggered point exactly
+        return frozendict({d: tuple(sympy.nsimplify(o, rational=True) for o in v)
+                           for d, v in offsets.items()})
+
+    @classmethod
     def _process_weights(cls, **kwargs):
         weights = kwargs.get('weights', kwargs.get('w'))
         if weights is None:
@@ -339,6 +400,13 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
         rkw = {}
         if 'halo' in kwargs:
             rkw['halo'] = kwargs['halo']
+        if 'computational' in kwargs:
+            rkw['computational'] = kwargs['computational']
+        if kwargs.get('offsets') is not None:
+            offsets = self._process_offsets(kwargs['offsets'], self.expr, self.dims,
+                                            self.computational, self.deriv_order,
+                                            (weights or self.weights) is not None)
+            rkw['offsets'] = frozendict({**self.offsets, **offsets})
         if side is not None:
             rkw['side'] = side
         if method is not None:
@@ -487,6 +555,14 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
         """
         return self._subdomain
 
+    @property
+    def computational(self):
+        """
+        True if the derivative is w.r.t. the computational coordinates of a
+        CurvilinearGrid rather than the physical ones.
+        """
+        return self._computational
+
     @cached_property
     def _has_zero_halo(self):
         return self.halo is not None or self.expr._has_zero_halo
@@ -502,6 +578,14 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
     @property
     def weights(self):
         return self._weights
+
+    @property
+    def offsets(self):
+        """
+        The points of the finite difference along each Dimension it is given
+        them, in grid spacings from `x0`.
+        """
+        return self._offsets
 
     @property
     def T(self):
@@ -521,15 +605,12 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
         setup where one could have Eq(u(x + h_x/2), v(x).dx)) in which case v(x).dx
         has to be computed at x=x + h_x/2.
 
-        With halo=0, the argument is treated as zero outside `subdomain`, which
-        the Derivative records.
+        With halo=0, the argument is treated as zero outside the SubDomain of
+        the equation, which the equation gives the Derivative beforehand.
         """
         rkw = {}
-        if subdomain is not None and self.halo is not None:
-            rkw['subdomain'] = subdomain
-
         if not self._is_relocated(func):
-            return self._rebuild(**rkw) if rkw else self
+            return self
 
         # Check if x0's keys come from a DerivedDimension
         x0 = func.indices_ref.getters
@@ -624,18 +705,12 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
              shited derivative.
         - 4: Apply substitutions.
         """
+
         # Differentiation is linear, and a sum of terms at different staggered
         # locations must use it: `Add` reports its first argument's location,
         # so `x0` would shift the other terms off the point they sat at.
         if expr.is_Add and any(len(indices_at(expr, d)) > 1 for d in self.dims):
             return expr.func(*[self._eval_fd(a, **kwargs) for a in expr.args])
-
-        # The SubDomain mask read by a halo=0 derivative can't be shifted again
-        if expr._has_zero_halo:
-            raise NotImplementedError(
-                f"{self} differentiates a derivative with halo=0, which is not "
-                "supported"
-            )
 
         # Step 1: Evaluate non-derivative x0. We currently enforce a simple 2nd order
         # interpolation to avoid very expensive finite differences on top of it
@@ -667,20 +742,22 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
         if self.method == 'RSFD':
             assert len(self.dims) == 1
             assert self.deriv_order[0] == 1
-            res = d45(expr, self.dims[0], x0=self.x0, expand=expand)
+            res = d45(expr, self.dims[0], x0=self.x0, expand=expand,
+                      matvec=self.transpose)
         elif len(self.dims) > 1:
             assert self.method == 'FD'
             res = cross_derivative(expr, self.dims, self.fd_order, self.deriv_order,
                                    matvec=self.transpose, x0=x0_deriv, expand=expand,
                                    side=self.side, weights=self.weights,
-                                   subdomain=subdomain)
+                                   subdomain=subdomain, offsets=self.offsets)
         else:
             assert self.method == 'FD'
             res = generic_derivative(expr, self.dims[0], self.fd_order[0],
                                      self.deriv_order[0], weights=self.weights,
                                      side=self.side, matvec=self.transpose,
                                      x0=self.x0, expand=expand,
-                                     subdomain=subdomain)
+                                     subdomain=subdomain,
+                                     offsets=self.offsets.get(self.dims[0]))
 
         # Step 4: Apply substitutions
         for e in self._ppsubs:
@@ -708,6 +785,12 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
         used to construct the derivative.
         """
         if not isinstance(self.expr, self.__class__):
+            return self
+
+        # A merged derivative would take the settings of the outer one only
+        if self.computational != self.expr.computational or \
+                self.offsets or self.expr.offsets or \
+                (self.halo, self.subdomain) != (self.expr.halo, self.expr.subdomain):
             return self
 
         # This is necessary as tools.abc.Reconstructable._rebuild will copy

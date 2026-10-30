@@ -7,7 +7,7 @@ import sympy
 from sympy.core.add import _addsort
 from sympy.core.decorators import call_highest_priority
 from sympy.core.evalf import evalf_table
-from sympy.core.mul import _keep_coeff, _mulsort
+from sympy.core.mul import _mulsort
 
 try:
     from sympy.core.core import ordering_of_classes
@@ -195,21 +195,6 @@ class Differentiable(sympy.Expr, Evaluable):
     def _has_zero_halo(self):
         """True if the expression has derivatives with `halo=0`."""
         return any(a._has_zero_halo for a in self._args_diff)
-
-    @cached_property
-    def _growth(self):
-        """
-        Number of points, per root Dimension, by which the evaluated expression
-        extends past the SubDomain that its `halo=0` derivatives restrict their
-        argument to: the largest stencil radius of such derivatives. Empty if the
-        expression has none.
-
-        For example, with `S` a SubDomain restricting `x` and an 8th-order `g`,
-        `g.dx(halo=0)` evaluated in an equation on `S` has a growth of `{x: 4}`:
-        the equation must iterate over `S` grown by 4 points along `x` (see
-        `DerivedSubDomain`).
-        """
-        return merge_growth(a._growth for a in self._args_diff)
 
     def _subs(self, old, new, **hints):
         if old == self:
@@ -560,18 +545,6 @@ def highest_priority(diff_op, candidates=None):
     return prio_func
 
 
-def merge_growth(growths):
-    """
-    Merge the growths `growths`, each a mapping from root Dimension to a number
-    of points, keeping the largest per Dimension (see `Differentiable._growth`).
-    """
-    growth = {}
-    for i in growths:
-        for d, v in i.items():
-            growth[d] = max(growth.get(d, 0), v)
-    return frozendict(growth)
-
-
 class DifferentiableOp(Differentiable):
 
     __sympy_class__ = None
@@ -717,13 +690,14 @@ class Mul(DifferentiableOp, sympy.Mul):
         # `sympy.Mul.flatten(coeff, Add)` flattens out nested Adds within Add,
         # which would destroy `EvalDerivative`s if present. So here we perform
         # a similar thing, but cautiously construct an evaluated Add, which
-        # will preserve the integrity of `EvalDerivative`s, if any
+        # will preserve the integrity of `EvalDerivative`s, if any, of
+        # differentiable terms, which the evaluation at a point reaches
         try:
             a, b = args
             if a.is_Rational:
                 r, b = b.as_coeff_Mul()
                 if r is sympy.S.One and type(b) is Add:
-                    return Add(*[_keep_coeff(a, bi) for bi in b.args], evaluate=False)
+                    return Add(*[cls(a, bi) for bi in b.args], evaluate=False)
         except (AttributeError, ValueError):
             pass
 
@@ -1375,27 +1349,7 @@ class DiffDerivative(IndexDerivative, DifferentiableOp):
 
     """
     A Derivative evaluated in unexpanded form.
-
-    Parameters
-    ----------
-    growth : dict of {Dimension: int}, optional
-        For a derivative with `halo=0`, its stencil radius per root Dimension
-        (see `Differentiable._growth`).
-    *args, **kwargs
-        As for IndexDerivative.
     """
-
-    __rkwargs__ = IndexDerivative.__rkwargs__ + ('growth',)
-
-    def __new__(cls, *args, growth=None, **kwargs):
-        obj = super().__new__(cls, *args, **kwargs)
-        obj._growth = frozendict(growth or {})
-        return obj
-
-    @property
-    def growth(self):
-        """For a derivative with `halo=0`, its stencil radius per root Dimension."""
-        return self._growth
 
     def _eval_at(self, func, **kwargs):
         # Like EvalDerivative, a DiffDerivative must have already been evaluated
@@ -1419,48 +1373,32 @@ class EvalDerivative(DifferentiableOp, sympy.Add):
         The stencil taps.
     base : expr-like, optional
         The expression the derivative was taken of.
-    growth : dict of {Dimension: int}, optional
-        For a derivative with `halo=0`, its stencil radius per root Dimension
-        (see `Differentiable._growth`).
     """
 
     is_commutative = True
 
-    __rkwargs__ = ('base', 'growth')
+    __rkwargs__ = ('base',)
 
-    def __new__(cls, *args, base=None, growth=None, **kwargs):
+    def __new__(cls, *args, base=None, **kwargs):
         kwargs['evaluate'] = False
 
         # a+0 -> a
         args = [i for i in args if i != 0]
 
+        # A single tap is the tap itself, left as it is: an existing object,
+        # which a sum of no taps, 0, is too
+        if len(args) <= 1:
+            return args[0] if args else sympy.S.Zero
+
         # Reorder for homogeneity with pure SymPy types
         _addsort(args)
 
         obj = super().__new__(cls, *args, **kwargs)
-
-        try:
-            if base is obj:
-                # In some rare cases (rebuild?) base may be obj itself
-                base = base.base
-            obj.base = base
-            obj._growth = frozendict(growth or {})
-        except AttributeError:
-            # This might happen if e.g. one attempts a (re)construction with
-            # one sole argument. The (re)constructed EvalDerivative degenerates
-            # to an object of different type, in classic SymPy style. That's
-            # fine -- and a single argument that is itself a sum is the same
-            # story: a zero-order derivative whose weights collapse to one is
-            # the identity, so it comes back as the sum it was applied to.
-            assert len(args) <= 1
-            return obj
-
+        if base is obj:
+            # In some rare cases (rebuild?) base may be obj itself
+            base = base.base
+        obj.base = base
         return obj
-
-    @property
-    def growth(self):
-        """For a derivative with `halo=0`, its stencil radius per root Dimension."""
-        return self._growth
 
     func = DifferentiableOp._rebuild
 

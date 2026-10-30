@@ -31,7 +31,8 @@ _PRECISION = {np.float16: 9, np.float32: 9, np.float64: 20,
 
 
 @check_input
-def cross_derivative(expr, dims, fd_order, deriv_order, x0=None, side=None, **kwargs):
+def cross_derivative(expr, dims, fd_order, deriv_order, x0=None, side=None,
+                     offsets=None, **kwargs):
     """
     Arbitrary-order cross derivative of a given expression.
 
@@ -57,6 +58,9 @@ def cross_derivative(expr, dims, fd_order, deriv_order, x0=None, side=None, **kw
     expand : bool, optional, default=True
         If True, the derivative is fully expanded as a sum of products,
         otherwise an IndexSum is returned.
+    offsets : dict of {Dimension: tuple of numbers}, optional
+        The points of the finite difference along the Dimensions it is given
+        for, in grid spacings from `x0` (see `generic_derivative`).
 
     Returns
     -------
@@ -96,9 +100,10 @@ f(x + 2*h_x, y + h_y)*g(x + 2*h_x, y + h_y)/h_x) + \
 f(x + 2*h_x, y + 2*h_y)*g(x + 2*h_x, y + 2*h_y)/h_x)/h_y
     """
     x0 = x0 or {}
+    offsets = offsets or {}
     for d, fd, dim in zip(deriv_order, fd_order, dims, strict=True):
         expr = generic_derivative(expr, dim=dim, fd_order=fd, deriv_order=d, x0=x0,
-                                  side=side, **kwargs)
+                                  side=side, offsets=offsets.get(dim), **kwargs)
 
     return expr
 
@@ -129,7 +134,7 @@ def index_at(expr, dim):
 @check_input
 def generic_derivative(expr, dim, fd_order, deriv_order, matvec=direct, x0=None,
                        coefficients='taylor', expand=True, weights=None, side=None,
-                       subdomain=None):
+                       subdomain=None, offsets=None):
     """
     Arbitrary-order derivative of a given expression.
 
@@ -159,6 +164,9 @@ def generic_derivative(expr, dim, fd_order, deriv_order, matvec=direct, x0=None,
         If given, `expr` is treated as zero outside `subdomain` (see
         `Derivative`'s `halo`): each stencil tap is multiplied by the
         indicator of `subdomain` at the point it reads.
+    offsets : tuple of numbers, optional
+        The points of the finite difference, in grid spacings from `x0`, in
+        place of those `fd_order` and `side` give.
 
     Returns
     -------
@@ -171,15 +179,17 @@ def generic_derivative(expr, dim, fd_order, deriv_order, matvec=direct, x0=None,
         fd_order = 1
 
     # Zeroth order is the identity when `expr` already sits at `x0`, not a
-    # stencil centred there.
-    if deriv_order == 0 and (not x0 or index_at(expr, dim) == x0.get(dim)):
+    # stencil centred there, unless given its points
+    if deriv_order == 0 and offsets is None and \
+            (not x0 or index_at(expr, dim) == x0.get(dim)):
         return expr
 
     # Enforce stable time coefficients
     coefficients = 'taylor' if dim.is_Time else expr.coefficients
 
     return make_derivative(expr, dim, fd_order, deriv_order, side,
-                           matvec, x0, coefficients, expand, weights, subdomain)
+                           matvec, x0, coefficients, expand, weights, subdomain,
+                           offsets=offsets)
 
 
 # Backward compatibility
@@ -188,7 +198,7 @@ def first_derivative(expr, dim, fd_order, **kwargs):
 
 
 def make_derivative(expr, dim, fd_order, deriv_order, side, matvec, x0, coefficients,
-                    expand, weights=None, subdomain=None):
+                    expand, weights=None, subdomain=None, offsets=None):
     # Always expand time derivatives to avoid issue with buffering and streaming.
     # Time derivative are almost always short stencils and won't benefit from
     # unexpansion in the rare case the derivative is not evaluated for time stepping.
@@ -197,7 +207,7 @@ def make_derivative(expr, dim, fd_order, deriv_order, side, matvec, x0, coeffici
     # The stencil indices
     nweights, wdim, scale = process_weights(weights, expr, dim)
     indices, x0 = generate_indices(expr, dim, fd_order, side=side, matvec=matvec,
-                                   x0=x0, nweights=nweights)
+                                   x0=x0, nweights=nweights, offsets=offsets)
     # Finite difference weights corresponding to the indices. Computed via the
     # `coefficients` method (`taylor` or `symbolic`)
     if weights is None:
@@ -235,10 +245,8 @@ def make_derivative(expr, dim, fd_order, deriv_order, side, matvec, x0, coeffici
 
     # With a `subdomain`, `expr` is treated as zero outside it: every stencil tap
     # is multiplied by the indicator of the point it reads, 1 if `subdomain`
-    # spans the whole of `dim`. The derivative then extends past `subdomain` by
-    # the stencil radius
-    growth = {dim.root: indices.radius} if subdomain is not None else {}
-
+    # spans the whole of `dim`, which the equation grows its SubDomain by
+    # (see `Indicator`)
     if not expand and indices.expr is not None:
         weights = Weights(name='w', dimensions=indices.free_dim,
                           initvalue=weights, dtype=expr.dtype)
@@ -255,8 +263,7 @@ def make_derivative(expr, dim, fd_order, deriv_order, side, matvec, x0, coeffici
             expr = expr._evaluate(expand=False)
 
         deriv = DiffDerivative(
-            expr*weights, {dim: indices.free_dim}, deriv_order=deriv_order,
-            growth=growth
+            expr*weights, {dim: indices.free_dim}, deriv_order=deriv_order
         )
     else:
         terms = []
@@ -272,6 +279,6 @@ def make_derivative(expr, dim, fd_order, deriv_order, side, matvec, x0, coeffici
                 term = term.evaluate
             terms.append(term)
 
-        deriv = EvalDerivative(*terms, base=expr, growth=growth)
+        deriv = EvalDerivative(*terms, base=expr)
 
     return deriv

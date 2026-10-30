@@ -1,5 +1,5 @@
 """User API to specify equations."""
-from functools import cached_property
+from functools import cached_property, partial
 
 import sympy
 
@@ -129,14 +129,16 @@ class Eq(sympy.Eq, Evaluable, Pickable):
         subdomain = self.subdomain
         try:
             lhs = self.lhs._evaluate(**kwargs)
-            rhs = self.rhs._eval_at(self.lhs, subdomain=subdomain, **kwargs)
+            rhs = _with_subdomain(self.rhs, subdomain)
+            rhs = rhs._eval_at(self.lhs, subdomain=subdomain, **kwargs)
             rhs = rhs._evaluate(**kwargs)
         except AttributeError:
             lhs, rhs = self._evaluate_args(**kwargs)
         else:
-            # Derivatives with `halo=0` extend the rhs past the SubDomain
+            # Derivatives with `halo=0` extend the rhs past the SubDomain, as far
+            # as the indicators of the SubDomain in it reach
             if subdomain is not None and self.rhs._has_zero_halo:
-                subdomain = subdomain._grow(rhs._growth)
+                subdomain, rhs = subdomain._lower_indicators(rhs)
 
         eq = self.func(lhs, rhs, subdomain=subdomain,
                        coefficients=self.substitutions,
@@ -212,6 +214,23 @@ class Eq(sympy.Eq, Evaluable, Pickable):
         return f"{self.__class__.__name__}({self.lhs}, {self.rhs})"
 
     __repr__ = __str__
+
+
+def _with_subdomain(expr, subdomain):
+    """
+    `expr` with its derivatives with `halo=0` reading their argument as zero
+    outside `subdomain`, the SubDomain of their equation.
+    """
+    if subdomain is None or not getattr(expr, '_has_zero_halo', False):
+        return expr
+    if isinstance(expr, sympy.MatrixBase):
+        return expr.applyfunc(partial(_with_subdomain, subdomain=subdomain))
+    if expr.is_Derivative:
+        inner = _with_subdomain(expr.expr, subdomain)
+        if expr.halo is None:
+            return expr._rebuild(inner)
+        return expr._rebuild(inner, subdomain=subdomain)
+    return expr.func(*[_with_subdomain(a, subdomain) for a in expr.args])
 
 
 class Reduction(Eq):

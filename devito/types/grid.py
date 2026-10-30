@@ -760,6 +760,74 @@ class AbstractSubDomain(CartesianDiscretization):
             ) from e
 
 
+class Indicator(sympy.Function):
+
+    """
+    1 if a point lies in the bounds `[lower, upper]` of a SubDomain along a
+    Dimension, 0 otherwise.
+
+    The point is written as an index of a Function along the Dimension, e.g.
+    `x + 2*h_x`, so that shifting or interpolating an expression moves the
+    indicators in it with the Functions they multiply. An equation lowers them
+    into branchless arithmetic once evaluated (see `lowered`), and grows its
+    SubDomain by their largest offset (see `Indicator.growth`).
+
+    Parameters
+    ----------
+    point : expr-like
+        The point, a Dimension plus an offset in units of its spacing.
+    lower, upper : expr-like
+        The bounds of the SubDomain along the Dimension, as indices.
+    """
+
+    nargs = 3
+    is_commutative = True
+
+    @property
+    def point(self):
+        return self.args[0]
+
+    @property
+    def dimension(self):
+        """The Dimension along which the point is tested."""
+        dims = [i for i in self.point.free_symbols
+                if getattr(i, 'is_Dimension', False) and not i.is_Stencil]
+        if len(dims) != 1:
+            raise ValueError(f"{self} does not test a point along one Dimension")
+        return dims[0]
+
+    @property
+    def offset(self):
+        """The offset of the point, in units of the spacing of its Dimension."""
+        dim = self.dimension
+        return sympy.expand((self.point - dim)/dim.spacing)
+
+    @property
+    def lowered(self):
+        """The indicator as branchless arithmetic on the index of the point."""
+        _, lower, upper = self.args
+        index = self.dimension + self.offset
+        return (Max(0, Min(1, index - lower + 1)) *
+                Max(0, Min(1, upper - index + 1)))
+
+    @classmethod
+    def growth(cls, expr):
+        """
+        The number of points, per Dimension, by which the indicators in `expr`
+        reach past their SubDomain: the largest offset of their points, over the
+        range of the StencilDimensions of a stencil in unexpanded form.
+        """
+        growth = {}
+        for i in expr.atoms(cls):
+            offset = i.offset
+            stencil = [d for d in offset.free_symbols if d.is_Stencil]
+            extremes = [offset.subs(dict(zip(stencil, values, strict=True)))
+                        for values in product(*[(d._min, d._max) for d in stencil])]
+            reach = max(math.ceil(abs(e)) for e in extremes)
+            growth[i.dimension] = max(growth.get(i.dimension, 0), reach)
+        return frozendict(growth)
+
+
 class SubDomain(AbstractSubDomain):
 
     """
@@ -933,8 +1001,8 @@ class SubDomain(AbstractSubDomain):
     def _indicator(self, dim, offset):
         """
         1 if the point `offset` points away from the current one along `dim` lies
-        in this SubDomain, 0 otherwise, computed without branching. Always 1 if
-        this SubDomain spans all of `dim`.
+        in this SubDomain, 0 otherwise (see `Indicator`). Always 1 if this
+        SubDomain spans all of `dim`.
 
         Parameters
         ----------
@@ -946,9 +1014,20 @@ class SubDomain(AbstractSubDomain):
         maybe_subdim = self.dimension_map.get(dim, dim)
         if not maybe_subdim.is_Sub:
             return sympy.S.One
-        point = dim + offset
-        return (Max(0, Min(1, point - maybe_subdim.symbolic_min + 1)) *
-                Max(0, Min(1, maybe_subdim.symbolic_max - point + 1)))
+        return Indicator(dim + offset*dim.spacing, maybe_subdim.symbolic_min,
+                         maybe_subdim.symbolic_max)
+
+    def _lower_indicators(self, expr):
+        """
+        The SubDomain that `expr`, on this one, writes: grown as far as the
+        indicators of this SubDomain in it reach, if any, and `expr` with them
+        lowered (see `Indicator`).
+        """
+        indicators = expr.atoms(Indicator)
+        if not indicators:
+            return self, expr
+        lowered = expr.xreplace({i: i.lowered for i in indicators})
+        return self._grow(Indicator.growth(expr)), lowered
 
     def _restrict(self, expr, exclude=()):
         """
