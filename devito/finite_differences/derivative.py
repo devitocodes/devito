@@ -13,6 +13,7 @@ from devito.types.dimension import Dimension
 from devito.types.utils import DimensionTuple
 from devito.warnings import warn
 
+from .curvilinear import curvilinear_grid, physical_derivative
 from .differentiable import Add, Differentiable, Mul, diffify, interp_for_fd
 from .finite_difference import cross_derivative, generic_derivative, indices_at
 from .rsfd import d45
@@ -704,7 +705,14 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
              may need to be evaluated at a different point due to e.g. a
              shited derivative.
         - 4: Apply substitutions.
+
+        On a CurvilinearGrid, a derivative w.r.t. physical coordinates is
+        instead expanded through the chain rule into computational ones (see
+        `devito.finite_differences.curvilinear`).
         """
+        grid = curvilinear_grid(self)
+        if grid is not None:
+            return physical_derivative(self, expr, grid, **kwargs)
 
         # Differentiation is linear, and a sum of terms at different staggered
         # locations must use it: `Add` reports its first argument's location,
