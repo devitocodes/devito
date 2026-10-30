@@ -1633,6 +1633,14 @@ class TestEquationAlgorithms:
         assert LoweredEq(Eq(acc, reduction)).ispace.itdims == ()
         assert LoweredEq(Eq(acc, reduction + f[r])).ispace.itdims == (r,)
 
+    def test_reduction_subclass(self):
+        """A subclass of a reduction retains its operation when lowered"""
+        class MyInc(Inc):
+            pass
+
+        acc = Symbol(name='acc')
+        assert LoweredEq(MyInc(acc, 1)).is_Increment
+
 
 class TestCluster:
 
