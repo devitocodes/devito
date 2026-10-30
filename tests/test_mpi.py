@@ -2117,6 +2117,29 @@ class TestCodeGeneration:
         assert calls[0].arguments[0] is v1
         assert calls[1].arguments[0] is v2
 
+    @pytest.mark.parallel(mode=2)
+    def test_haloupdate_if_increment_reads_elsewhere(self, mode):
+        """
+        An increment that reads the incremented Function at other points than
+        those it updates needs the halo of the Function.
+        """
+        grid = Grid(shape=(11, 11))
+        x, y = grid.dimensions
+
+        g = Function(name='g', grid=grid, space_order=2)
+
+        op = Operator([Eq(g, 1),
+                       Inc(g.subs(y, 0), g.subs({x: x + x.spacing, y: 1}))])
+        op.apply()
+
+        assert len(FindNodes(HaloUpdateCall).visit(op)) == 1
+        # The last node reads past the domain, in the zero halo
+        expected = np.full(11, 2.)
+        expected[-1] = 1
+        data = g.data_gather(rank=0)
+        if grid.distributor.myrank == 0:
+            assert np.all(data[:, 0] == expected)
+
     @pytest.mark.parallel(mode=1)
     def test_hoist_haloupdate_if_in_the_middle(self, mode):
         grid = Grid(shape=(65, 65, 65))
