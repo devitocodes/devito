@@ -295,9 +295,29 @@ class AbstractSparseFunction(DiscreteFunction):
             if self.coordinates_data is None:
                 raise ValueError("No coordinates or gridpoints attached"
                                  "to this SparseFunction")
+            coordinates = self._subfunc_frame(self.coordinates, self.coordinates_data)
             return (
-                np.floor((self.coordinates_data - self.grid.origin) / self.grid.spacing)
+                np.floor((coordinates - self.grid.origin) / self.grid.spacing)
             ).astype(int)
+
+    def _subfunc_frame(self, subfunc, values):
+        """
+        The `values` of `subfunc` as the Operator reads them: on a
+        CurvilinearGrid, the coordinates are physical, and the Operator indexes
+        the grid by its computational coordinates (see
+        `CurvilinearGrid.to_computational`).
+        """
+        if not self._computational_coordinates(subfunc) or np.size(values) == 0:
+            return values
+        dtype = values.dtype
+        return self.grid.root.to_computational(values).astype(dtype, copy=False)
+
+    def _computational_coordinates(self, subfunc):
+        """
+        Whether `subfunc` is the coordinates of a SparseFunction on a
+        CurvilinearGrid, which the Operator reads as computational ones.
+        """
+        return subfunc is self.coordinates and self.grid.root.is_Curvilinear
 
     @property
     def _support(self):
@@ -639,9 +659,9 @@ class AbstractSparseFunction(DiscreteFunction):
         if self._distributor.nprocs == 1 or self.is_local:
             if self.is_local and self.dist_origin[subfunc] is not None:
                 shift = np.array(self.dist_origin[subfunc], dtype=subfunc.dtype)
-                subfuncd = subfunc.data._local - shift
+                subfuncd = self._subfunc_frame(subfunc, subfunc.data._local) - shift
             else:
-                subfuncd = subfunc.data
+                subfuncd = self._subfunc_frame(subfunc, subfunc.data)
             return {subfunc: subfuncd}
 
         # Compute dist map only once
@@ -650,7 +670,9 @@ class AbstractSparseFunction(DiscreteFunction):
 
         # Pack (reordered) SubFunction values so that they can be sent out
         # via an Alltoallv
-        sfuncd = subfunc.data._local[mask[self._sparse_position]]
+        sfuncd = self._subfunc_frame(subfunc, subfunc.data._local)[
+            mask[self._sparse_position]
+        ]
 
         # Send out the sparse point SubFunction
         _, scount, sdisp, rshape, rcount, rdisp = \
@@ -693,8 +715,11 @@ class AbstractSparseFunction(DiscreteFunction):
     def _dist_subfunc_gather(self, sfuncd, subfunc):
         with suppress(AttributeError):
             sfuncd = subfunc._C_as_ndarray(sfuncd)
-        # If not using MPI, don't waste time
-        if self._distributor.nprocs == 1 or self.is_local:
+        # If not using MPI, don't waste time. An Operator only reads the
+        # coordinates of a CurvilinearGrid, in the frame it indexes the grid in
+        # (see `_subfunc_frame`), so there is nothing to gather back
+        if self._distributor.nprocs == 1 or self.is_local or \
+                self._computational_coordinates(subfunc):
             return
 
         # Compute dist map only once

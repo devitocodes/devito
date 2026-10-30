@@ -570,6 +570,10 @@ class WeightedInterpolator(GenericInterpolator):
 
         subdomain = _extract_subdomain(fields)
 
+        # The transpose of interpolation in the inner product weighted by the
+        # Jacobian of the grid, 1 on a Grid
+        exprs = tuple(e*_inverse_jacobian(f) for e, f in zip(exprs, fields, strict=True))
+
         # Derivatives must be evaluated before the introduction of indirect
         # accesses. Variables are sampled at their own grid location; the
         # position map for the target field carries the staggering so the
@@ -614,6 +618,15 @@ class WeightedInterpolator(GenericInterpolator):
                          for f, e in zip(g_fields, g_exprs, strict=True)])
 
         return filter_ordered(temps) + eqns
+
+
+def _inverse_jacobian(field):
+    """The inverse Jacobian of the grid of `field` where the values of `field` are."""
+    grid = field.grid.root
+    # Along the root Dimensions, for a field on a SubDomain too
+    location = {d.root: field.indices_ref[d].subs(d, d.root) for d in field.dimensions
+                if d.root in grid.dimensions}
+    return grid.inverse_jacobian_at(location)
 
 
 def _shift_tag(shifts):
