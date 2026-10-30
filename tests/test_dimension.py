@@ -3,7 +3,7 @@ from itertools import product
 
 import numpy as np
 import pytest
-from sympy import And, Or
+from sympy import And, Integer, Or
 
 from conftest import assert_blocking, assert_structure, opts_tiling, skipif
 from devito import (  # noqa
@@ -2154,6 +2154,28 @@ class TestCustomDimension:
         op.apply(time_M=1)
 
         assert np.all(v.data_with_halo[:] == 1)
+
+    def test_numpy_bounds(self):
+        """
+        Bounds given as NumPy integers are numbers, so a Function indexed by the
+        Dimension, linearized, is laid out by its size.
+        """
+        grid = Grid(shape=(11, 11))
+        x, y = grid.dimensions
+        size = np.int64(3)
+        k = CustomDimension('knp', np.int64(0), size - 1, size)
+        assert all(isinstance(i, Integer)
+                   for i in (k.symbolic_min, k.symbolic_max, k.symbolic_size))
+        assert all(i.is_Symbol for i in k.bound_symbols)
+
+        w = Function(name='w', dimensions=(y, k), shape=(11, 3), grid=grid)
+        w.data[:] = np.arange(3)
+        u = Function(name='u', grid=grid, space_order=2)
+        u.data[:] = 1.
+        out = Function(name='out', grid=grid)
+        stencil = w[y, 0]*u[x, y - 1] + w[y, 1]*u[x, y] + w[y, 2]*u[x, y + 1]
+        Operator(Eq(out, stencil), opt=('advanced', {'linearize': True})).apply()
+        assert np.all(out.data[:, 1:-1] == 3)
 
 
 class TestMashup:

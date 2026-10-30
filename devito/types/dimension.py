@@ -1601,9 +1601,11 @@ class CustomDimension(BasicDimension):
 
     def __init_finalize__(self, name, symbolic_min=None, symbolic_max=None,
                           symbolic_size=None, parent=None, local=True, **kwargs):
-        self._symbolic_min = symbolic_min
-        self._symbolic_max = symbolic_max
-        self._symbolic_size = symbolic_size
+        # A NumPy number, e.g. a bound computed with NumPy, as a Python one
+        self._symbolic_min, self._symbolic_max, self._symbolic_size = (
+            i.item() if isinstance(i, np.number) else i
+            for i in (symbolic_min, symbolic_max, symbolic_size)
+        )
         self._parent = parent or BOTTOM
         self._local = local
         super().__init_finalize__(name)
