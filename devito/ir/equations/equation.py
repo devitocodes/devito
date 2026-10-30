@@ -197,10 +197,9 @@ class Operation(Tag):
             ReduceMin: OpMin,
             ReduceMinMax: OpMinMax
         }
-        try:
-            return reduction_mapper[type(expr)]
-        except KeyError:
-            pass
+        for i in type(expr).__mro__:
+            if i in reduction_mapper:
+                return reduction_mapper[i]
 
         # NOTE: in the future we might want to track down other kinds
         # of operations here (e.g., memcpy). However, we don't care for
