@@ -36,6 +36,7 @@ class CartesianDiscretization:
     """
 
     is_Grid = False
+    is_Curvilinear = False
     is_SubDomain = False
     is_MultiSubDomain = False
 
@@ -236,7 +237,7 @@ class Grid(CartesianDiscretization, ArgProvider):
             i.__subdomain_finalize_legacy__(self)
 
     def __repr__(self):
-        return 'Grid' + \
+        return type(self).__name__ + \
             f'[extent={self.extent}, shape={self.shape}, dimensions={self.dimensions}]'
 
     @cached_property
@@ -304,6 +305,37 @@ class Grid(CartesianDiscretization, ArgProvider):
     def volume_cell(self):
         """Volume of a single cell e.g  h_x*h_y*h_z in 3D."""
         return sympy.prod(d.spacing for d in self.dimensions).subs(self.spacing_map)
+
+    def jacobian_at(self, location):
+        """
+        The Jacobian of the map from computational to physical coordinates at
+        `location`, a mapper from Dimensions to points: 1 on a Grid, whose
+        coordinates are physical (see CurvilinearGrid).
+        """
+        return sympy.S.One
+
+    def inverse_jacobian_at(self, location):
+        """The inverse of the Jacobian at `location`: 1."""
+        return sympy.S.One
+
+    @cached_property
+    def min_spacing(self):
+        """The smallest physical distance between neighboring nodes."""
+        return np.min(self.spacing)
+
+    def to_computational(self, points):
+        """
+        The computational coordinates of the physical `points`, an array of
+        shape `(npoint, ndim)`: the points themselves on a Grid.
+        """
+        return np.asarray(points)
+
+    def to_physical(self, points):
+        """
+        The physical coordinates of the computational `points`, an array of
+        shape `(npoint, ndim)`: the points themselves on a Grid.
+        """
+        return np.asarray(points)
 
     @cached_property
     def spacing(self):
