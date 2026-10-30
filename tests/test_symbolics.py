@@ -193,6 +193,31 @@ def test_timefunction():
                                t.bound_symbols | x.bound_symbols | y.bound_symbols)
 
 
+@pytest.mark.parametrize('expr,expected', [
+    ('w', 'w[x, y]'),
+    ('w.subs(y, y + 3)', 'w[x, y + 3]'),
+    ('w.subs(y, 4)', 'w[x, 4]'),
+    ('w.subs(y, 7 - y)', 'w[x, 7 - y]'),
+    ('w.subs(y, 2*y)', 'w[x, 2*y]'),
+    ('w.subs(y, 2*y + 1)', 'w[x, 2*y + 1]'),
+    ('f.subs(y, 7 - y)', 'f[x, 7 - y]'),
+    ('w._subs(w.indices[1], INT(Abs(w.indices[1])))', 'w[x, (int)Abs(y)]'),
+    ('w._subs(w.indices[1], sympy.floor(w.indices[1]))', 'w[x, floor(y)]'),
+])
+def test_indexify_staggered(expr, expected):
+    """
+    The index of a staggered Function at a negated or scaled Dimension is its
+    position minus the staggering, not the Dimension shifted by the staggering.
+    Index wrappers, casts, absolute values and roundings, keep wrapping it.
+    """
+    grid = Grid(shape=(11, 11))
+    x, y = grid.dimensions
+    w = Function(name='w', grid=grid, staggered=y)  # noqa
+    f = Function(name='f', grid=grid)  # noqa
+
+    assert str(eval(expr).indexify()) == expected
+
+
 def test_indexed():
     grid = Grid(shape=(10, 10))
     x, y = grid.dimensions
