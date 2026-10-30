@@ -1,5 +1,6 @@
 from devito import NODE, Eq, Function, Inc, Operator, TimeFunction, cos, sin, solve, sqrt
-from examples.seismic.acoustic.operators import freesurface
+from examples.seismic.acoustic.operators import time_terms, update_factor
+from examples.seismic.free_surface import fold, mirror, update_domain
 
 
 def _subs(func, d, d0):
@@ -15,28 +16,18 @@ def second_order_stencil(model, u, v, H0, Hz, qu, qv, forward=True):
     m * u.dt2 =  (epsilon * H0 + delta * Hz) - damp * u.dt
     m * v.dt2 =  (delta * H0 + Hz) - damp * v.dt
     """
-    m, damp = model.m, model.damp
-
-    unext = u.forward if forward else u.backward
-    vnext = v.forward if forward else v.backward
-    udt = u.dt if forward else u.dt.T
-    vdt = v.dt if forward else v.dt.T
+    # The time derivatives, those of the acoustic wave equation
+    terms_u, unext = time_terms(u, model, forward)
+    terms_v, vnext = time_terms(v, model, forward)
 
     # Stencils
-    stencilp = solve(m * u.dt2 - H0 - qu + damp * udt, unext)
-    stencilr = solve(m * v.dt2 - Hz - qv + damp * vdt, vnext)
+    stencilp = solve(terms_u - H0 - qu, unext)
+    stencilr = solve(terms_v - Hz - qv, vnext)
 
-    first_stencil = Eq(unext, stencilp, subdomain=model.grid.subdomains['physdomain'])
-    second_stencil = Eq(vnext, stencilr, subdomain=model.grid.subdomains['physdomain'])
+    first_stencil = Eq(unext, stencilp, subdomain=update_domain(model, forward))
+    second_stencil = Eq(vnext, stencilr, subdomain=update_domain(model, forward))
 
-    stencils = [first_stencil, second_stencil]
-
-    # Add free surface
-    if model.fs:
-        stencils.append(freesurface(model, Eq(unext, stencilp)))
-        stencils.append(freesurface(model, Eq(vnext, stencilr)))
-
-    return stencils
+    return [first_stencil, second_stencil]
 
 
 def trig_func(model):
@@ -474,6 +465,7 @@ def ForwardOperator(model, geometry, space_order=4,
     # Source and receivers
     expr = src * dt / m if kernel == 'staggered' else src * dt**2 / m
     stencils += src.inject(field=(u.forward, v.forward), expr=expr)
+    stencils += mirror(model, u.forward) + mirror(model, v.forward)
     stencils += rec.interpolate(expr=u + v)
 
     # Substitute spacing terms to reduce flops
@@ -521,6 +513,10 @@ def AdjointOperator(model, geometry, space_order=4,
     # Construct expression to inject receiver values
     expr = rec * dt / m if kernel == 'staggered' else rec * dt**2 / m
     stencils += rec.inject(field=(p.backward, r.backward), expr=expr)
+    if model.fs:
+        # The transpose of the free surface, which only the centered kernel has
+        stencils += fold(model, p.backward, update_factor(p, model, forward=False))
+        stencils += fold(model, r.backward, update_factor(r, model, forward=False))
 
     # Create interpolation expression for the adjoint-source
     stencils += srca.interpolate(expr=p + r)
@@ -582,7 +578,10 @@ def JacobianOperator(model, geometry, space_order=4,
     rec_term = rec.interpolate(expr=du + dv)
 
     # Substitute spacing terms to reduce flops
-    return Operator(eqn1 + src_term + eqn2 + rec_term, subs=model.spacing_map,
+    fs = mirror(model, u0.forward) + mirror(model, v0.forward)
+    fs_lin = mirror(model, du.forward) + mirror(model, dv.forward)
+    return Operator(eqn1 + src_term + fs + eqn2 + fs_lin + rec_term,
+                    subs=model.spacing_map,
                     name='BornTTI', **kwargs)
 
 
@@ -632,7 +631,9 @@ def JacobianAdjOperator(model, geometry, space_order=4,
     rec_term = rec.inject(field=(du.backward, dv.backward), expr=rec * dt**2 / m)
 
     # Substitute spacing terms to reduce flops
-    return Operator(eqn + rec_term + [dm_update], subs=model.spacing_map,
+    fs = fold(model, du.backward, update_factor(du, model, forward=False)) + \
+        fold(model, dv.backward, update_factor(dv, model, forward=False))
+    return Operator(eqn + rec_term + fs + [dm_update], subs=model.spacing_map,
                     name='GradientTTI', **kwargs)
 
 
