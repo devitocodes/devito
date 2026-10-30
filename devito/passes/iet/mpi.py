@@ -210,8 +210,11 @@ def _hoist_invariant(iet):
                 # data dependences
                 if hsf1.issubset(hsf0) and _is_iter_carried(hsf1, scope):
                     hs, hsf = hs1, hsf1
-                elif hsf0.issubset(hsf1) and hs0 is halo_spots[0]:
-                    # Special case
+                elif hsf0.issubset(hsf1) and hs0 is halo_spots[0] and \
+                        _is_iter_carried(hsf0, _derive_scope(it, it, hs0)):
+                    # Special case: the first HaloSpot reads what the last one
+                    # exchanged in the previous iteration, as long as no write
+                    # before it within the iteration flows into its reads
                     hs, hsf = hs0, hsf0
                 else:
                     # No hoisting possible, skip
