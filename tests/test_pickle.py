@@ -25,7 +25,7 @@ from devito.symbolics import (
     as_long, indexify, pow_to_mul
 )
 from devito.symbolics.unevaluation import Mod
-from devito.tools import EnrichedTuple
+from devito.tools import EnrichedTuple, dtypes_vector_mapper
 from devito.types import (
     Array, ComponentAccess, CustomDimension, DefaultDimension, DeviceID, FIndexed,
     Indirection, Lock, NPThreads, PointerArray, PThreadArray, Scalar, SharedData
@@ -499,6 +499,17 @@ class TestBasic:
 
         assert new_ca.index == 1
         assert new_ca.function.name == f.name
+
+    @pytest.mark.parametrize('base,count', [(np.float32, 4), (np.float64, 2)])
+    def test_vector_symbol_component_dtype(self, pickle, base, count):
+        vector = dtypes_vector_mapper[(base, count)]
+        acc = dSymbol(name='acc', dtype=vector)
+        component = ComponentAccess(acc, 1)
+
+        restored = pickle.loads(pickle.dumps(component))
+
+        assert restored.function.dtype == vector
+        assert restored.dtype == base
 
     def test_symbolics(self, pickle):
         a = Symbol('a')
