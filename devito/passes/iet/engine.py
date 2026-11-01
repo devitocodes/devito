@@ -558,7 +558,8 @@ def abstract_objects(objects0):
     # higher priority objects
     keys = [Bundle, Array, DiscreteFunction, AbstractIncrDimension, BlockDimension]
     priority = {k: i for i, k in enumerate(keys, start=1)}
-    objects = sorted_priority(objects, priority)
+    # Equal objects can have distinct identities after expression caching
+    objects = sorted_priority(filter_ordered(objects), priority)
 
     # Build abstraction mappings
     mapper = {}

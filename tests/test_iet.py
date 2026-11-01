@@ -619,6 +619,29 @@ def test_reuse_efuncs_constant_arrays(shared):
     assert FindNodes(Call).visit(efuncs['foo0'])[0].arguments == (a,)
 
 
+def test_reuse_efuncs_equal_pointers():
+    p = Pointer(name='p')
+    equal_p = Pointer(name='p')
+    src = Pointer(name='src')
+    assert p == equal_p and p is not equal_p
+
+    # A cached expression can retain an equal, identity-distinct pointer
+    foo0 = make_callable('foo0', List(body=[
+        DummyExpr(p, src), Call('bar', p)
+    ]))
+    foo1 = make_callable('foo1', List(body=[
+        DummyExpr(p, src), Call('bar', equal_p)
+    ]))
+    root = make_callable('root', List(body=[
+        Call(foo0.name, foo0.parameters), Call(foo1.name, foo1.parameters)
+    ]))
+    efuncs = reuse_efuncs(root, {i.name: i for i in (root, foo0, foo1)})
+
+    assert set(efuncs) == {'root', 'foo0'}
+    calls = FindNodes(Call).visit(efuncs[root.name])
+    assert [i.name for i in calls] == ['foo0', 'foo0']
+
+
 def test_sorted_efuncs_natural_numbering():
     names = ['kernel3', 'foo0', 'kernel11', 'kernel1', 'kernel2']
     efuncs = [make_callable(name, List()) for name in names]
