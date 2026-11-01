@@ -93,6 +93,7 @@ class DTypesVectorMapper(dict):
 
     def get_base_dtype(self, v, default=None):
         for (base_dtype, _), dtype in self.items():
+            # Pickling reconstructs equal structured dtypes as distinct objects.
             if dtype == v:
                 return base_dtype
 
