@@ -14,9 +14,7 @@ from devito.ir.support import SymbolRegistry
 from devito.mpi.distributed import MPINeighborhood
 from devito.mpi.routines import Gather, HaloUpdate, HaloWait, MPIMsg, Scatter
 from devito.passes import needs_transfer
-from devito.symbolics import (
-    FieldFromComposite, FieldFromPointer, IndexedPointer, search, uxreplace
-)
+from devito.symbolics import FieldFromComposite, FieldFromPointer, IndexedPointer, search
 from devito.tools import (
     DAG, as_hashable, as_tuple, filter_ordered, memoized_func, natural_sort_key,
     sorted_priority, timed_pass
@@ -136,10 +134,6 @@ class Graph(Byproduct):
 
         Callable parameters and Call arguments are reconciled before the graph
         walk, after each changed node, and after the pass has completed.
-
-        The returned metadata may include `args`, a mapping from new parameters
-        to expressions in the original parameters. Each call site instantiates
-        these expressions using its own argument bindings.
         """
         _update_args(self)
 
@@ -172,7 +166,7 @@ class Graph(Byproduct):
             efuncs[i] = efunc
             efuncs.update(dict([(i.name, i) for i in new_efuncs]))
 
-            efuncs = _update_args_efunc(efunc, efuncs, dag, metadata.get('args'))
+            efuncs = _update_args_efunc(efunc, efuncs, dag)
 
         # Minimize code size
         if len(efuncs) > len(self.efuncs):
@@ -735,7 +729,7 @@ def _(i, mapper, sregistry):
     mapper[i] = i._rebuild(name=sregistry.make_name(prefix='nthreads'))
 
 
-def _update_args_efunc(root, efuncs, dag, args=None):
+def _update_args_efunc(root, efuncs, dag):
     """
     Re-derive the parameters of `root` and apply the changes in cascade through
     the `efuncs`.
@@ -797,40 +791,25 @@ def _update_args_efunc(root, efuncs, dag, args=None):
     if not (new_params or drop_params):
         return efuncs
 
+    # Decide additions from the signature, since an existing Call argument may
+    # bind the same symbol to a different parameter.
+    new_params = [a for a in new_params if a not in root.parameters]
+
+    if isinstance(root, EntryFunction):
+        # Temporaries (e.g., Arrays) *cannot* be arguments of an EntryFunction.
+        # These remain for now undefined inside `root`.
+        new_params = [a for a in new_params if isinstance(a, ArgProvider)]
+
     # Create the new parameters and arguments lists
-
-    def _filter(v, efunc=None):
-        processed = [a for i, a in enumerate(v) if i not in drop_params]
-
-        for a in new_params:
-            if a in processed:
-                # A child efunc trying to add a symbol already added by a
-                # sibling efunc
-                continue
-
-            if isinstance(efunc, EntryFunction) and not isinstance(a, ArgProvider):
-                # Temporaries (e.g., Arrays) *cannot* be arguments of an
-                # EntryFunction. So if we end up here, `a` remains for
-                # now undefined inside `efunc`
-                continue
-
-            processed.append(a)
-
-        return processed
+    def _filter(v):
+        return [a for i, a in enumerate(v) if i not in drop_params] + new_params
 
     efuncs = dict(efuncs)
-    efuncs[root.name] = root._rebuild(parameters=_filter(root.parameters, root))
-
-    def _filter_call(values):
-        mapper = {}
-        if args:
-            bindings = dict(zip(root.parameters, values, strict=True))
-            mapper = {p: uxreplace(expr, bindings) for p, expr in args.items()}
-        return [mapper.get(a, a) for a in _filter(values)]
+    efuncs[root.name] = root._rebuild(parameters=_filter(root.parameters))
 
     # Update all call sites to use the new signature
     for n in dag.downstream(root.name):
-        mapper = {c: c.rebuild_args(_filter_call)
+        mapper = {c: c._rebuild(arguments=_filter(c.arguments))
                   for c in FindNodes(Call).visit(efuncs[n])
                   if c.name == root.name}
         if not mapper:

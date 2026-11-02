@@ -570,25 +570,45 @@ def test_const_pointer_parameter():
     assert 'void foo(float * const p)' in str(foo)
 
 
-def test_graph_parameter_bindings():
-    x, y, a, b, p = [Symbol(name=n) for n in ('x', 'y', 'a', 'b', 'p')]
+@pytest.mark.parametrize('local', [False, True])
+@pytest.mark.parametrize('collision', [False, True])
+def test_graph_parameters(local, collision):
+    x, y, a, b, c, d, p = [Symbol(name=n) for n in ('x', 'y', 'a', 'b',
+                                                 'c', 'd', 'p')]
     inner = Callable('inner', Call('external', (x, y)), 'void', parameters=(x, y))
-    root = make_callable('root', [Call('inner', (a + 1, b)),
-                                  Call('inner', (b, a + 2))])
+    calls = [Call('inner', (a + 1, b)),
+             Call('inner', (p if collision else b, a + 2))]
+    body = [DummyExpr(p, a + b, init=True), *calls] if local else calls
+    middle = Callable('middle', body, 'void', parameters=(a, b))
+    root = Callable('root', [Call('middle', (c + 1, d)),
+                             Call('middle', (d, c + 2))],
+                    'void', parameters=(c, d))
     graph = Graph(root)
-    graph.apply(lambda iet: (iet, {'efuncs': [inner]}))
+    graph.efuncs.update({i.name: i for i in (middle, inner)})
 
     def transform(iet):
         if iet.name != 'inner':
             return iet, {}
-        return iet._rebuild(body=Call('external', (p,))), {'args': {p: x + y}}
+        return iet._rebuild(body=Call('external', (x, p))), {}
 
     graph.apply(transform)
 
-    assert graph.efuncs['inner'].parameters == (p,)
-    assert [c.arguments for c in FindNodes(Call).visit(graph.root)] == [
-        (a + b + 1,), (a + b + 2,)
+    assert graph.efuncs['inner'].parameters == (x, p)
+    middle = graph.efuncs['middle']
+    if local:
+        assert middle.parameters == (a, b)
+        expected = [(c + 1, d), (d, c + 2)]
+    elif collision:
+        assert middle.parameters == (a, p)
+        expected = [(c + 1, p), (d, p)]
+    else:
+        assert middle.parameters == (a, b, p)
+        expected = [(c + 1, d, p), (d, c + 2, p)]
+    assert [i.arguments for i in FindNodes(Call).visit(middle)] == [
+        (a + 1, p), (p if collision else b, p)
     ]
+    assert graph.root.parameters == ((c, d) if local else (c, d, p))
+    assert [i.arguments for i in FindNodes(Call).visit(graph.root)] == expected
 
 
 @pytest.mark.parametrize('ftype', [EntryFunction, DeviceFunction])

@@ -344,10 +344,6 @@ class Call(ExprStmt, Node):
             kwargs['arguments'] = [mapper.get(i, i) for i in self.arguments]
         return super()._rebuild(**kwargs)
 
-    def rebuild_args(self, func):
-        """Rebuild the Call, applying `func` to its callee's arguments."""
-        return self._rebuild(arguments=func(self.arguments))
-
     @property
     def children(self):
         return tuple(i for i in self.arguments if isinstance(i, (Call, Lambda)))
