@@ -2298,6 +2298,26 @@ class TestLoopScheduling:
         readers = [c for c in clusters if f in c.scope.reads]
         assert readers[0].syncs == c1.syncs
 
+    def test_wait_leaves_scope_untouched(self):
+        """
+        A wait on a Function orders its readers upon scheduling, but it is not
+        an access of the waiting Cluster: e.g., a copy of a prefetched Function
+        into shared memory remains a write to shared memory only.
+        """
+        grid = Grid(shape=(4, 4))
+
+        f = Function(name='f', grid=grid)
+        shm = Array(name='shm', dimensions=grid.dimensions, scope='shared')
+        lock = Lock(name='lock', dimensions=CustomDimension(name='ld', symbolic_size=1))
+
+        expr, = [LoweredEq(i) for i in lower_exprs([Eq(shm, f)])]
+        c = Cluster(expr, expr.ispace)
+        c = c.rebuild(syncs={grid.dimensions[1]: (WaitLock(lock[0], f),)})
+
+        assert set(c.scope.writes) == {shm}
+        assert c.is_shm_write
+        assert f in c.sync_scope.writes
+
     def test_nonadjacent_constraints_preserve_directions(self):
         """
         Constraints inferred from non-adjacent Clusters must not replace the

@@ -157,6 +157,14 @@ class EqBlock(CacheInstances):
 
     @cached_property
     def scope(self):
+        return Scope(self.exprs)
+
+    @cached_property
+    def sync_scope(self):
+        """
+        The Scope of `self` augmented with the accesses of its syncs, for
+        scheduling only: no access to the target of a wait floats above it.
+        """
         reads, writes = extract_accesses(self)
         return Scope(self.exprs, reads=reads, writes=writes)
 
@@ -688,6 +696,14 @@ class ClusterGroup(tuple):
 
     @cached_property
     def scope(self):
+        return Scope(exprs=self.exprs)
+
+    @cached_property
+    def sync_scope(self):
+        """
+        The Scope of `self` augmented with the accesses of its syncs, for
+        scheduling only: no access to the target of a wait floats above it.
+        """
         reads, writes = extract_accesses(self)
         return Scope(exprs=self.exprs, reads=reads, writes=writes)
 
