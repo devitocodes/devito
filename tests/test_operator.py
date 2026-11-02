@@ -198,6 +198,19 @@ class TestOperatorSetup:
         assert op0._soname != op1._soname
         assert op1._soname == op2._soname
 
+    @pytest.mark.parametrize('name', ['r0', 'r1'])
+    def test_generated_names_avoid_inputs(self, name):
+        grid = Grid(shape=(8, 8), extent=(7., 7.))
+        f = Function(name=name, grid=grid, space_order=4)
+        u = Function(name='u', grid=grid)
+        x, y = np.indices(f.data_with_halo.shape, dtype=np.float32)
+        f.data_with_halo[:] = x + 2*y
+
+        op = Operator(Eq(u, f.dx + f.dy))
+        op.apply()
+
+        np.testing.assert_allclose(u.data, 3., rtol=1.e-5, atol=1.e-6)
+
 
 class TestCodeGen:
 
