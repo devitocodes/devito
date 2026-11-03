@@ -14,7 +14,11 @@ from devito.finite_differences.differentiable import (
     IndexSum, Weights, interp_for_fd
 )
 from devito.finite_differences.finite_difference import _PRECISION
-from devito.symbolics import indexify, retrieve_indexed
+from devito.ir import Cluster, SymbolRegistry
+from devito.passes.clusters.derivatives import _lower_index_derivatives
+from devito.symbolics import DefFunction, ListInitializer, indexify, retrieve_indexed
+from devito.tools import dtypes_vector_mapper
+from devito.types import Array, Temp
 from devito.types.dimension import StencilDimension
 from devito.types.grid import DerivedSubDomain
 from devito.warnings import DevitoWarning
@@ -1190,6 +1194,56 @@ class TestTwoStageEvaluation:
 
         assert IndexDerivative(vi0*w, {x: i},
                                properties=idxder1.properties) == vi1
+
+    @pytest.mark.parametrize('width', [1, 2])
+    @pytest.mark.parametrize('reuse', [False, True])
+    def test_index_derivative_vector(self, width, reuse):
+        grid = Grid((10,))
+        x, = grid.dimensions
+        i = StencilDimension('i', 0, 2)
+        dtype = dtypes_vector_mapper[np.float32, width]
+        v = Temp(name='v', dtype=dtype)
+        w = Weights(name='w', dimensions=i, initvalue=[-1., 0., 1.])
+        ideriv = IndexDerivative(w[i]*v, {x: i})
+
+        assert ideriv._rebuild() == ideriv
+        assert ideriv.dtype == dtype
+        replacement = Temp(name='replacement', dtype=np.float64)
+        assert ideriv.xreplace({v: replacement}).dtype == np.float64
+
+        if reuse:
+            out = Temp(name='out', dtype=dtype)
+        else:
+            out = Array(name='out', dimensions=(x,), shape=(10,), dtype=dtype)[x]
+
+        # Exercise the generic reduction lowering without a vector-arithmetic backend
+        clusters, _, _ = _lower_index_derivatives(
+            [Cluster(Eq(out, ideriv))], sregistry=SymbolRegistry(), subs={}
+        )
+        init = clusters[0].exprs[0]
+        increment = clusters[1].exprs[0]
+        assert init.lhs.dtype == dtype
+        expected = 0 if width == 1 else ListInitializer(0, 0)
+        assert init.rhs == expected
+        assert increment.lhs == init.lhs
+        assert (init.lhs == out) == reuse
+
+    def test_index_derivative_incompatible_reuse(self):
+        grid = Grid((10,))
+        x, = grid.dimensions
+        i = StencilDimension('i', 0, 2)
+        v = Temp(name='v', dtype=np.float32)
+        out = Temp(name='out', dtype=dtypes_vector_mapper[np.float32, 2])
+        w = Weights(name='w', dimensions=i, initvalue=[-1., 0., 1.])
+        ideriv = IndexDerivative(w[i]*v, {x: i})
+
+        # A vector result cannot be reused for a scalar reduction in one component
+        expr = Eq(out, DefFunction('pack', (ideriv, 0)))
+        clusters, _, _ = _lower_index_derivatives(
+            [Cluster(expr)], sregistry=SymbolRegistry(), subs={}
+        )
+        init = clusters[0].exprs[0]
+        assert init.lhs != out and init.lhs.dtype == np.float32
 
     def test_dx2(self):
         grid = Grid(shape=(4, 4))

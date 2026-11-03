@@ -1174,8 +1174,11 @@ class NvidiaDevice(Device):
         elif query == 'async-pipe' and cc >= 80:
             # Asynchronous pipeline loads -- introduced in Ampere
             return True
-        elif query in ('tma', 'thread-block-cluster') and cc >= 90:  # noqa: SIM103
+        elif query in ('tma', 'thread-block-cluster') and cc >= 90:
             # Tensor Memory Accelerator -- introduced in Hopper
+            return True
+        elif query == 'fp32x2' and cc >= 100:  # noqa: SIM103
+            # Paired FP32 arithmetic -- introduced in Blackwell
             return True
         else:
             return False
@@ -1208,7 +1211,12 @@ class Hopper(Ampere):
 
 
 class Blackwell(Hopper):
-    pass
+
+    def supports(self, query, language=None):
+        if query == 'fp32x2':
+            return language == 'cuda'
+        else:
+            return super().supports(query, language)
 
 
 class AmdDevice(Device):

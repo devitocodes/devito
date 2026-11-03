@@ -190,8 +190,9 @@ def _generate_macros_findexeds(iet, sregistry=None, tracker=None, **kwargs):
 
     subs = {}
     for i in findexeds:
+        key = (i.base, i.strides_map)
         try:
-            v = tracker[i.base].v
+            v = tracker[key].v
             subs[i] = v.func(v.base, *i.indices)
             continue
         except KeyError:
@@ -201,7 +202,7 @@ def _generate_macros_findexeds(iet, sregistry=None, tracker=None, **kwargs):
         header, v = i.bind(pname)
 
         subs[i] = v
-        tracker[i.base] = Bunch(header=header, v=v)
+        tracker[key] = Bunch(header=header, v=v)
 
     iet = Uxreplace(subs).visit(iet)
 

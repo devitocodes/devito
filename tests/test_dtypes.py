@@ -1,3 +1,4 @@
+import pickle
 from pathlib import Path
 
 import numpy as np
@@ -18,8 +19,10 @@ from devito.passes.iet.languages.C import CBB, CPrinter
 from devito.passes.iet.languages.CXX import CXXPrinter
 from devito.passes.iet.languages.openacc import AccBB, AccPrinter
 from devito.passes.iet.languages.openmp import CXXOmpBB, OmpBB
+from devito.symbolics import DefFunction, sympy_dtype
 from devito.symbolics.extended_dtypes import ctypes_vector_mapper
-from devito.tools import dtype_to_cstr
+from devito.tools import dtype_to_cstr, dtypes_vector_mapper, extract_dtype, infer_dtype
+from devito.types import ComponentAccess
 from devito.types.basic import Basic, Scalar, Symbol
 from devito.types.dense import TimeFunction
 from devito.types.sparse import SparseTimeFunction
@@ -77,6 +80,27 @@ _configs: list[dict[str, str]] = [
 def kw_id(kwargs):
     # For more readable log
     return "-".join(f'{k}' for k in kwargs.values())
+
+
+def test_vector_inference():
+    dtype = dtypes_vector_mapper[np.float32, 2]
+    v = Symbol(name='v', dtype=dtype)
+    a = Symbol(name='a', dtype=np.float32)
+    expr = 2*v + a
+
+    assert extract_dtype(expr) == dtype
+    assert extract_dtype(ComponentAccess(v, 0)) == np.float32
+    assert sympy_dtype(expr) == np.float32
+    assert infer_dtype([dtype, np.float32]) == np.float32
+    assert infer_dtype([pickle.loads(pickle.dumps(dtype))], vector=True) == dtype
+    assert (infer_dtype([dtype, np.float64], vector=True) ==
+            dtypes_vector_mapper[np.float64, 2])
+    assert infer_dtype([dtype, np.complex64], vector=True) == np.complex64
+
+    f = Function(name='f', grid=Grid(shape=(4,)))
+    for expr in (f + v, f*v, (f + v)**2):
+        assert expr.dtype == extract_dtype(expr) == dtype
+    assert (f + ComponentAccess(v, 0)).dtype == np.float32
 
 
 @pytest.mark.parametrize('dtype', [np.complex64, np.complex128])
@@ -243,6 +267,15 @@ def test_printer_registry() -> None:
 
     float16 = get_printer(CPrinter, np.float16)
     assert get_printer(CPrinter, np.float16) is float16
+
+
+@pytest.mark.parametrize('cls', [CPrinter, CXXPrinter])
+@pytest.mark.parametrize('dtype,suffix', [(np.float32, 'F'), (np.float64, '')])
+def test_vector_operand_precision(cls, dtype, suffix):
+    printer = cls({'dtype': dtypes_vector_mapper[dtype, 2]})
+    a = Symbol(name='a', dtype=dtype)
+    expr = DefFunction('make_float2', [a + sympy.Float('0.1'), sympy.Float('0.2')])
+    assert printer.doprint(expr) == f'make_float2(a + 1.0e-1{suffix},2.0e-1{suffix})'
 
 
 @pytest.mark.parametrize('dtype', [np.complex64, np.complex128])

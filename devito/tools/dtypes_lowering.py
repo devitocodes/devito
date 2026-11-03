@@ -15,8 +15,8 @@ __all__ = ['int2', 'int3', 'int4', 'float2', 'float3', 'float4', 'double2',  # n
            'double3', 'double4', 'dtypes_vector_mapper', 'dtype_to_mpidtype',
            'dtype_to_cstr', 'dtype_to_ctype', 'infer_datasize', 'dtype_to_mpitype',
            'dtype_len', 'ctypes_to_cstr', 'c_restrict_void_p', 'ctypes_vector_mapper',
-           'is_external_ctype', 'infer_dtype', 'extract_dtype', 'CustomDtype',
-           'mpi4py_mapper', 'as_fp64_decimal']
+           'is_external_ctype', 'infer_dtype', 'infer_dtype_from_args', 'extract_dtype',
+           'CustomDtype', 'mpi4py_mapper', 'as_fp64_decimal']
 
 
 def as_fp64_decimal(v):
@@ -93,7 +93,7 @@ class DTypesVectorMapper(dict):
 
     def get_base_dtype(self, v, default=None):
         for (base_dtype, _), dtype in self.items():
-            if dtype is v:
+            if dtype == v:
                 return base_dtype
 
         if default is not None:
@@ -357,14 +357,19 @@ def is_numpy_dtype(dtype):
         return False
 
 
-def infer_dtype(dtypes):
+def infer_dtype(dtypes, vector=False):
     """
     Given a set of np.dtypes, return the "winning" dtype:
 
         * In the case of multiple floating dtypes, return the dtype with
           highest precision;
         * If there's at least one floating dtype, ignore any integer dtypes.
+
+    If `vector=True`, preserve vector length when a matching vector dtype exists.
     """
+    dtypes = set(dtypes)
+    n = max(map(dtype_len, dtypes), default=1) if vector else 1
+
     # Resolve the vector types, if any
     dtypes = {dtypes_vector_mapper.get_base_dtype(i, i) for i in dtypes}
     # Only keep number types
@@ -373,19 +378,37 @@ def infer_dtype(dtypes):
     fdtypes = {i for i in dtypes if np.issubdtype(i, np.floating) or
                np.issubdtype(i, np.complexfloating)}
     if len(fdtypes) > 1:
-        return max(fdtypes, key=lambda i: np.dtype(i).itemsize)
+        dtype = max(fdtypes, key=lambda i: np.dtype(i).itemsize)
     elif len(fdtypes) == 1:
-        return fdtypes.pop()
+        dtype = fdtypes.pop()
     elif len(dtypes) == 1:
-        return dtypes.pop()
+        dtype = dtypes.pop()
     else:
         # E.g., mixed integer arithmetic
-        return max(dtypes, key=lambda i: np.dtype(i).itemsize, default=None)
+        dtype = max(dtypes, key=lambda i: np.dtype(i).itemsize, default=None)
+
+    return dtypes_vector_mapper.get((dtype, n), dtype)
 
 
 def extract_dtype(expr):
-    """Extract the "winning" dtype from an expression"""
-    dtypes = {getattr(e, 'dtype', None)
-              for e in expr.free_symbols}
+    """
+    Extract the result dtype, retaining typed vector operands such as float2.
+    """
+    try:
+        dtype = expr.dtype
+    except AttributeError:
+        pass
+    else:
+        if dtype is not None:
+            return dtype
 
-    return infer_dtype(dtypes - {None})
+    return infer_dtype_from_args(expr.args)
+
+
+def infer_dtype_from_args(args):
+    """
+    Infer the result dtype from expression operands, retaining vector types.
+    """
+    dtypes = {extract_dtype(i) for i in args} - {None}
+
+    return infer_dtype(dtypes, vector=True)

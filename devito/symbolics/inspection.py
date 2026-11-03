@@ -311,7 +311,7 @@ def has_integer_args(*args):
 
 def sympy_dtype(expr, base=None, default=None, smin=None):
     """
-    Infer the dtype of the expression.
+    Infer the scalar precision of the expression.
     """
     if expr is None:
         return default

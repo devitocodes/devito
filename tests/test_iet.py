@@ -12,8 +12,8 @@ from devito.ir import SymbolRegistry
 from devito.ir.iet import (
     Call, Callable, CGen, Conditional, Definition, Dereference, DeviceCall, DummyExpr,
     ElementalFunction, FindNodes, FindSymbols, Iteration, KernelLaunch, Lambda, List,
-    MacroStatement, MapExprStmts, Switch, Transformer, filter_iterations, make_callable,
-    make_efunc, retrieve_iteration_tree
+    MacroStatement, MapExprStmts, Switch, Transformer, Uxreplace, filter_iterations,
+    make_callable, make_efunc, retrieve_iteration_tree
 )
 from devito.ir.iet.visitors import sorted_efuncs
 from devito.passes.iet.engine import Graph, reuse_efuncs
@@ -147,6 +147,20 @@ def test_macro_statement_visitors():
     rebuilt = Transformer({macro: replacement}).visit(body)
     assert str(rebuilt) == 'OTHER_MACRO;\nbar();'
     assert str(body) == 'MY_MACRO;\nbar();'
+
+
+def test_uxreplace_dereference_offset():
+    d = CustomDimension(name='d', symbolic_size=4)
+    array = Array(name='a0', dimensions=(d,), shape=(4,), scope='shared')
+    pointer = Pointer(name='sm7')
+    old, new = Symbol(name='off7'), Symbol(name='off0')
+    node = Dereference(array, pointer, offset=old + 32)
+
+    replaced = Uxreplace({old: new}).visit(node)
+
+    assert replaced.offset == new + 32
+    assert replaced.pointee is array
+    assert replaced.pointer is pointer
 
 
 @pytest.mark.parametrize('mode,expected', [
@@ -571,14 +585,17 @@ def test_codegen_quality0():
     assert foo1.parameters[0] is a
 
 
-def test_reuse_efuncs_natural_numbering():
+@pytest.mark.parametrize('copy_symbols', [False, True])
+def test_reuse_efuncs_natural_numbering(copy_symbols):
 
-    def make_foo(name, start):
+    def make_foo(name, start, copies=False):
         pointers = [Pointer(name=f'p{i}') for i in range(start, start + 3)]
-        return make_callable(name, Call('bar', pointers))
+        aliases = [p._rebuild() for p in pointers] if copies else pointers
+        return make_callable(name, List(body=[Call('bar', pointers),
+                                              Call('bar', aliases)]))
 
     foo0 = make_foo('foo0', 0)
-    foo1 = make_foo('foo1', 9)
+    foo1 = make_foo('foo1', 9, copies=copy_symbols)
 
     root = make_callable('root', List(body=[
         Call(foo0.name, foo0.parameters),
@@ -591,6 +608,21 @@ def test_reuse_efuncs_natural_numbering():
     assert set(efuncs) == {'root', 'foo0'}
     calls = FindNodes(Call).visit(efuncs[root.name])
     assert [i.name for i in calls] == ['foo0', 'foo0']
+
+
+@pytest.mark.parametrize('shared', [False, True])
+def test_reuse_efuncs_constant_arrays(shared):
+    d = Dimension(name='d')
+    a = Array(name='a', dimensions=d, shape=(2,), scope='constant',
+              initvalue=(1, 2))
+    b = a if shared else a._rebuild(name='b')
+    foo0 = make_callable('foo0', Call('consume', (a,)))
+    foo1 = make_callable('foo1', Call('consume', (b,)))
+    root = make_callable('root', List(body=[Call('foo0'), Call('foo1')]))
+    efuncs = reuse_efuncs(root, {i.name: i for i in (root, foo0, foo1)})
+
+    assert len(efuncs) == (2 if shared else 3)
+    assert FindNodes(Call).visit(efuncs['foo0'])[0].arguments == (a,)
 
 
 def test_sorted_efuncs_natural_numbering():
