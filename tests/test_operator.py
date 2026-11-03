@@ -25,18 +25,21 @@ from devito import (  # noqa
 from devito.arch.archinfo import Device
 from devito.exceptions import InvalidOperator
 from devito.finite_differences.differentiable import diff2sympy
-from devito.ir.equations import ClusterizedEq
+from devito.ir.clusters import Cluster
+from devito.ir.equations import ClusterizedEq, LoweredEq
 from devito.ir.equations.algorithms import lower_exprs
 from devito.ir.iet import (
     Callable, Conditional, Expression, FindNodes, FindSymbols, IsPerfectIteration,
     Iteration, TimedList, retrieve_iteration_tree
 )
-from devito.ir.support import Any, Backward, Forward
+from devito.ir.support import Any, Backward, Forward, WaitLock
+from devito.passes.clusters import fuse
 from devito.passes.iet.languages.C import CDataManager
 from devito.symbolics import ListInitializer, indexify, retrieve_indexed
 from devito.tools import as_fp64_decimal, flatten, powerset, timed_region
 from devito.types import (
-    Array, Barrier, ConditionalDimension, CustomDimension, Indirection, Scalar, Symbol
+    Array, Barrier, ConditionalDimension, CustomDimension, Indirection, Lock, Scalar,
+    Symbol
 )
 from devito.warnings import DevitoWarning
 
@@ -2267,6 +2270,53 @@ class TestLoopScheduling:
         op = Operator(eqns, opt=('topofuse', {'openmp': False}))
 
         assert_structure(op, ['x,y', 'x', 'x,y'])
+
+    def test_wait_halts_topofuse(self):
+        """
+        No reader of a Function is scheduled ahead of a wait on it, e.g. for its
+        prefetch to complete, even to fuse with a Cluster with the same guards.
+        """
+        grid = Grid(shape=(4, 4))
+        x, y = grid.dimensions
+
+        a, b, f, g = [Function(name=i, grid=grid) for i in 'abfg']
+        lock = Lock(name='lock', dimensions=CustomDimension(name='ld', symbolic_size=1))
+
+        exprs = [LoweredEq(i) for i in lower_exprs([Eq(a, 1), Eq(b, f), Eq(g, f)])]
+        c0, c1, c2 = [Cluster(i, i.ispace) for i in exprs]
+
+        # `c2` has the same guards as `c0`, so it would be scheduled right after
+        # it, ahead of `c1` and its wait on `f`
+        guards = {y: Gt(x, 1)}
+        c0 = c0.rebuild(guards=guards)
+        c1 = c1.rebuild(syncs={y: (WaitLock(lock[0], f),)})
+        c2 = c2.rebuild(guards=guards)
+
+        with timed_region('x'):
+            clusters = fuse([c0, c1, c2], toposort=True)
+
+        readers = [c for c in clusters if f in c.scope.reads]
+        assert readers[0].syncs == c1.syncs
+
+    def test_wait_leaves_scope_untouched(self):
+        """
+        A wait on a Function orders its readers upon scheduling, but it is not
+        an access of the waiting Cluster: e.g., a copy of a prefetched Function
+        into shared memory remains a write to shared memory only.
+        """
+        grid = Grid(shape=(4, 4))
+
+        f = Function(name='f', grid=grid)
+        shm = Array(name='shm', dimensions=grid.dimensions, scope='shared')
+        lock = Lock(name='lock', dimensions=CustomDimension(name='ld', symbolic_size=1))
+
+        expr, = [LoweredEq(i) for i in lower_exprs([Eq(shm, f)])]
+        c = Cluster(expr, expr.ispace)
+        c = c.rebuild(syncs={grid.dimensions[1]: (WaitLock(lock[0], f),)})
+
+        assert set(c.scope.writes) == {shm}
+        assert c.is_shm_write
+        assert f in c.sync_scope.writes
 
     def test_nonadjacent_constraints_preserve_directions(self):
         """
