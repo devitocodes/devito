@@ -261,7 +261,10 @@ class DataManager:
 
         # Allocate the underlying host data
         memptr = VOID(Byref(ffp0), '**')
-        alloc2 = self.langbb['host-alloc-pin'](memptr, alignment, ffp3)
+        alloc2 = [self.langbb['host-alloc-pin'](memptr, alignment, ffp3)]
+        if obj._is_zero_init and self.zero_init:
+            alloc2.append(self.langbb['host-memset'](ffp0, 0, ffp3))
+            storage.include('string.h')
 
         # Free all of the allocated data
         frees = [self.langbb['host-free-pin'](ffp0),
@@ -276,7 +279,7 @@ class DataManager:
         # Wrap everything in a Callable so that we can reuse the same code
         # for equivalent Array structs
         name = self.sregistry.make_name(prefix='alloc')
-        body = (decl, alloc0, alloc1, *init, alloc2, *as_tuple(alloc_dmap), ret)
+        body = (decl, alloc0, alloc1, *init, *alloc2, *as_tuple(alloc_dmap), ret)
         efunc0 = make_callable(name, body, retval=obj)
         args = list(efunc0.parameters)
         args[args.index(arity_param)] = arity_arg
