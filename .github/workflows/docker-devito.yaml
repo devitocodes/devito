@@ -204,7 +204,7 @@ jobs:
       - name: Run tests
         if: ${{ matrix.run_tests }}
         run: |
-         docker run ${{ matrix.flag }} --init -t --rm --name "${CONTAINER_NAME}" \
+         docker run --pull always ${{ matrix.flag }} --init -t --rm --name "${CONTAINER_NAME}" \
            devitocodes/devito:${{ matrix.tag }}-dev \
            pytest -n auto --dist loadscope -v ${{ matrix.test }}
 
@@ -339,6 +339,6 @@ jobs:
 
       - name: Run tests against multi-arch image
         run: |
-         docker run ${{ matrix.flag }} --init -t --rm --name "${CONTAINER_NAME}" \
+         docker run --pull always ${{ matrix.flag }} --init -t --rm --name "${CONTAINER_NAME}" \
            devitocodes/devito:${{ matrix.tag }}-dev \
            pytest -n auto --dist loadscope -v ${{ matrix.test }}
