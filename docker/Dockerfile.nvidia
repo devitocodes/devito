@@ -48,8 +48,8 @@ RUN arch="$(uname -m)" && \
         export year && \
         minor=$(echo $ver | cut -d "-" -f 3) && \
         export minor && \
-        curl -O nvhpc.deb -L "https://developer.download.nvidia.com/hpc-sdk/ubuntu/${nvplat}/nvhpc_${year}.${minor}_${nvplat}.deb" \
-        || curl -O nvhpc.deb -L "https://developer.download.nvidia.com/hpc-sdk/ubuntu/${nvplat}/nvhpc_${year}.${minor}-0_${nvplat}.deb" && \
+        curl -fL -o nvhpc.deb "https://developer.download.nvidia.com/hpc-sdk/ubuntu/${nvplat}/nvhpc_${year}.${minor}_${nvplat}.deb" \
+        || curl -fL -o nvhpc.deb "https://developer.download.nvidia.com/hpc-sdk/ubuntu/${nvplat}/nvhpc_${year}.${minor}-0_${nvplat}.deb" && \
         apt-get install --allow-unauthenticated -y -q ./nvhpc.deb; \
     fi;
 
