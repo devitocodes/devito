@@ -6,7 +6,7 @@ from packaging.version import Version
 
 from devito import configuration, switchconfig
 from devito.arch import BLACKWELL, NVIDIAX, platform_registry
-from devito.arch.archinfo import AppleArm, get_apple_platform
+from devito.arch.archinfo import AppleArm, get_apple_platform, get_cuda_version
 from devito.arch.compiler import (
     CudaCompiler, GNUCompiler, compiler_registry, sniff_compiler_version
 )
@@ -127,3 +127,25 @@ def test_fp32x2_support(platform, cc, expected, language, monkeypatch):
     monkeypatch.setattr('devito.arch.archinfo.get_nvidia_cc', lambda: cc)
     platform = platform_registry[platform]()
     assert platform.supports('fp32x2', language) is (expected and language == 'cuda')
+
+
+def test_get_cuda_version_without_nvcc(monkeypatch):
+    def missing(*args, **kwargs):
+        raise FileNotFoundError('nvcc')
+
+    monkeypatch.setattr('devito.arch.archinfo.run', missing)
+    # `.func` skips the cache
+    assert get_cuda_version.func() is None
+
+
+def test_cuda_std_without_nvcc(monkeypatch):
+    def std(version):
+        with switchconfig(mpi=False), monkeypatch.context() as m:
+            m.setattr('devito.arch.compiler.get_cuda_version', lambda: version)
+            m.setattr('devito.arch.compiler.check_cuda_runtime', lambda: None)
+            return CudaCompiler(platform=NVIDIAX).std
+
+    assert std(Version('13.0')) == 'c++17'
+    assert std(Version('12.8')) == 'c++14'
+    # No `nvcc`: fall back to the pre-CUDA 13 standard
+    assert std(None) == 'c++14'
