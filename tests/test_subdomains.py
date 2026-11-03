@@ -1792,6 +1792,31 @@ class TestSubDomainFunctionsParallel:
         assert np.all(h.data == h_check[slices])
         assert np.all(i.data == i_check)
 
+    @pytest.mark.parallel(mode=[(2, 'basic'), (2, 'diag'), (2, 'diag2')])
+    def test_halo_empty_neighbor_mpi(self, mode):
+        """
+        Check that halo exchanges of Functions on SubDomains skip neighboring
+        ranks holding none of the SubDomain, also alongside Grid Functions.
+        """
+        grid = Grid(shape=(11, 11), extent=(10., 10.), topology=(2, 1))
+        # Only held by rank 0
+        reduced_domain = ReducedDomain(('middle', 0, 7), None, grid=grid)
+
+        f = Function(name='f', grid=reduced_domain, space_order=2)
+        g = Function(name='g', grid=grid, space_order=2)
+        fx = Function(name='fx', grid=grid)
+        gx = Function(name='gx', grid=grid)
+
+        # Sentinel, as nothing should be exchanged into the halo of `f`
+        f.data_with_halo[:] = -1
+
+        Operator([Eq(f, 1), Eq(g, 1),
+                  Eq(fx, f.dx, subdomain=reduced_domain), Eq(gx, g.dx)]).apply()
+
+        assert (np.count_nonzero(f.data_with_halo == -1) ==
+                f.data_with_halo.size - f.data.size)
+        assert np.all(gx.data[1:-1] == 0)
+
     def set_indices(data):
         """
         Set up individual indices for indexing/slicing check.

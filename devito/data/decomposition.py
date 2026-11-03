@@ -511,6 +511,11 @@ class Decomposition(tuple):
 
         >>> d.reshape(slice(4))
         Decomposition([0,2], [3,3], <<[]>>, [])
+
+        Extensions are attached to the outermost non-empty subdomains
+
+        >>> Decomposition([[], [0, 1], [2, 3], []], 1).reshape(1, 1)
+        Decomposition([], <<[0,2]>>, [3,5], [])
         """
 
         if len(args) == 1:
@@ -547,7 +552,8 @@ class Decomposition(tuple):
 
         # Handle left extension/reduction
         if nleft > 0:
-            items = [np.concatenate([np.arange(-nleft, 0), items[0]])] + items[1:]
+            i = next((i for i, sd in enumerate(items) if sd.size), 0)
+            items[i] = np.concatenate([np.arange(-nleft, 0), items[i]])
         elif nleft < 0:
             n = 0
             for i, sd in enumerate(list(items)):
@@ -558,8 +564,9 @@ class Decomposition(tuple):
 
         # Handle right extension/reduction
         if nright > 0:
+            i = max((i for i, sd in enumerate(items) if sd.size), default=-1)
             extension = np.arange(self.glb_max + 1, self.glb_max + 1 + nright)
-            items = items[:-1] + [np.concatenate([items[-1], extension])]
+            items[i] = np.concatenate([items[i], extension])
         elif nright < 0:
             n = 0
             for i, sd in enumerate(reversed(list(items))):
