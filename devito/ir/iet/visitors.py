@@ -563,7 +563,9 @@ class CGen(Visitor):
     def visit_List(self, o):
         body = flatten(self._visit(i) for i in self._blankline_logic(o.children))
         body = c.Line(' '.join(str(i) for i in body)) if o.inline else c.Collection(body)
-        return c.Module(o.header + (body,) + o.footer)
+        header = tuple(self._visit(i) if isinstance(i, Node) else i for i in o.header)
+        footer = tuple(self._visit(i) if isinstance(i, Node) else i for i in o.footer)
+        return c.Module(header + (body,) + footer)
 
     def visit_Section(self, o):
         body = flatten(self._visit(i) for i in o.children)
