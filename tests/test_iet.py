@@ -8,7 +8,8 @@ import sympy
 from devito import (  # noqa
     Dimension, Eq, Function, Grid, Operator, TimeFunction, switchconfig
 )
-from devito.ir import SymbolRegistry
+from devito.data import FULL
+from devito.ir import IMask, SymbolRegistry
 from devito.ir.iet import (
     Call, Callable, CGen, Conditional, Definition, Dereference, DeviceCall, DummyExpr,
     ElementalFunction, FindNodes, FindSymbols, Iteration, KernelLaunch, Lambda, List,
@@ -18,6 +19,7 @@ from devito.ir.iet import (
 from devito.ir.iet.visitors import sorted_efuncs
 from devito.passes.iet.engine import Graph, reuse_efuncs
 from devito.passes.iet.languages.C import CDataManager
+from devito.passes.iet.parpragma import PragmaTransfer
 from devito.symbolics import (
     FLOAT, Byref, Class, FieldFromComposite, InlineIf, ListInitializer, Macro, SizeOf,
     String
@@ -132,6 +134,27 @@ def test_uxreplace_dereference_offset():
     assert replaced.offset == new + 32
     assert replaced.pointee is array
     assert replaced.pointer is pointer
+
+
+@pytest.mark.parametrize('as_range', [False, True])
+def test_uxreplace_transfer_mask(as_range):
+    x, y = Grid(shape=(4, 4)).dimensions
+    array = Array(name='a', dimensions=(x, y), shape=(4, 4))
+    renamed = array._rebuild(name='b')
+    old, new = Symbol(name='slot9'), Symbol(name='slot0')
+    section = (old, 1) if as_range else old
+    imask = IMask(section, FULL, getters=(x, y), function=array,
+                  findex=old + 1, mode='out')
+    node = PragmaTransfer('#pragma acc update self(%s%s)', array, imask=imask)
+
+    replaced = Uxreplace({old: new, array: renamed}).visit(node)
+
+    assert isinstance(replaced.imask, IMask)
+    assert replaced.imask[x] == ((new, 1) if as_range else new)
+    assert replaced.imask[y] is FULL
+    assert replaced.function is replaced.imask.function is renamed
+    assert replaced.imask.findex == new + 1
+    assert replaced.imask.mode == 'out'
 
 
 @pytest.mark.parametrize('mode,expected', [

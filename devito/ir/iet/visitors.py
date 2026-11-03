@@ -22,6 +22,7 @@ from devito.ir.iet.nodes import (
     ListMajor, Node, Section, _same_as_before
 )
 from devito.ir.support.space import Backward
+from devito.ir.support.utils import IMask
 from devito.symbolics import (
     FieldFromComposite, FieldFromPointer, ListInitializer, uxreplace
 )
@@ -1529,6 +1530,14 @@ class Uxreplace(Transformer):
                               uxreplace(j, self.mapper)))
             except TypeError:
                 imask.append(uxreplace(v, self.mapper))
+
+        if isinstance(o.imask, IMask):
+            # Snapshot metadata determines the payload size of compressed transfers
+            metadata = {k: uxreplace(v, self.mapper)
+                        for k, v in o.imask.__dict__.items() if k != 'getters'}
+            getters = [uxreplace(d, self.mapper) for d in o.imask.getters]
+            imask = o.imask._rebuild(*imask, getters=getters, **metadata)
+
         return reuse_if_unchanged(o, function=function, imask=imask,
                                   arguments=arguments)
 
