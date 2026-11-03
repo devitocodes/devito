@@ -1,5 +1,6 @@
 import atexit
 from abc import ABC, abstractmethod
+from contextlib import suppress
 from ctypes import c_int, c_void_p, sizeof
 from functools import cached_property
 from itertools import groupby, product
@@ -706,6 +707,14 @@ class SubDistributor(DenseDistributor):
         return ret
 
     @cached_property
+    def _obj_neighborhood(self):
+        # The neighborhood is determined by the SubDomain thicknesses, hence the
+        # name. E.g., `nb_x0_7` for `{x: ('middle', 0, 7), y: y}`
+        name = ''.join(f'_{d.root.name}{d.ltkn.value}_{d.rtkn.value}'
+                       for d in self.dimensions if d.is_Sub)
+        return MPINeighborhood(self.neighborhood, name=f'nb{name}')
+
+    @cached_property
     def rank_populated(self):
         """Constant symbol for a switch indicating that data is allocated on this rank"""
         return Constant(name=f'rank_populated_{self._subdomain_name}', dtype=np.int8,
@@ -852,14 +861,15 @@ class MPICommObject(Object):
 class MPINeighborhood(CompositeObject):
 
     __rargs__ = ('neighborhood',)
+    __rkwargs__ = ('name',)
 
-    def __init__(self, neighborhood):
+    def __init__(self, neighborhood, name='nb'):
         self._neighborhood = neighborhood
 
         self._entries = [i for i in neighborhood if isinstance(i, tuple)]
 
         fields = [(''.join(j.name[0] for j in i), c_int) for i in self.entries]
-        super().__init__('nb', 'neighborhood', fields)
+        super().__init__(name, 'neighborhood', fields)
 
     @property
     def entries(self):
@@ -894,12 +904,20 @@ class MPINeighborhood(CompositeObject):
         return values
 
     def _arg_values(self, *args, **kwargs):
-        grid = kwargs.get('grid')
-        # Update `nb` based on object attached to `grid`
-        if grid is not None:
-            return grid.distributor._obj_neighborhood._arg_defaults()
-        else:
+        try:
+            inputs = kwargs['args'].op.input
+        except KeyError:
             return self._arg_defaults()
+
+        # Update `nb` based on the distributor of the (possibly overriding)
+        # Functions using it. E.g., an override may be defined on a new Grid
+        for p in inputs:
+            # Skip, e.g., Dimensions, SparseFunctions, or array overrides
+            with suppress(AttributeError):
+                if p._distributor._obj_neighborhood == self:
+                    nb = kwargs.get(p.name, p)._distributor._obj_neighborhood
+                    return {self.name: nb._arg_defaults()[nb.name]}
+        return self._arg_defaults()
 
 
 class CustomTopology(DimensionTuple):

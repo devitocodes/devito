@@ -60,7 +60,7 @@ def autotune(operator, args, level, mode):
         for p in operator.parameters:
             if isinstance(p, MPINeighborhood):
                 at_args.update(
-                    MPINeighborhood(p.neighborhood)._arg_values()
+                    p._rebuild()._arg_values()
                 )
                 for i in p.fields:
                     setattr(at_args[p.name]._obj, i, MPI.PROC_NULL)
