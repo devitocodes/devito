@@ -625,6 +625,31 @@ class Thickness(DataSymbol):
         mpi_raise(error, InvalidArgument, comm=comm)
 
 
+class RankOffset(Thickness):
+    """
+    The number of points of `root` owned by the MPI ranks before (`side=LEFT`)
+    or after (`side=RIGHT`) this one, that is the offset of this rank from that
+    edge of the Grid. Zero without domain decomposition.
+    """
+
+    def _arg_values(self, grid=None, **kwargs):
+        root = self.root
+        if grid is not None:
+            root = next((d for d in grid.dimensions if d.name == root.name), root)
+
+        if grid is None or not grid.is_distributed(root):
+            return {self.name: 0}
+
+        dec = grid.distributor.decomposition[root]
+        if dec.loc_empty:
+            # No iterations run on an empty rank
+            return {self.name: 0}
+        elif self.side == LEFT:
+            return {self.name: dec.loc_abs_min - dec.glb_min}
+        else:
+            return {self.name: dec.glb_max - dec.loc_abs_max}
+
+
 class AbstractSubDimension(DerivedDimension):
 
     """
@@ -823,6 +848,30 @@ class SubDimension(AbstractSubDimension):
             return super()._interval
 
         return sympy.Interval(left, right)
+
+    @cached_property
+    def _glb_interval(self):
+        """
+        The `(min, max)` bounds of this SubDimension in the global Grid, in this
+        rank's local indices. Unlike `_interval`, these are not clipped to this
+        rank, so with domain decomposition they may lie in the halo or beyond.
+        """
+        kwargs = {'dtype': np.int32, 'is_const': True, 'nonnegative': True,
+                  'root': self.root}
+        lofs = RankOffset(name=f"{self.root.name}_lofs", side=LEFT, **kwargs)
+        rofs = RankOffset(name=f"{self.root.name}_rofs", side=RIGHT, **kwargs)
+
+        # The global Grid edges
+        left = self.parent.symbolic_min - lofs
+        right = self.parent.symbolic_max + rofs
+
+        # A tuple, not a `sympy.Interval`, which would collapse with literal bounds
+        if self.is_left:
+            return (left, left + self.ltkn.value - 1)
+        elif self.is_right:
+            return (right - self.rtkn.value + 1, right)
+        else:
+            return (left + self.ltkn.value, right - self.rtkn.value)
 
     @property
     def local(self):
