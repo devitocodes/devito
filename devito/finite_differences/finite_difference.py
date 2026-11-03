@@ -6,7 +6,7 @@ from sympy import sympify
 
 from devito.logger import warning
 
-from .differentiable import DiffDerivative, EvalDerivative, Weights
+from .differentiable import DiffDerivative, EvalDerivative, Weights, merge_growth
 from .tools import (
     centered, check_input, direct, fd_weights_registry, generate_indices, left,
     process_weights, right, transpose
@@ -236,8 +236,12 @@ def make_derivative(expr, dim, fd_order, deriv_order, side, matvec, x0, coeffici
     # With a `subdomain`, `expr` is treated as zero outside it: every stencil tap
     # is multiplied by the indicator of the point it reads, 1 if `subdomain`
     # spans the whole of `dim`. The derivative then extends past `subdomain` by
-    # the stencil radius
-    growth = {dim.root: indices.radius} if subdomain is not None else {}
+    # the stencil radius, on top of the growth of `expr` itself (e.g., the inner
+    # derivative of a cross derivative)
+    if subdomain is not None:
+        growth = merge_growth([expr._growth, {dim.root: indices.radius}])
+    else:
+        growth = {}
 
     if not expand and indices.expr is not None:
         weights = Weights(name='w', dimensions=indices.free_dim,
