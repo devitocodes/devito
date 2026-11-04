@@ -2015,14 +2015,14 @@ class TestSubDomainFunctionsParallel:
                 return {x: ('left', 2), y: y, z: z}
 
         sd1 = SD1(grid=grid)
-        f = TimeFunction(name='f', grid=grid, time_order=1, space_order=2,
-                         staggered=(x,))
+        f = TimeFunction(name='f', grid=grid, time_order=1, space_order=2)
         g = TimeFunction(name='g', grid=sd1, time_order=1, space_order=2,
                          staggered=(x,))
 
         eq = Eq(g, g + f.dx)
         eqe = eq.evaluate
-        assert eqe.rhs == g + f.dx(x0=x).evaluate._subs(x, g.dimensions[1])
+        x0 = x + x.spacing/2
+        assert eqe.rhs == g + f.dx(x0=x0).evaluate._subs(x, g.dimensions[1])
 
 
 class TestSubDomainArguments:
