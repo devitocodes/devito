@@ -22,7 +22,7 @@ from devito.passes.iet.languages.openmp import CXXOmpBB, OmpBB
 from devito.symbolics import DefFunction, sympy_dtype
 from devito.symbolics.extended_dtypes import ctypes_vector_mapper
 from devito.tools import dtype_to_cstr, dtypes_vector_mapper, extract_dtype, infer_dtype
-from devito.types import ComponentAccess
+from devito.types import Array, ComponentAccess
 from devito.types.basic import Basic, Scalar, Symbol
 from devito.types.dense import TimeFunction
 from devito.types.sparse import SparseTimeFunction
@@ -101,6 +101,16 @@ def test_vector_inference():
     for expr in (f + v, f*v, (f + v)**2):
         assert expr.dtype == extract_dtype(expr) == dtype
     assert (f + ComponentAccess(v, 0)).dtype == np.float32
+
+
+@pytest.mark.parametrize('dtype', [np.float32, np.float64])
+def test_array_components(dtype):
+    grid = Grid(shape=(4,))
+    x, = grid.dimensions
+    vector = dtypes_vector_mapper[dtype, 2]
+    array = Array(name='a', dimensions=x, dtype=vector)
+    assert ComponentAccess(array[x], 0).dtype == dtype
+    assert extract_dtype(ComponentAccess(array[x], 1)) == dtype
 
 
 @pytest.mark.parametrize('dtype', [np.complex64, np.complex128])

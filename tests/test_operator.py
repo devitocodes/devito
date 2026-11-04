@@ -146,6 +146,24 @@ class TestOperatorSetup:
                 Operator(Eq(u, u + 1),
                          opt=('advanced', {'buf-async-degree': async_degree}))
 
+    @pytest.mark.parametrize('mode', ['default', 'fp16'])
+    def test_arithmetic_mode(self, mode):
+        grid = Grid(shape=(4, 4))
+        f = Function(name='f', grid=grid, dtype=np.float16)
+        options = {'arithm-mode': mode}
+        op = Operator(Eq(f, f + 1), sym_opt=options)
+
+        assert op._sym_options['arithm-mode'] == mode
+        assert 'half-arith' not in op._sym_options
+        assert options == {'arithm-mode': mode}
+
+    @pytest.mark.parametrize('mode', [None, False, True, 1, 'float16', {}, []])
+    def test_invalid_arithmetic_mode(self, mode):
+        grid = Grid(shape=(4, 4))
+        f = Function(name='f', grid=grid)
+        with pytest.raises(InvalidOperator, match='arithm-mode.*default.*fp16'):
+            Operator(Eq(f, f + 1), sym_opt={'arithm-mode': mode})
+
     def test_compiler_uniqueness(self):
         grid = Grid(shape=(3, 3, 3))
 
@@ -197,6 +215,19 @@ class TestOperatorSetup:
         assert str(op0) == str(op1) == str(op2)
         assert op0._soname != op1._soname
         assert op1._soname == op2._soname
+
+    @pytest.mark.parametrize('mode', ['default', 'fp16'])
+    def test_jit_compiler_abi(self, mode, monkeypatch):
+        grid = Grid(shape=(4, 4))
+        f = Function(name='f', grid=grid)
+        first, second = [Operator(Eq(f, f + 1), sym_opt={'arithm-mode': mode})
+                         for _ in range(2)]
+        monkeypatch.setattr(first._compiler, 'abi_id', lambda: ('first',))
+        monkeypatch.setattr(second._compiler, 'abi_id', lambda: ('second',))
+
+        assert str(first.ccode) == str(second.ccode)
+        assert first._compiler._signature_items() == second._compiler._signature_items()
+        assert first._soname != second._soname
 
     @pytest.mark.parametrize('name', ['r0', 'r1'])
     def test_generated_names_avoid_inputs(self, name):

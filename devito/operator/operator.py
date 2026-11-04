@@ -822,6 +822,10 @@ class Operator(Callable):
 
     # Code generation and JIT compilation
 
+    def _signature_items(self):
+        # Retain literal precision and the complete toolchain ABI in JIT identity
+        return (str(self.ccode), repr(self._compiler.abi_id()))
+
     @cached_property
     def _soname(self):
         """A unique name for the shared object resulting from JIT compilation."""
@@ -831,7 +835,7 @@ class Operator(Callable):
     def _printer(self):
         # A Target may offer a second printer e.g. for Operators
         # using half-precision arithmetic
-        if self._sym_options.get('half-arith'):
+        if self._sym_options.get('arithm-mode') == 'fp16':
             with suppress(AttributeError):
                 return self._Target.HalfArithPrinter
         return self._Target.Printer

@@ -202,10 +202,9 @@ class BasicOperator(Operator):
     See `examples/userapi/08_staggered_interp.ipynb` for a worked example.
     """
 
-    HALF_ARITH = False
+    ARITHM_MODE = 'default'
     """
-    Whether an Operator working in half precision carries out the arithmetic there
-    too, rounding its literals and its FD weights to half. Off by default.
+    Whether to use default arithmetic or FP16 arithmetic for half-precision fields.
     """
 
     @classmethod
@@ -237,12 +236,16 @@ class BasicOperator(Operator):
         """
         so = dict(kwargs.get('sym_options', {}))
         out = {'interp-mode': so.pop('interp-mode', cls.INTERP_MODE),
-               'half-arith': so.pop('half-arith', cls.HALF_ARITH)}
+               'arithm-mode': so.pop('arithm-mode', cls.ARITHM_MODE)}
 
         if so:
             raise InvalidOperator(
                 f'Unrecognized symbolic options: [{", ".join(list(so))}]'
             )
+
+        mode = out['arithm-mode']
+        if not isinstance(mode, str) or mode not in ('default', 'fp16'):
+            raise InvalidOperator("`arithm-mode` must be 'default' or 'fp16'")
 
         return out
 

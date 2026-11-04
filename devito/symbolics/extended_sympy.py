@@ -545,6 +545,10 @@ class IndexedPointer(Expr, Pickable, BasicWrapperMixin, Terminal):
         return self._base
 
     @property
+    def dtype(self):
+        return self.base.dtype
+
+    @property
     def index(self):
         return self._index
 
