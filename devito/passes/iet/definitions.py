@@ -631,7 +631,11 @@ class DeviceAwareDataManager(DataManager):
         if not obj._mem_mapped:
             return
 
-        mmap = self.langbb._map_alloc(obj)
+        # Initialize the device copy from zeroed host storage, including padding
+        if obj._is_zero_init and self.zero_init:
+            mmap = self.langbb._map_to(obj)
+        else:
+            mmap = self.langbb._map_alloc(obj)
         unmap = self.langbb._map_delete(obj)
 
         storage.update(obj, site, maps=mmap, unmaps=unmap)
@@ -644,9 +648,8 @@ class DeviceAwareDataManager(DataManager):
 
         Notes
         -----
-        In essence, the difference between `_map_function_on_high_bw_mem` and
-        `_map_array_on_high_bw_mem` is that the former triggers a data transfer to
-        synchronize the host and device copies, while the latter does not.
+        `_map_function_on_high_bw_mem` synchronizes the host and device copies;
+        `_map_array_on_high_bw_mem` only does so for zero-initialized Arrays.
         """
         if read_only is False:
             if is_gpu_create(obj, self.gpu_create):

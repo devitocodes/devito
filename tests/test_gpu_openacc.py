@@ -11,6 +11,7 @@ from devito.exceptions import InvalidOperator
 from devito.ir.iet import (
     BusyWaitCall, FindNodes, Iteration, MapNodes, TimedList, retrieve_iteration_tree
 )
+from devito.types import ArrayMapped
 from examples.seismic import Receiver, RickerSource, TimeAxis
 
 pytestmark = skipif(['nodevice'], whole_module=True)
@@ -405,6 +406,28 @@ class TestOperator:
         op.apply(time_M=nt-1)
 
         assert np.array_equal(u.data, usave.data)
+
+    def test_mapped_zero_init(self):
+        """Initialize mapped device storage even when allocations are reused."""
+        class ZeroMappedArray(ArrayMapped):
+            _is_zero_init = True
+
+        grid = Grid(shape=(32, 32))
+        dirty = [Function(name=f'dirty{i}', grid=grid, space_order=0)
+                 for i in range(4)]
+        warm = Operator([Eq(f, 13 + i) for i, f in enumerate(dirty)],
+                        platform='nvidiaX', language='openacc', name='DirtyDevice')
+
+        a = ZeroMappedArray(name='a', dimensions=grid.dimensions, dtype=grid.dtype,
+                            space='mapped')
+        output = Function(name='output', grid=grid, space_order=0)
+        op = Operator(Eq(output, a.indexify()), platform='nvidiaX', language='openacc',
+                      name='ReadZeroMapped')
+        assert 'acc enter data copyin(a[' in str(op)
+
+        warm.apply()
+        op.apply()
+        assert np.all(output.data == 0)
 
 
 class TestMPI:
