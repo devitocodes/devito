@@ -1176,7 +1176,7 @@ class Function(DiscreteFunction):
                     processed.append(sympy.S.NegativeOne)
                 else:
                     processed.append(sympy.S.Zero)
-        return Staggering(*processed, getters=dimensions)
+        return Staggering(*processed, getters=[d.root for d in dimensions])
 
     @classmethod
     def __indices_setup__(cls, *args, **kwargs):
