@@ -527,7 +527,10 @@ class Decomposition(tuple):
                 else:
                     nright = arg.stop - self.glb_max - 1
             elif isinstance(arg, Iterable):
-                items = [np.array([j for j in i if j in arg]) for i in self]
+                # Sparse masks can be large; avoid scanning one per index.
+                if not isinstance(arg, np.ndarray):
+                    arg = tuple(arg)
+                items = [i[np.isin(i, arg)] for i in self]
                 for i, arr in enumerate(list(items)):
                     items[i] = np.arange(arr.size) + sum(j.size for j in items[:i])
                 return Decomposition(items, self.local)
