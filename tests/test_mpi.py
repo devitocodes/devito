@@ -31,27 +31,6 @@ from examples.seismic.acoustic import acoustic_setup
 
 class TestMPIUtils:
 
-    @pytest.mark.parallel(mode=[(1, 'overlap2')])
-    def test_nested_halo_overlap(self, mode):
-        from devito.ir.iet import Expression, HaloSpot, List
-        from devito.ir import LoweredEq
-        from devito.mpi.halo_scheme import HaloScheme
-        from devito.passes.iet.mpi import OverlappableHaloSpot, _mark_overlappable
-
-        grid = Grid(shape=(16, 16, 16), topology=(1, '*', 1))
-        x, y, z = grid.dimensions
-        u = Function(name='nested_u', grid=grid, space_order=2)
-        v = Function(name='nested_v', grid=grid, space_order=2)
-        equation = LoweredEq(Eq(v, u[x, y+1, z]))
-        ispace = IterationSpace([Interval(d, 0, 0) for d in grid.dimensions])
-        scheme = HaloScheme([equation], ispace)
-        inner = HaloSpot(Expression(equation), scheme)
-        outer = HaloSpot(List(body=[inner]), scheme)
-        result = _mark_overlappable(outer)
-        spots = FindNodes(HaloSpot).visit(result)
-        assert type(spots[0]) is HaloSpot
-        assert isinstance(spots[1], OverlappableHaloSpot)
-
     @pytest.mark.parametrize('comm', [None, MPI.COMM_NULL], ids=['none', 'null'])
     @pytest.mark.parametrize('error', [None, '', 'invalid argument'])
     @pytest.mark.parametrize('exception', [ValueError, InvalidArgument])
@@ -957,12 +936,14 @@ class TestSparseFunction:
 
     @pytest.mark.parallel(mode=[2, 4])
     @pytest.mark.parametrize('ndim', [1, 2, 3])
-    @pytest.mark.parametrize('interpolation,radius', [('nearest', 0), ('linear', 1), ('sinc', 4)])
+    @pytest.mark.parametrize('interpolation,radius',
+                             [('nearest', 0), ('linear', 1), ('sinc', 4)])
     def test_tensor_support_rank_intersections(self, mode, ndim, interpolation, radius):
         """Compact intervals match every point of wide, shifted tensor stencils."""
         grid = Grid(shape=(9,)*ndim, extent=(1.,)*ndim)
         coordinates = np.array([[value + (axis % 2)*0.125 for axis in range(ndim)]
-                                for value in (-0.25, 0., 0.125, 0.49, 0.5, 0.875, 1., 1.25)],
+                                for value in (-0.25, 0., 0.125, 0.49, 0.5, 0.875,
+                                              1., 1.25)],
                                dtype=np.float32)
         src = SparseFunction(name='support_src', grid=grid, npoint=len(coordinates),
                              interpolation=interpolation, r=radius)
@@ -2518,6 +2499,39 @@ class TestCodeGeneration:
         # Halo should not be considered touched, despite symbolic offsets in indices due
         # to Function on SubDomain
         check_halo_exchanges(op, 0, 0)
+
+    @pytest.mark.parallel(mode=[(1, 'overlap'), (1, 'overlap2'), (1, 'full'),
+                                (2, 'overlap'), (2, 'overlap2'), (2, 'full')])
+    @pytest.mark.parametrize('time_dependent', [False, True])
+    def test_overlap_within_iteration(self, mode, time_dependent):
+        grid = Grid(shape=(16, 16), extent=(15., 15.), topology=('*', 1))
+        if time_dependent:
+            u = TimeFunction(name='u', grid=grid, space_order=2)
+            v = TimeFunction(name='v', grid=grid, space_order=2)
+            u.data_with_halo[:] = 0
+            equations = [Eq(u.forward, u + u.laplace + 1),
+                         Eq(v.forward, u.forward + u.forward.laplace)]
+        else:
+            u = Function(name='u', grid=grid, space_order=2)
+            v = Function(name='v', grid=grid, space_order=2)
+            equations = [Eq(u, 1), Eq(v, u + u.laplace)]
+
+        op = Operator(equations, name='OverlapWithinIteration')
+        calls = FindNodes(ComputeCall).visit(op)
+        assert len(calls) == int(time_dependent)
+        if time_dependent:
+            check_halo_exchanges(op, 2, 1)
+            assert calls == FindNodes(ComputeCall).visit(get_time_loop(op))
+            op.apply(time_M=0)
+            values = np.asarray(v.data[1])
+        else:
+            op.apply()
+            values = np.asarray(v.data)
+
+        x, y = np.meshgrid(*grid.distributor.glb_numb, indexing='ij')
+        # The zero exterior halo subtracts one at each physical boundary
+        expected = 1 - (x == 0) - (x == 15) - (y == 0) - (y == 15)
+        np.testing.assert_allclose(values, expected, rtol=0, atol=1e-7)
 
 
 class TestOperatorAdvanced:
