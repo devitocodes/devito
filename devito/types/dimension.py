@@ -464,6 +464,16 @@ class SpaceDimension(BasicDimension):
 
     is_Space = True
 
+    @cached_property
+    def rank_offsets(self):
+        """
+        The number of points of `root` owned by the MPI ranks before (`side=LEFT`)
+        or after (`side=RIGHT`) this one, that is the offset of this rank from that
+        edge of the Grid. Zero without domain decomposition.
+        """
+        return tuple(RankOffset(name=f"{self.name}_{s}_ofs", side=s, root=self)
+                     for s in (LEFT, RIGHT))
+
 
 class TimeDimension(BasicDimension):
 
@@ -566,6 +576,7 @@ class Thickness(DataSymbol):
     __rkwargs__ = DataSymbol.__rkwargs__ + ('root', 'side', 'local', 'value', 'separated')
 
     def __new__(cls, *args, root=None, side=None, local=False, separated=False, **kwargs):
+        kwargs.setdefault('nonnegative', True)
         newobj = super().__new__(cls, *args, **kwargs)
         newobj._root = root
         newobj._side = side
@@ -695,11 +706,9 @@ class AbstractSubDimension(DerivedDimension):
 
     @memoized_meth
     def _symbolic_thickness(self, **kwargs):
-        kwargs = {'dtype': np.int32, 'is_const': True, 'nonnegative': True,
-                  'separated': self.separated}
-
         names = [f"{self.parent.name}_{s}tkn" for s in ('l', 'r')]
-        return SubDimensionThickness(*[Thickness(name=n, **kwargs) for n in names])
+        return SubDimensionThickness(*[Thickness(name=n, separated=self.separated)
+                                       for n in names])
 
     @cached_property
     def symbolic_min(self):
@@ -825,9 +834,7 @@ class SubDimension(AbstractSubDimension):
 
     @memoized_meth
     def _symbolic_thickness(self, thickness=None):
-        kwargs = {'dtype': np.int32, 'is_const': True, 'nonnegative': True,
-                  'root': self.root, 'local': self.local,
-                  'separated': self.separated}
+        kwargs = {'root': self.root, 'local': self.local, 'separated': self.separated}
 
         names = [f"{self.parent.name}_{s}tkn" for s in ('l', 'r')]
         sides = [LEFT, RIGHT]
@@ -856,10 +863,7 @@ class SubDimension(AbstractSubDimension):
         rank's local indices. Unlike `_interval`, these are not clipped to this
         rank, so with domain decomposition they may lie in the halo or beyond.
         """
-        kwargs = {'dtype': np.int32, 'is_const': True, 'nonnegative': True,
-                  'root': self.root}
-        lofs = RankOffset(name=f"{self.root.name}_lofs", side=LEFT, **kwargs)
-        rofs = RankOffset(name=f"{self.root.name}_rofs", side=RIGHT, **kwargs)
+        lofs, rofs = self.root.rank_offsets
 
         # The global Grid edges
         left = self.parent.symbolic_min - lofs
