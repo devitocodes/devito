@@ -549,6 +549,7 @@ class Decomposition(tuple):
 
         # Handle left extension/reduction
         if nleft > 0:
+            # Extend the first non-empty subdomain, as empty ones own no halo
             i = next((i for i, sd in enumerate(items) if sd.size), 0)
             items[i] = np.concatenate([np.arange(-nleft, 0), items[i]])
         elif nleft < 0:
@@ -561,6 +562,7 @@ class Decomposition(tuple):
 
         # Handle right extension/reduction
         if nright > 0:
+            # Extend the last non-empty subdomain, as empty ones own no halo
             i = max((i for i, sd in enumerate(items) if sd.size), default=-1)
             extension = np.arange(self.glb_max + 1, self.glb_max + 1 + nright)
             items[i] = np.concatenate([items[i], extension])
