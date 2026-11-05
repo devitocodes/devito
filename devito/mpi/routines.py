@@ -16,8 +16,8 @@ from devito.ir.iet import (
 )
 from devito.mpi import MPI
 from devito.symbolics import (
-    Byref, CondNe, FieldFromComposite, FieldFromPointer, IndexedPointer, Macro, cast,
-    subs_op_args
+    Byref, CondNe, DefFunction, FieldFromComposite, FieldFromPointer, IndexedPointer,
+    Macro, cast, subs_op_args
 )
 from devito.tools import (
     as_mapper, dtype_len, dtype_to_mpitype, flatten, generator, infer_datasize, is_integer
@@ -791,7 +791,10 @@ class Overlap2HaloExchangeBuilder(OverlapHaloExchangeBuilder):
     """
 
     def _make_region(self, hs, key):
-        return MPIRegion('reg', key, hs.arguments, hs.omapper.owned)
+        # Only the OWNED split of the root Dimensions, as the SubDimension
+        # thicknesses are applied in the remainder
+        owned = hs.halo_scheme._rebuild(honored={}).omapper.owned
+        return MPIRegion('reg', key, hs.dimensions, owned)
 
     def _make_msg(self, f, hse, key):
         # Only retain the halos required by the Diag scheme
@@ -912,12 +915,17 @@ class Overlap2HaloExchangeBuilder(OverlapHaloExchangeBuilder):
         region_i = IndexedPointer(region, dim)
 
         dynamic_args_mapper = {}
-        for i in hs.arguments:
-            if i.is_Dimension:
-                dynamic_args_mapper[i] = (FieldFromComposite(i.min_name, region_i),
-                                          FieldFromComposite(i.max_name, region_i))
-            else:
-                dynamic_args_mapper[i] = (FieldFromComposite(i.name, region_i),)
+        for d in hs.dimensions:
+            m = FieldFromComposite(d.min_name, region_i)
+            M = FieldFromComposite(d.max_name, region_i)
+            dynamic_args_mapper[d] = (m, M)
+
+            # Intersect the region with the SubDimension bounds, which may only
+            # be known within the Operator (e.g., MultiSubDimension thicknesses)
+            for ltkn, rtkn in hs.halo_scheme.honored.get(d, []):
+                ltkn1 = DefFunction('MAX', [0, d.symbolic_min + ltkn - m])
+                rtkn1 = DefFunction('MAX', [0, M - d.symbolic_max + rtkn])
+                dynamic_args_mapper.update({ltkn: (ltkn1,), rtkn: (rtkn1,)})
 
         iet = callcompute._rebuild(dynamic_args_mapper=dynamic_args_mapper)
         # The -1 below is because an Iteration, by default, generates <=
@@ -1348,12 +1356,9 @@ class MPIRegion(CompositeObject):
         pname = f'region{key}'
 
         fields = []
-        for i in self.arguments:
-            if i.is_Dimension:
-                fields.append((i.min_name, c_int))
-                fields.append((i.max_name, c_int))
-            else:
-                fields.append((i.name, c_int))
+        for d in self.arguments:
+            fields.append((d.min_name, c_int))
+            fields.append((d.max_name, c_int))
 
         super().__init__(name, pname, fields)
 
@@ -1387,16 +1392,10 @@ class MPIRegion(CompositeObject):
         values = self._arg_defaults()
         for i, (_, mapper) in enumerate(self.owned):
             entry = values[self.name][i]
-            for a in self.arguments:
-                if a.is_Dimension:
-                    a_m, a_M = mapper[a]
-                    setattr(entry, a.min_name, subs_op_args(a_m, args))
-                    setattr(entry, a.max_name, subs_op_args(a_M, args))
-                else:
-                    try:
-                        setattr(entry, a.name, subs_op_args(mapper[a][0], args))
-                    except AttributeError:
-                        setattr(entry, a.name, mapper[a][0])
+            for d in self.arguments:
+                d_m, d_M = mapper[d]
+                setattr(entry, d.min_name, subs_op_args(d_m, args))
+                setattr(entry, d.max_name, subs_op_args(d_M, args))
         return values
 
 

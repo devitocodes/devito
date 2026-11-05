@@ -640,6 +640,9 @@ class AbstractSubDimension(DerivedDimension):
 
     is_AbstractSub = True
 
+    # Whether the iteration fits entirely within a single MPI domain
+    local = False
+
     __rargs__ = DerivedDimension.__rargs__ + ('thickness',)
     __rkwargs__ = ('separated',)
 
