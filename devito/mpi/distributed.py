@@ -1,6 +1,5 @@
 import atexit
 from abc import ABC, abstractmethod
-from contextlib import suppress
 from ctypes import c_int, c_void_p, sizeof
 from functools import cached_property
 from itertools import groupby, product
@@ -904,20 +903,12 @@ class MPINeighborhood(CompositeObject):
         return values
 
     def _arg_values(self, *args, **kwargs):
+        # Use `nb` as provided by the (possibly overriding) Grid or SubDomain.
+        # E.g., an override may be defined on a new Grid
         try:
-            inputs = kwargs['args'].op.input
+            return {self.name: kwargs['args'][self.name]}
         except KeyError:
             return self._arg_defaults()
-
-        # Update `nb` based on the distributor of the (possibly overriding)
-        # Functions using it. E.g., an override may be defined on a new Grid
-        for p in inputs:
-            # Skip, e.g., Dimensions, SparseFunctions, or array overrides
-            with suppress(AttributeError):
-                if p._distributor._obj_neighborhood == self:
-                    nb = kwargs.get(p.name, p)._distributor._obj_neighborhood
-                    return {self.name: nb._arg_defaults()[nb.name]}
-        return self._arg_defaults()
 
 
 class CustomTopology(DimensionTuple):
