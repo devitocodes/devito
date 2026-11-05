@@ -31,6 +31,27 @@ from examples.seismic.acoustic import acoustic_setup
 
 class TestMPIUtils:
 
+    @pytest.mark.parallel(mode=[(1, 'overlap2')])
+    def test_nested_halo_overlap(self, mode):
+        from devito.ir.iet import Expression, HaloSpot, List
+        from devito.ir import LoweredEq
+        from devito.mpi.halo_scheme import HaloScheme
+        from devito.passes.iet.mpi import OverlappableHaloSpot, _mark_overlappable
+
+        grid = Grid(shape=(16, 16, 16), topology=(1, '*', 1))
+        x, y, z = grid.dimensions
+        u = Function(name='nested_u', grid=grid, space_order=2)
+        v = Function(name='nested_v', grid=grid, space_order=2)
+        equation = LoweredEq(Eq(v, u[x, y+1, z]))
+        ispace = IterationSpace([Interval(d, 0, 0) for d in grid.dimensions])
+        scheme = HaloScheme([equation], ispace)
+        inner = HaloSpot(Expression(equation), scheme)
+        outer = HaloSpot(List(body=[inner]), scheme)
+        result = _mark_overlappable(outer)
+        spots = FindNodes(HaloSpot).visit(result)
+        assert type(spots[0]) is HaloSpot
+        assert isinstance(spots[1], OverlappableHaloSpot)
+
     @pytest.mark.parametrize('comm', [None, MPI.COMM_NULL], ids=['none', 'null'])
     @pytest.mark.parametrize('error', [None, '', 'invalid argument'])
     @pytest.mark.parametrize('exception', [ValueError, InvalidArgument])

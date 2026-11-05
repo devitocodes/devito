@@ -278,6 +278,11 @@ def _mark_overlappable(iet):
     # Analysis
     found = []
     for hs in FindNodes(HaloSpot).visit(iet):
+        # Extracting this body into a compute callable would hide nested
+        # exchanges from the lowering traversal. Keep the enclosing exchange
+        # synchronous; its children can still overlap independently.
+        if FindNodes(HaloSpot).visit(hs.body):
+            continue
         # Heuristic: avoid comp/comm overlap for sparse Iteration nests
         iters = FindNodes(Iteration).visit(hs)
         if any(i.dim._defines & set(hs.halo_scheme.distributed_aindices) and
