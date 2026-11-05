@@ -14,8 +14,8 @@ from devito.operations import (
 from devito.operations.interpolators import _cell_indices
 from devito.symbolics import indexify, retrieve_function_carriers
 from devito.tools import (
-    ReducerMap, as_fp64_decimal, as_tuple, dtype_to_mpidtype, filter_ordered, flatten, is_integer,
-    memoized_meth, prod
+    ReducerMap, as_fp64_decimal, as_tuple, dtype_to_mpidtype, filter_ordered, flatten,
+    is_integer, memoized_meth, prod
 )
 from devito.types.basic import Symbol
 from devito.types.dense import DiscreteFunction, SubFunction

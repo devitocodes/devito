@@ -4,15 +4,14 @@ from pathlib import Path
 from types import SimpleNamespace
 
 from devito.arch.compiler import Compiler
+from devito.tools import os_helper
 
 
 def test_complete_binary_publication(tmp_path, monkeypatch):
-    import devito.arch.compiler as module
-
     compiler = SimpleNamespace(get_jit_dir=lambda: tmp_path, so_ext='.so')
     target = tmp_path/'shared.so'
     binary = b'ELF-binary-content'*1024
-    original = module.link
+    original = os_helper.os.link
     publications = []
 
     def observe(source, destination):
@@ -21,7 +20,7 @@ def test_complete_binary_publication(tmp_path, monkeypatch):
         publications.append(source)
         original(source, destination)
 
-    monkeypatch.setattr(module, 'link', observe)
+    monkeypatch.setattr(os_helper.os, 'link', observe)
     Compiler.save(compiler, 'shared', binary)
     assert publications
     assert target.read_bytes() == binary
