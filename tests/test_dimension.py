@@ -3,7 +3,7 @@ from itertools import product
 
 import numpy as np
 import pytest
-from sympy import And, Or
+from sympy import And, Or, false
 
 from conftest import assert_blocking, assert_structure, opts_tiling, skipif
 from devito import (  # noqa
@@ -2127,6 +2127,56 @@ class TestConditionalDimension:
                               't,x0_blk0,y0_blk0,x,y',
                               't,x0_blk0,y0_blk0,x,y,z'],
                          't,x0_blk0,y0_blk0,x,y,z,z')
+
+    def test_false_condition(self):
+        """
+        A condition that SymPy folds to `false` (`time` is nonnegative) must
+        still be printed as valid C.
+        """
+        grid = Grid(shape=(4, 4))
+        time = grid.time_dim
+
+        condition = time < 0
+        assert condition is false
+        ct = ConditionalDimension(name='ct', parent=time, condition=condition)
+
+        T = TimeFunction(name='T', grid=grid, time_order=0)
+        f = TimeFunction(name='f', grid=grid, time_order=0, save=2)
+
+        op = Operator([Eq(f, T + 1, implicit_dims=ct), Eq(T, T + 1)],
+                      name='FalseCondition')
+        op.apply(time_M=1)
+
+        assert np.all(f.data[:, 1, 1] == [0, 0])
+
+    @pytest.mark.parametrize('relation', [And, Or, 'strict'])
+    def test_true_never_set(self, relation):
+        """
+        A guard that reduces to `true` is pointless, hence never set. E.g.,
+        `time >= 0` folds to `true` as `time` is nonnegative.
+        """
+        grid = Grid(shape=(4, 4))
+        time = grid.time_dim
+
+        ct = ConditionalDimension(name='ct', parent=time, condition=time >= 0,
+                                  relation=relation)
+
+        f = TimeFunction(name='f', grid=grid, time_order=0, save=4)
+        f1 = TimeFunction(name='f', grid=grid, time_order=0, save=4)
+
+        eqn = Eq(f, time + 1, implicit_dims=ct)
+
+        op0 = Operator(eqn, opt='noop')
+        op1 = Operator(eqn)
+
+        for op in (op0, op1):
+            assert not FindNodes(Conditional).visit(op)
+
+        op0.apply(time_M=3)
+        op1.apply(time_M=3, f=f1)
+
+        assert np.all(f.data[:, 1, 1] == [1, 2, 3, 4])
+        assert np.all(f.data == f1.data)
 
 
 class TestCustomDimension:
