@@ -938,9 +938,10 @@ class TestSparseFunction:
     @pytest.mark.parametrize('ndim', [1, 2, 3])
     @pytest.mark.parametrize('interpolation,radius',
                              [('nearest', 0), ('linear', 1), ('sinc', 4)])
-    def test_tensor_support_rank_intersections(self, mode, ndim, interpolation, radius):
-        """Compact intervals match every point of wide, shifted tensor stencils."""
+    def test_rank_map_equivalence(self, mode, ndim, interpolation, radius):
+        """Send each point to every rank owning a cell in its interpolation stencil."""
         grid = Grid(shape=(9,)*ndim, extent=(1.,)*ndim)
+        # Include partition boundaries and coordinates outside the global domain
         coordinates = np.array([[value + (axis % 2)*0.125 for axis in range(ndim)]
                                 for value in (-0.25, 0., 0.125, 0.49, 0.5, 0.875,
                                               1., 1.25)],
@@ -951,11 +952,11 @@ class TestSparseFunction:
         plain = Function(name='support_plain', grid=grid, space_order=8)
         shifted = Function(name='support_shifted', grid=grid, space_order=8,
                            staggered=grid.dimensions)
-        src.inject(field=plain, expr=src)
-        src.inject(field=shifted, expr=src)
+        Operator(src.inject(field=(plain, shifted), expr=src), name='SparseSupport')
 
-        exhaustive = grid.distributor.glb_to_rank(src._support) or {}
-        assert src._dist_datamap == exhaustive
+        # Reference: enumerate all stencil cells, including the half-cell shift
+        expected = grid.distributor.glb_to_rank(src._support) or {}
+        assert src._dist_datamap == expected
 
     @pytest.mark.parallel(mode=[2, 4])
     @pytest.mark.parametrize('override', [False, True])
@@ -980,6 +981,23 @@ class TestSparseFunction:
 
         total = MPI.COMM_WORLD.allreduce(float(np.asarray(u.data).sum()), op=MPI.SUM)
         assert np.isclose(total, 1, rtol=0, atol=1e-7)
+
+    @pytest.mark.parallel(mode=4)
+    @pytest.mark.parametrize('interpolation', ['nearest', 'linear'])
+    def test_staggered_support_union(self, mode, interpolation):
+        grid = Grid(shape=(8, 8), extent=(7., 7.), topology=(2, 2))
+        x, y = grid.dimensions
+        u = Function(name='ux', grid=grid, space_order=2, staggered=x)
+        v = Function(name='uy', grid=grid, space_order=2, staggered=y)
+        src = SparseFunction(name='src', grid=grid, npoint=1,
+                             interpolation=interpolation)
+        src.coordinates.data[:] = 4.
+        Operator(src.inject(field=(u, v), expr=src), name='SparseSupportUnion')
+
+        # Boxing the union would also send the point to rank 0
+        ranks = (1, 2) if interpolation == 'nearest' else (1, 2, 3)
+        expected = {r: [0] for r in ranks} if src.npoint else {}
+        assert src._dist_datamap == expected
 
 
 class TestOperatorSimple:
