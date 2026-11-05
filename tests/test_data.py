@@ -661,13 +661,18 @@ class TestDecomposition:
         assert d.reshape(slice(3, -1)) == Decomposition([[], [0, 1], [2, 3, 4],
                                                          [5, 6, 7]], 2)
 
-    def test_reshape_iterable(self):
+    @pytest.mark.parametrize('container', [tuple, list, set, np.asarray])
+    def test_reshape_iterable(self, container):
         d = Decomposition([[0, 1, 2], [3, 4], [5, 6, 7], [8, 9, 10, 11]], 2)
 
-        assert d.reshape(()) == Decomposition([[], [], [], []], 2)
-        assert d.reshape((1, 3, 5)) == Decomposition([[0], [1], [2], []], 2)
-        assert d.reshape((1, 3, 10, 11)) == Decomposition([[0], [1], [], [2, 3]], 2)
-        assert d.reshape((1, 3, 10, 11, 14)) == Decomposition([[0], [1], [], [2, 3]], 2)
+        assert d.reshape(container(())) == Decomposition([[], [], [], []], 2)
+        assert d.reshape(container((1, 3, 5))) == Decomposition([[0], [1], [2], []], 2)
+        assert d.reshape(container((1, 3, 10, 11))) == \
+            Decomposition([[0], [1], [], [2, 3]], 2)
+        assert d.reshape(container((1, 3, 10, 11, 14))) == \
+            Decomposition([[0], [1], [], [2, 3]], 2)
+        assert d.reshape(container((11, 3, 3, 1, -1, 14))) == \
+            Decomposition([[0], [1], [], [2]], 2)
 
 
 # A reference global shape for the serial engine tests below; indices are
