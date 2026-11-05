@@ -248,9 +248,14 @@ class Fusion(Queue):
 
         # Are there any ClusterGroups that could potentially be topologically
         # reordered? If not, do not waste time
-        counter = Counter(self._key(cg).strict for cg in cgroups)
-        if len(counter.most_common()) == 1 or \
-           not any(v > 1 for it, v in counter.most_common()):
+        keys = [self._key(cg) for cg in cgroups]
+        if len({k.full for k in keys}) == 1:
+            return ClusterGroup(cgroups, prefix)
+
+        # Same strict keys can still hide different scheduling preferences.
+        # E.g., `r0, shared0, r1, shared1` may reorder to fuse `r0, r1`.
+        counter = Counter(k.strict for k in keys)
+        if not any(v > 1 for v in counter.values()):
             return ClusterGroup(cgroups, prefix)
 
         dag = self._build_dag(cgroups, prefix)
