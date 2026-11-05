@@ -11,9 +11,10 @@ from devito.mpi import MPI, SparseDistributor
 from devito.operations import (
     LinearInterpolator, NearestInterpolator, PrecomputedInterpolator, SincInterpolator
 )
+from devito.operations.interpolators import _cell_indices
 from devito.symbolics import indexify, retrieve_function_carriers
 from devito.tools import (
-    ReducerMap, as_tuple, dtype_to_mpidtype, filter_ordered, flatten, is_integer,
+    ReducerMap, as_fp64_decimal, as_tuple, dtype_to_mpidtype, filter_ordered, flatten, is_integer,
     memoized_meth, prod
 )
 from devito.types.basic import Symbol
@@ -307,8 +308,14 @@ class AbstractSparseFunction(DiscreteFunction):
         """
         max_shape = np.array(self.grid.shape).reshape(1, self.grid.dim)
         minmax = lambda arr: np.minimum(max_shape, np.maximum(0, arr))
-        return np.stack([minmax(self._coords_indices + s) for s in self._point_support],
-                        axis=2)
+        # Staggered tables may use a different base cell across an MPI
+        # boundary. Match their fp64 geometry and actual stencil support.
+        spacing = np.array([as_fp64_decimal(h) for h in self.grid.spacing])
+        origin = np.array([as_fp64_decimal(o) for o in self.grid.origin])
+        indices = [_cell_indices(self.coordinates_data, self.grid, shift, spacing, origin)
+                   for shift in self.interpolator._shifts_used] or [self._coords_indices]
+        return np.stack([minmax(index + s) for index in indices
+                         for s in self._point_support], axis=2)
 
     @property
     def _dist_datamap(self):
@@ -1004,10 +1011,11 @@ class SparseFunction(AbstractSparseFunction):
         return tuple(mapper.get(d) for d in self.dimensions)
 
     def _arg_defaults(self, alias=None, estimate_memory=False):
+        key = alias or self
+        self.interpolator._shifts_used.update(key.interpolator._shifts_used)
         defaults = super()._arg_defaults(alias=alias, estimate_memory=estimate_memory)
         if estimate_memory:
             return defaults
-        key = alias or self
         coords = defaults.get(key.coordinates.name, self.coordinates.data)
         defaults.update(key.interpolator._arg_defaults(coords=coords,
                                                        sfunc=self))
