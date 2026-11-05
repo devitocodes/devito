@@ -323,6 +323,10 @@ def generate_indices(expr, dim, order, side=None, matvec=None, x0=None, nweights
     d = make_stencil_dimension(expr, o_min, o_max)
     iexpr = expr.indices_ref[dim] + d * dim.spacing
 
+    # Express `x0` in the same Dimension as the indices, or the FD weights retain
+    # e.g. `iy - y` and are not reduced to numbers
+    x0 = expr.indices_ref[dim] + mid * dim.spacing
+
     return IndexSet(dim, expr=iexpr), x0
 
 
