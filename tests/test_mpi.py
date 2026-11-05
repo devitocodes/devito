@@ -935,6 +935,27 @@ class TestSparseFunction:
         assert np.all(s.data == 1)
 
     @pytest.mark.parallel(mode=[2, 4])
+    @pytest.mark.parametrize('ndim', [1, 2, 3])
+    @pytest.mark.parametrize('interpolation,radius', [('nearest', 0), ('linear', 1), ('sinc', 4)])
+    def test_tensor_support_rank_intersections(self, mode, ndim, interpolation, radius):
+        """Compact intervals match every point of wide, shifted tensor stencils."""
+        grid = Grid(shape=(9,)*ndim, extent=(1.,)*ndim)
+        coordinates = np.array([[value + (axis % 2)*0.125 for axis in range(ndim)]
+                                for value in (-0.25, 0., 0.125, 0.49, 0.5, 0.875, 1., 1.25)],
+                               dtype=np.float32)
+        src = SparseFunction(name='support_src', grid=grid, npoint=len(coordinates),
+                             interpolation=interpolation, r=radius)
+        src.coordinates.data[:] = coordinates
+        plain = Function(name='support_plain', grid=grid, space_order=8)
+        shifted = Function(name='support_shifted', grid=grid, space_order=8,
+                           staggered=grid.dimensions)
+        src.inject(field=plain, expr=src)
+        src.inject(field=shifted, expr=src)
+
+        exhaustive = grid.distributor.glb_to_rank(src._support) or {}
+        assert src._dist_datamap == exhaustive
+
+    @pytest.mark.parallel(mode=[2, 4])
     @pytest.mark.parametrize('override', [False, True])
     def test_staggered_injection_support(self, mode, override):
         """Half-cell shifts must redistribute across partition boundaries."""

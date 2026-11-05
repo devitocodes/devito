@@ -301,6 +301,15 @@ class AbstractSparseFunction(DiscreteFunction):
             ).astype(int)
 
     @property
+    def _support_indices(self):
+        # Staggered tables may use a different base cell across an MPI
+        # boundary. Match their fp64 geometry and actual stencil support.
+        spacing = np.array([as_fp64_decimal(h) for h in self.grid.spacing])
+        origin = np.array([as_fp64_decimal(o) for o in self.grid.origin])
+        return [_cell_indices(self.coordinates_data, self.grid, shift, spacing, origin)
+                for shift in self.interpolator._shifts_used] or [self._coords_indices]
+
+    @property
     def _support(self):
         """
         The grid points surrounding each sparse point within the radius of self's
@@ -308,13 +317,7 @@ class AbstractSparseFunction(DiscreteFunction):
         """
         max_shape = np.array(self.grid.shape).reshape(1, self.grid.dim)
         minmax = lambda arr: np.minimum(max_shape, np.maximum(0, arr))
-        # Staggered tables may use a different base cell across an MPI
-        # boundary. Match their fp64 geometry and actual stencil support.
-        spacing = np.array([as_fp64_decimal(h) for h in self.grid.spacing])
-        origin = np.array([as_fp64_decimal(o) for o in self.grid.origin])
-        indices = [_cell_indices(self.coordinates_data, self.grid, shift, spacing, origin)
-                   for shift in self.interpolator._shifts_used] or [self._coords_indices]
-        return np.stack([minmax(index + s) for index in indices
+        return np.stack([minmax(index + s) for index in self._support_indices
                          for s in self._point_support], axis=2)
 
     @property
@@ -322,7 +325,30 @@ class AbstractSparseFunction(DiscreteFunction):
         """
         Mapper ``M : MPI rank -> required sparse data``.
         """
-        return self.grid.distributor.glb_to_rank(self._support) or {}
+        offsets = self._point_support
+        lower, upper = offsets.min(axis=0), offsets.max(axis=0)
+        if (len(offsets) != prod(upper - lower + 1)
+                or len(np.unique(offsets, axis=0)) != len(offsets)):
+            return self.grid.distributor.glb_to_rank(self._support) or {}
+
+        # A tensor stencil intersects a Cartesian rank exactly when its
+        # intervals intersect in every dimension. Keep different shifts
+        # separate: their union need not be one rectangular stencil.
+        bounds = [(np.clip(index + lower, 0, self.grid.shape),
+                   np.clip(index + upper, 0, self.grid.shape))
+                  for index in self._support_indices]
+        ret = {}
+        for rank, ranges in enumerate(self.grid.distributor.all_ranges):
+            if any(not r for r in ranges):
+                continue
+            mins = np.array([r[0] for r in ranges])
+            maxs = np.array([r[-1] for r in ranges])
+            mask = np.zeros(bounds[0][0].shape[0], dtype=bool)
+            for low, high in bounds:
+                mask |= ((low <= maxs) & (high >= mins)).all(axis=1)
+            if mask.any():
+                ret[rank] = np.flatnonzero(mask).tolist()
+        return ret
 
     @property
     def npoint(self):
