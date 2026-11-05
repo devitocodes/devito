@@ -1,11 +1,13 @@
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import suppress
+from io import BytesIO
+from types import SimpleNamespace
 
 import pytest
 from packaging.version import Version
 
 from devito import configuration, switchconfig
-from devito.arch import BLACKWELL, NVIDIAX, platform_registry
+from devito.arch import BLACKWELL, NVIDIAX, archinfo, platform_registry
 from devito.arch.archinfo import AppleArm, get_apple_platform
 from devito.arch.compiler import (
     CudaCompiler, GNUCompiler, compiler_registry, sniff_compiler_version
@@ -127,3 +129,25 @@ def test_fp32x2_support(platform, cc, expected, language, monkeypatch):
     monkeypatch.setattr('devito.arch.archinfo.get_nvidia_cc', lambda: cc)
     platform = platform_registry[platform]()
     assert platform.supports('fp32x2', language) is (expected and language == 'cuda')
+
+
+@pytest.mark.parametrize('memory', ['total', 'free', 'used'])
+def test_nvidia_memory_units(monkeypatch, memory):
+    responses = {
+        ('nvidia-smi', '-L'): (
+            b'GPU 0: NVIDIA A100-SXM4-80GB (UUID: GPU-0)\n'
+            b'GPU 1: NVIDIA A100-SXM4-80GB (UUID: GPU-1)\n'
+        ),
+        ('nvidia-smi', f'--query-gpu=memory.{memory}', '--format=csv'): (
+            f'memory.{memory} [MiB]\n1024 MiB\n81920 MiB\n'.encode()
+        )
+    }
+
+    def popen(command, **kwargs):
+        return SimpleNamespace(stdout=BytesIO(responses[tuple(command)]))
+
+    monkeypatch.setattr(archinfo, 'Popen', popen)
+    info = archinfo.get_gpu_info.func()
+
+    assert info[f'mem.{memory}'](0) == 1024**3
+    assert info[f'mem.{memory}'](1) == 80*1024**3
