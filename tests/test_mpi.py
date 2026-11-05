@@ -934,6 +934,30 @@ class TestSparseFunction:
         op.apply(time_M=5)
         assert np.all(s.data == 1)
 
+    @pytest.mark.parallel(mode=[2, 4])
+    @pytest.mark.parametrize('override', [False, True])
+    def test_staggered_injection_support(self, mode, override):
+        """Half-cell shifts must redistribute across partition boundaries."""
+        grid = Grid(shape=(64,), extent=(63/32,))
+        coordinate = 2/grid.distributor.nprocs
+        x, = grid.dimensions
+        u = Function(name='u', grid=grid, space_order=2, staggered=x)
+        u.data[:] = 0
+        src = SparseFunction(name='src', grid=grid, npoint=1)
+        src.coordinates.data[:] = coordinate
+        src.data[:] = 1
+        op = Operator(src.inject(field=u, expr=src))
+        if override:
+            replacement = SparseFunction(name='replacement', grid=grid, npoint=1)
+            replacement.coordinates.data[:] = coordinate
+            replacement.data[:] = 1
+            op(src=replacement)
+        else:
+            op()
+
+        total = MPI.COMM_WORLD.allreduce(float(np.asarray(u.data).sum()), op=MPI.SUM)
+        assert np.isclose(total, 1, rtol=0, atol=1e-7)
+
 
 class TestOperatorSimple:
 
