@@ -1631,8 +1631,9 @@ class TestSubDomainFunctions:
         Operator([Eq(fd, Derivative(f, d), subdomain=mid),
                   Eq(gd, Derivative(g, d), subdomain=mid)])()
 
+        # Same stencil, so bitwise identical
         assert np.any(fd.data != 0)
-        assert np.allclose(fd.data, gd.data)
+        assert np.all(fd.data == gd.data)
 
     def test_operator_shortcuts(self):
         """
