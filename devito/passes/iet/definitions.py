@@ -201,7 +201,7 @@ class DataManager:
 
         storage.update(obj, site, allocs=tuple(allocs), frees=free, efuncs=efuncs)
 
-    def _alloc_local_array_on_high_bw_mem(self, site, obj, storage, *args):
+    def _alloc_local_array_on_high_bw_mem(self, site, obj, storage, *args, **kwargs):
         """
         Allocate a local Array in the host high bandwidth memory.
         """
@@ -468,7 +468,7 @@ class DataManager:
         return processed, flatten(efuncs)
 
     @iet_pass
-    def place_definitions(self, iet, globs=None, **kwargs):
+    def place_definitions(self, iet, globs=None, alignments=None, **kwargs):
         """
         Create a new IET where all symbols have been declared, allocated, and
         deallocated in one or more memory spaces.
@@ -504,7 +504,9 @@ class DataManager:
                     if i.is_transient:
                         self._alloc_bundle_struct_on_high_bw_mem(iet, i, storage)
                     elif i._mem_local:
-                        self._alloc_local_array_on_high_bw_mem(iet, i, storage)
+                        self._alloc_local_array_on_high_bw_mem(
+                            iet, i, storage, alignments=alignments
+                        )
                     elif i._mem_mapped:
                         self._alloc_mapped_array_on_high_bw_mem(iet, i, storage)
                 elif i._mem_stack:
@@ -515,7 +517,9 @@ class DataManager:
                     if i._mem_host:
                         self._alloc_host_array_on_high_bw_mem(iet, i, storage)
                     elif i._mem_local:
-                        self._alloc_local_array_on_high_bw_mem(iet, i, storage)
+                        self._alloc_local_array_on_high_bw_mem(
+                            iet, i, storage, alignments=alignments
+                        )
                     else:
                         self._alloc_mapped_array_on_high_bw_mem(iet, i, storage)
                 elif i._mem_stack:
@@ -576,11 +580,22 @@ class DataManager:
 
         return iet, {}
 
+    def derive_alignments(self, graph):
+        """
+        Choose allocation padding from alignment requirements across `graph`.
+
+        Backends may inspect all kernels and helpers before deciding how many
+        elements to insert before each field's logical allocation origin.
+        An empty mapper retains the backend's ordinary allocation behavior.
+        """
+        return {}
+
     def process(self, graph):
         """
         Apply the `place_definitions` and `place_casts` passes.
         """
-        self.place_definitions(graph, globs=set())
+        alignments = self.derive_alignments(graph)
+        self.place_definitions(graph, globs=set(), alignments=alignments)
         self.place_casts(graph)
 
 
@@ -593,7 +608,7 @@ class DeviceAwareDataManager(DataManager):
 
         super().__init__(options=options, **kwargs)
 
-    def _alloc_local_array_on_high_bw_mem(self, site, obj, storage):
+    def _alloc_local_array_on_high_bw_mem(self, site, obj, storage, **kwargs):
         """
         Allocate a local Array in the device high bandwidth memory.
         """
@@ -667,7 +682,7 @@ class DeviceAwareDataManager(DataManager):
         storage.update(obj, site, maps=mmap, unmaps=unmap, efuncs=efuncs)
 
     @iet_pass
-    def place_transfers(self, iet, data_movs=None, ctx=None, **kwargs):
+    def place_transfers(self, iet, data_movs=None, alignments=None, **kwargs):
         """
         Create a new IET with host-device data transfers. This requires mapping
         symbols to the suitable memory spaces.
@@ -689,14 +704,14 @@ class DeviceAwareDataManager(DataManager):
                 self._map_array_on_high_bw_mem(iet, i, storage)
             else:
                 self._map_function_on_high_bw_mem(
-                    iet, i, storage, devicerm, ctx=ctx
+                    iet, i, storage, devicerm, alignments=alignments
                 )
         for i in filter_sorted(reads - writes):
             if i.is_Array:
                 self._map_array_on_high_bw_mem(iet, i, storage)
             else:
                 self._map_function_on_high_bw_mem(
-                    iet, i, storage, devicerm, read_only=True, ctx=ctx
+                    iet, i, storage, devicerm, read_only=True, alignments=alignments
                 )
 
         iet, efuncs = self._inject_definitions(iet, storage)
@@ -729,8 +744,9 @@ class DeviceAwareDataManager(DataManager):
         """
         Apply the `place_transfers`, `place_definitions` and `place_casts` passes.
         """
-        self.place_transfers(graph, data_movs=graph.data_movs)
-        self.place_definitions(graph, globs=set())
+        alignments = self.derive_alignments(graph)
+        self.place_transfers(graph, data_movs=graph.data_movs, alignments=alignments)
+        self.place_definitions(graph, globs=set(), alignments=alignments)
         self.place_devptr(graph)
         self.place_bundling(graph, writes_input=graph.writes_input)
         self.place_casts(graph)
