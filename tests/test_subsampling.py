@@ -895,6 +895,28 @@ class TestMPI:
         for d in sub.dimensions:
             assert iteration(op, d.name).limits[2] == 1
 
+    @pytest.mark.parallel(mode=[2])
+    def test_halo_exchange_strided(self, mode):
+        """A halo exchange binds to a strided nest."""
+        n, factor = 24, 3
+        grid = Grid(shape=(n, n))
+        sub = SubGrid(grid, factor=factor)
+        x, y = grid.dimensions
+
+        u = Function(name='u', grid=grid, space_order=2)
+        g = Function(name='g', grid=sub, space_order=0)
+
+        glob = np.arange(n*n, dtype=u.dtype).reshape(n, n)
+        u.data[:] = glob
+
+        op = Operator(Eq(g, u[x + 1, y]))
+
+        assert not FindNodes(Conditional).visit(op)
+        op.apply()
+
+        expected = glob[1::factor, ::factor][g.local_indices]
+        assert np.array_equal(np.asarray(g.data), expected)
+
     @pytest.mark.parallel(mode=[2, 4])
     def test_bounds_partition_the_subgrid(self, mode):
         """
