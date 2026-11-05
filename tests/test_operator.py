@@ -2444,6 +2444,18 @@ class TestLoopScheduling:
 
         assert_structure(op, ['t,x,y', 't', 't,x,y'], 't,x,y,x,y')
 
+    def test_topofuse_weak_keys(self):
+        """Different shared-read preferences must not suppress topological sorting."""
+        grid = Grid(shape=(4, 4))
+        a, b, p, q = [Function(name=n, grid=grid, space_order=0) for n in 'abpq']
+        shared = Array(name='shared', dimensions=grid.dimensions, scope='shared')
+        r0, r1 = [Symbol(name=n) for n in ('r0', 'r1')]
+        equations = [Eq(r0, 2*a), Eq(p, r0*shared),
+                     Eq(r1, 3*b), Eq(q, r1*shared)]
+        op = Operator(equations, opt=('topofuse', {'openmp': False}))
+        writes = [e.expr.lhs for e in FindNodes(Expression).visit(op)]
+        assert writes == [r0, r1, p.indexify(), q.indexify()]
+
 
 class TestInternals:
 
