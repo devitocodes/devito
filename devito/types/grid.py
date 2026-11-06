@@ -739,7 +739,7 @@ class AbstractSubDomain(CartesianDiscretization):
 
         # The SubDomain neighborhood, used by the Functions defined on it
         if self.distributor.comm:
-            values.update(self.distributor._obj_neighborhood._arg_defaults())
+            values.update(self.distributor._obj_neighborhood._arg_values(**kwargs))
 
         return values
 
