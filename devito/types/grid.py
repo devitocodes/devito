@@ -902,7 +902,8 @@ class SubDomain(AbstractSubDomain):
         """
         1 if the point `offset` points away from the current one along `dim` lies
         in this SubDomain, 0 otherwise, computed without branching. Always 1 if
-        this SubDomain spans all of `dim`.
+        this SubDomain spans all of `dim`. With domain decomposition, the test
+        is against the global bounds, which may lie beyond this rank.
 
         Parameters
         ----------
@@ -915,8 +916,9 @@ class SubDomain(AbstractSubDomain):
         if not maybe_subdim.is_Sub:
             return sympy.S.One
         point = dim + offset
-        return (Max(0, Min(1, point - maybe_subdim.symbolic_min + 1)) *
-                Max(0, Min(1, maybe_subdim.symbolic_max - point + 1)))
+        lower, upper = maybe_subdim._glb_interval
+        return (Max(0, Min(1, point - lower + 1)) *
+                Max(0, Min(1, upper - point + 1)))
 
     def _restrict(self, expr, exclude=()):
         """
