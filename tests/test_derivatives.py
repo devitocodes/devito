@@ -1895,7 +1895,7 @@ class TestHaloZero:
         """
         grid = Grid(shape=(24,), extent=(23.,), dtype=np.float64)
         subdomain = Region('s', {'x': ('middle', 7, 9)}, grid=grid)
-        kwargs = {'grid': grid, 'space_order': 4, 'dtype': np.float64}
+        kwargs = {'grid': grid, 'space_order': 4}
         g_bar = Function(name='g_bar', **kwargs)
         ref = Function(name='ref', **kwargs)
         out_bar = Function(name='out_bar', **kwargs)
@@ -1927,7 +1927,7 @@ class TestHaloZero:
     def test_no_subdomain(self):
         """Without a SubDomain, halo=0 has no effect."""
         grid = Grid(shape=(16,), extent=(15.,), dtype=np.float64)
-        kwargs = {'grid': grid, 'space_order': 4, 'dtype': np.float64}
+        kwargs = {'grid': grid, 'space_order': 4}
         f = Function(name='f', **kwargs)
         g = Function(name='g', **kwargs)
         ref = Function(name='ref', **kwargs)
@@ -1966,7 +1966,7 @@ class TestHaloZero:
         """
         grid = Grid(shape=(24,), extent=(23.,), dtype=np.float64)
         subdomain = Region('s', {'x': ('middle', 7, 9)}, grid=grid)
-        kwargs = {'grid': grid, 'space_order': 4, 'dtype': np.float64}
+        kwargs = {'grid': grid, 'space_order': 4}
         f, g, c, out, ref = (Function(name=n, **kwargs)
                              for n in ('f', 'g', 'c', 'out', 'ref'))
         rng = np.random.default_rng(8)
@@ -1987,7 +1987,7 @@ class TestHaloZero:
         """
         grid = Grid(shape=(24,), extent=(23.,), dtype=np.float64)
         subdomain = Region('s', {'x': ('middle', 7, 9)}, grid=grid)
-        kwargs = {'grid': grid, 'space_order': 4, 'dtype': np.float64}
+        kwargs = {'grid': grid, 'space_order': 4}
         f, g, c, d, out = (Function(name=n, **kwargs)
                            for n in ('f', 'g', 'c', 'd', 'out'))
         rng = np.random.default_rng(9)
@@ -2008,7 +2008,7 @@ class TestHaloZero:
         """
         grid = Grid(shape=(12, 14), extent=(11., 13.), dtype=np.float64)
         subdomain = Region('s', {'x': ('left', 5)}, grid=grid)
-        kwargs = {'grid': grid, 'space_order': 4, 'dtype': np.float64}
+        kwargs = {'grid': grid, 'space_order': 4}
         f = Function(name='f', **kwargs)
         c = VectorFunction(name='c', staggered=(None, None), **kwargs)
         w = VectorFunction(name='w', staggered=(None, None), **kwargs)
@@ -2034,7 +2034,7 @@ class TestHaloZero:
         grid = Grid(shape=(14, 16), extent=(13., 15.), dtype=np.float64)
         x, y = grid.dimensions
         subdomain = Region('s', {'x': ('left', 5), 'y': ('middle', 4, 5)}, grid=grid)
-        kwargs = {'grid': grid, 'space_order': 4, 'dtype': np.float64}
+        kwargs = {'grid': grid, 'space_order': 4}
         p = Function(name='p', **kwargs)
         p_bar = Function(name='p_bar', **kwargs)
         v = VectorFunction(name='v', **kwargs)
@@ -2057,7 +2057,7 @@ class TestHaloZero:
         """halo=0 along a Dimension the SubDomain spans has no effect."""
         grid = Grid(shape=(12, 14), extent=(11., 13.), dtype=np.float64)
         subdomain = Region('s', {'x': ('left', 5)}, grid=grid)
-        kwargs = {'grid': grid, 'space_order': 4, 'dtype': np.float64}
+        kwargs = {'grid': grid, 'space_order': 4}
         f = Function(name='f', **kwargs)
         g = Function(name='g', **kwargs)
         ref = Function(name='ref', **kwargs)
