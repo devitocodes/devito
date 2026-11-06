@@ -402,10 +402,10 @@ class Grid(CartesianDiscretization, ArgProvider):
         args.update({k.name: v for k, v in self.origin_map.items()})
 
         # MPI-related objects
-        if self.distributor.is_parallel:
+        if self.distributor.comm:
             distributor = self.distributor
             args[distributor._obj_comm.name] = distributor._obj_comm.value
-            args[distributor._obj_neighborhood.name] = distributor._obj_neighborhood.value
+            args.update(distributor._obj_neighborhood._arg_defaults())
 
         return args
 
@@ -721,11 +721,17 @@ class AbstractSubDomain(CartesianDiscretization):
 
     def _arg_values(self, **kwargs):
         try:
-            return self.grid._arg_values(**kwargs)
+            values = self.grid._arg_values(**kwargs)
         except AttributeError as e:
             raise AttributeError(
                 f'{self} is not attached to a Grid and has no _arg_values'
             ) from e
+
+        # The SubDomain neighborhood, used by the Functions defined on it
+        if self.distributor.comm:
+            values.update(self.distributor._obj_neighborhood._arg_values(**kwargs))
+
+        return values
 
 
 class SubDomain(AbstractSubDomain):

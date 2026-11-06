@@ -935,6 +935,10 @@ class TestOperator:
         assert obj.pname == new_obj.pname
         assert obj.pfields == new_obj.pfields
 
+        obj = obj._rebuild(name='nbsd')
+        new_obj = pickle.loads(pickle.dumps(obj))
+        assert new_obj.name == 'nbsd'
+
         # Communicator
         obj = grid.distributor._obj_comm
         pkl_obj = pickle.dumps(obj)
