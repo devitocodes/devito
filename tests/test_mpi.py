@@ -3473,7 +3473,7 @@ class TestOperatorAdvanced:
         subdomain = Region(grid=serial)
 
         def functions(grid):
-            kwargs = {'grid': grid, 'space_order': 4, 'dtype': np.float64}
+            kwargs = {'grid': grid, 'space_order': 4}
             return [Function(name=n, **kwargs) for n in ('f', 'o', 'g')]
 
         f0, o0, g0 = functions(serial)
