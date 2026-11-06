@@ -12,7 +12,7 @@ from devito.mpi.reduction_scheme import DistReduce
 from devito.mpi.routines import HaloExchangeBuilder, ReductionBuilder
 from devito.passes.iet.engine import iet_pass
 from devito.symbolics import VectorAccess, search
-from devito.tools import generator
+from devito.tools import flatten, generator
 from devito.types import TensorMove
 
 __all__ = ['mpiize']
@@ -275,9 +275,13 @@ def _mark_overlappable(iet):
     Detect the HaloSpots allowing computation/communication overlap and turn
     them into OverlappableHaloSpots.
     """
+    # Only overlap exchanges within an Iteration
+    mapper = MapNodes(Iteration, HaloSpot, 'immediate').visit(iet)
+    mapper.pop(None, None)
+
     # Analysis
     found = []
-    for hs in FindNodes(HaloSpot).visit(iet):
+    for hs in flatten(mapper.values()):
         # Heuristic: avoid comp/comm overlap for sparse Iteration nests
         iters = FindNodes(Iteration).visit(hs)
         if any(i.dim._defines & set(hs.halo_scheme.distributed_aindices) and

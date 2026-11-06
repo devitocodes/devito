@@ -247,7 +247,7 @@ def get_gpu_info():
                         line = lines.pop(deviceid)
                         _, v, unit = re.split(r'([0-9]+)\s', line)
                         assert unit == 'MiB'
-                        return int(v)*10**6
+                        return int(v)*1024**2
                     except:
                         # We shouldn't really end up here, unless nvidia-smi changes
                         # the output format (though we still have tests in place that

@@ -351,3 +351,25 @@ def test_atomic_write(tmp_path):
         atomic_write(path, 1)
     assert path.read_text() == 'foo'
     assert list(tmp_path.iterdir()) == [path]
+
+    assert atomic_write(path, 'bar') == path
+    assert path.read_text() == 'bar'
+
+
+def test_atomic_write_exclusive(tmp_path):
+    target = tmp_path/'nested'/'file'
+    assert atomic_write(target, b'first', mode='wb', overwrite=False) == target
+    assert atomic_write(str(target), b'second', mode='wb', overwrite=False) == target
+    assert target.read_bytes() == b'first'
+    assert list(target.parent.iterdir()) == [target]
+
+
+@pytest.mark.parametrize('operation', ['fsync', 'link'])
+def test_atomic_write_failure(tmp_path, monkeypatch, operation):
+    def fail(*args):
+        raise OSError('Publication failed')
+
+    monkeypatch.setattr(os, operation, fail)
+    with pytest.raises(OSError, match='Publication failed'):
+        atomic_write(tmp_path/'file', b'contents', mode='wb', overwrite=False)
+    assert not list(tmp_path.iterdir())
