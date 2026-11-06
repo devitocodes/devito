@@ -8,8 +8,7 @@ from devito.finite_differences import Max, Min
 from devito.finite_differences.differentiable import SafeInv
 from devito.ir import (
     Any, DummyExpr, EmptyList, FindApplications, FindNodes, FindSymbols, Forward,
-    Iteration, Prodder, Transformer, Uxreplace, filter_iterations, pull_dims,
-    retrieve_iteration_tree
+    Iteration, Prodder, Transformer, Uxreplace, filter_iterations, retrieve_iteration_tree
 )
 from devito.ir.iet.efunc import DeviceFunction, EntryFunction
 from devito.passes.iet.engine import iet_pass
@@ -372,10 +371,8 @@ def _(iet):
 
 
 def _rename_subdims(target, dimensions):
-    # Find SubDimensions or SubDimension-derived dimensions used as indices in
-    # the expression
-    indexeds = FindSymbols('indexeds').visit(target)
-    dims = pull_dims(indexeds, flag=False)
+    # Find SubDimensions or SubDimension-derived dimensions used in expressions
+    dims = FindSymbols('dimensions').visit(target)
     dims = [d for d in dims if any(dim.is_AbstractSub for dim in d._defines)]
     dims = [d for d in dims if not d.is_SubIterator]
     names = [d.root.name for d in dims]

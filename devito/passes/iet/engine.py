@@ -21,8 +21,8 @@ from devito.tools import (
 )
 from devito.types import (
     Array, Auto, Bundle, ComponentAccess, CompositeObject, FunctionMap, IncrDimension,
-    Indirection, ModuloDimension, NPThreads, NThreadsBase, Pointer, SharedData, Symbol,
-    Temp, ThreadArray, Wildcard
+    IndexedData, Indirection, ModuloDimension, NPThreads, NThreadsBase, Pointer,
+    SharedData, Symbol, Temp, ThreadArray, Wildcard
 )
 from devito.types.args import ArgProvider
 from devito.types.dense import DiscreteFunction
@@ -781,7 +781,8 @@ def _update_args_efunc(root, efuncs, dag):
     # 4) removed a function that was previously necessary
     functions = FindSymbols('symbolics').visit(root.body)
     drop_params.extend(a for a in root.parameters
-                       if a.is_AbstractFunction and a not in functions)
+                       if (a.is_AbstractFunction or isinstance(a, IndexedData))
+                       and a.function not in functions)
 
     # Must record the index, not the param itself, since a param may be
     # bound to whatever arg, possibly a generic SymPy expr
@@ -790,29 +791,21 @@ def _update_args_efunc(root, efuncs, dag):
     if not (new_params or drop_params):
         return efuncs
 
+    # Decide additions from the signature, since an existing Call argument may
+    # bind the same symbol to a different parameter.
+    new_params = [a for a in new_params if a not in root.parameters]
+
+    if isinstance(root, EntryFunction):
+        # Temporaries (e.g., Arrays) *cannot* be arguments of an EntryFunction.
+        # These remain for now undefined inside `root`.
+        new_params = [a for a in new_params if isinstance(a, ArgProvider)]
+
     # Create the new parameters and arguments lists
-
-    def _filter(v, efunc=None):
-        processed = [a for i, a in enumerate(v) if i not in drop_params]
-
-        for a in new_params:
-            if a in processed:
-                # A child efunc trying to add a symbol already added by a
-                # sibling efunc
-                continue
-
-            if isinstance(efunc, EntryFunction) and not isinstance(a, ArgProvider):
-                # Temporaries (e.g., Arrays) *cannot* be arguments of an
-                # EntryFunction. So if we end up here, `a` remains for
-                # now undefined inside `efunc`
-                continue
-
-            processed.append(a)
-
-        return processed
+    def _filter(v):
+        return [a for i, a in enumerate(v) if i not in drop_params] + new_params
 
     efuncs = dict(efuncs)
-    efuncs[root.name] = root._rebuild(parameters=_filter(root.parameters, root))
+    efuncs[root.name] = root._rebuild(parameters=_filter(root.parameters))
 
     # Update all call sites to use the new signature
     for n in dag.downstream(root.name):
