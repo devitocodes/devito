@@ -6,8 +6,8 @@ from sympy import sin, tan
 
 from conftest import assert_structure, opts_tiling
 from devito import (
-    Border, Buffer, ConditionalDimension, Constant, Eq, Function, Grid, Lt, Operator,
-    SparseFunction, SparseTimeFunction, SubDimension, SubDomain, SubDomainSet,
+    Border, Buffer, ConditionalDimension, Constant, Derivative, Eq, Function, Grid, Lt,
+    Operator, SparseFunction, SparseTimeFunction, SubDimension, SubDomain, SubDomainSet,
     TensorFunction, TimeFunction, VectorFunction, solve
 )
 from devito.exceptions import InvalidArgument
@@ -1601,6 +1601,40 @@ class TestSubDomainFunctions:
         assert np.all(np.isclose(fdx.data[:], gdx.data[2:-2, 3:-1]))
         assert np.all(np.isclose(fdy.data[:], gdy.data[2:-2, 3:-1]))
 
+    @pytest.mark.parametrize('s_o', [2, 4])
+    @pytest.mark.parametrize('axis', [0, 1])
+    def test_derivatives_staggered(self, s_o, axis):
+        """
+        Derivatives of Functions on SubDomains can be evaluated at points staggered
+        along the derivative Dimension
+        """
+
+        class Middle(SubDomain):
+
+            name = 'middle'
+
+            def define(self, dimensions):
+                x, y = dimensions
+                return {x: ('middle', 2, 2), y: ('middle', 3, 1)}
+
+        grid = Grid(shape=(10, 10), extent=(9., 9.))
+        d = grid.dimensions[axis]
+        mid = Middle(grid=grid)
+
+        f = Function(name='f', grid=mid, space_order=s_o)
+        g = Function(name='g', grid=grid, space_order=s_o)
+        fd, gd = (Function(name=i, grid=grid, staggered=d) for i in ('fd', 'gd'))
+
+        f.data[:] = np.random.default_rng(0).random(f.shape)
+        g.data[2:-2, 3:-1] = f.data
+
+        Operator([Eq(fd, Derivative(f, d), subdomain=mid),
+                  Eq(gd, Derivative(g, d), subdomain=mid)])()
+
+        # Same stencil, so bitwise identical
+        assert np.any(fd.data != 0)
+        assert np.all(fd.data == gd.data)
+
     def test_operator_shortcuts(self):
         """
         Test that shortcuts for Laplacian, divergence, etc all work with Functions
@@ -1982,14 +2016,14 @@ class TestSubDomainFunctionsParallel:
                 return {x: ('left', 2), y: y, z: z}
 
         sd1 = SD1(grid=grid)
-        f = TimeFunction(name='f', grid=grid, time_order=1, space_order=2,
-                         staggered=(x,))
+        f = TimeFunction(name='f', grid=grid, time_order=1, space_order=2)
         g = TimeFunction(name='g', grid=sd1, time_order=1, space_order=2,
                          staggered=(x,))
 
         eq = Eq(g, g + f.dx)
         eqe = eq.evaluate
-        assert eqe.rhs == g + f.dx(x0=x).evaluate._subs(x, g.dimensions[1])
+        x0 = x + x.spacing/2
+        assert eqe.rhs == g + f.dx(x0=x0).evaluate._subs(x, g.dimensions[1])
 
 
 class TestSubDomainArguments:
