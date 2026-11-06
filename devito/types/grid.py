@@ -11,14 +11,14 @@ from devito.data import CENTER, LEFT, RIGHT
 from devito.deprecations import deprecations
 from devito.finite_differences.elementary import Max, Min
 from devito.logger import warning
-from devito.mpi import MPI, Distributor, SubDistributor
+from devito.mpi import MPI, Distributor, SubDistributor, SubGridDistributor
 from devito.tools import ReducerMap, as_tuple, frozendict, is_integer
 from devito.types.args import ArgProvider
 from devito.types.basic import Scalar
 from devito.types.dense import Function
 from devito.types.dimension import (
     ConditionalDimension, DefaultDimension, Dimension, MultiSubDimension, SpaceDimension,
-    Spacing, SteppingDimension, SubDimension, TimeDimension
+    Spacing, SteppingDimension, SubDimension, SubsamplingOffset, TimeDimension
 )
 from devito.types.utils import DimensionTuple
 
@@ -193,7 +193,7 @@ class Grid(CartesianDiscretization, ArgProvider):
                 self._topology = None
         else:
             self._topology = None
-        self._distributor = Distributor(shape, dimensions, comm, self._topology)
+        self._distributor = self.__distributor_setup__(shape, dimensions, comm)
 
         # The physical extent and grid spacing
         if spacing is not None:
@@ -417,6 +417,9 @@ class Grid(CartesianDiscretization, ArgProvider):
 
         return values
 
+    def __distributor_setup__(self, shape, dimensions, comm):
+        return Distributor(shape, dimensions, comm, self._topology)
+
     def __getstate__(self):
         state = self.__dict__.copy()
         # A Distributor wraps an MPI communicator, which can't and shouldn't be pickled
@@ -509,8 +512,10 @@ class SubGrid(Grid):
             )
 
         dimensions = tuple(
-            d if f == 1 else ConditionalDimension(f'{d.name}{name}', parent=d,
-                                                  factor=f)
+            d if f == 1 else ConditionalDimension(
+                f'{d.name}{name}', parent=d, factor=f,
+                offset=self.__offset_setup__(parent, d, f, name)
+            )
             for d, f in zip(parent.dimensions, factors, strict=True)
         )
 
@@ -536,6 +541,15 @@ class SubGrid(Grid):
         # SubGrid coarsens space only, so a TimeFunction on it must step over
         # the very same buffer indices as one on the parent
         self._stepping_dim = parent.stepping_dim
+
+    def __distributor_setup__(self, shape, dimensions, comm):
+        return SubGridDistributor(self)
+
+    @classmethod
+    def __offset_setup__(cls, parent, d, factor, name):
+        if not parent.distributor.is_parallel:
+            return 0
+        return SubsamplingOffset(name=f'{d.name}{name}o', root=d, factor=factor)
 
     @classmethod
     def __factors_setup__(cls, parent, factor):

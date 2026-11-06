@@ -390,7 +390,7 @@ def generate_conditionals(expr, input_expr, ordering):
 
     # Replace the ConditionalDimensions in `expr`
     for d, cond in conditionals.items():
-        index = d.index
+        index = d.index - d.offset
         if d.condition is not None and expr.has(d):
             index = index - relational_min(cond, d.parent)
         shift = relational_shift(cond, d.parent, d.symbolic_factor)
