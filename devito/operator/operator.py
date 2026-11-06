@@ -43,7 +43,7 @@ from devito.tools import (
     split, timed_pass, timed_region
 )
 from devito.types import Buffer, Evaluable, device_layer, disk_layer, host_layer
-from devito.types.dimension import SubDimension, Thickness
+from devito.types.dimension import SubDimension, SubsamplingOffset, Thickness
 from devito.warnings import warn
 
 __all__ = ['Operator']
@@ -415,6 +415,11 @@ class Operator(Callable):
         # Operation count before specialization
         init_ops = sum(estimate_cost(c.exprs) for c in clusters if c.is_dense)
 
+        # Strengthen factor-based ConditionalDimension guards into strided
+        # iteration. Before specialization, so that blocking tiles the swapped
+        # Dimensions
+        clusters = subsampling(clusters)
+
         clusters = cls._specialize_clusters(clusters, **kwargs)
 
         # Operation count after specialization
@@ -424,11 +429,6 @@ class Operator(Callable):
 
         # Generate implicit Clusters from higher level abstractions
         clusters = generate_implicit(clusters)
-
-        # Strengthen factor-based ConditionalDimension guards into strided
-        # iteration. Before `lower_index_derivatives` so that the Dimension
-        # swap is seen by everything downstream
-        clusters = subsampling(clusters)
 
         # Lower all remaining high order symbolic objects
         clusters = lower_local_sums(clusters, **kwargs)
@@ -695,14 +695,14 @@ class Operator(Callable):
             # No need to do anything more if only checking the memory
             return args
 
+        # Process the symbols localized by MPI
+        for p in self.parameters:
+            if isinstance(p, (SubsamplingOffset, Thickness)):
+                args.update(p._arg_values(grid=grid, **kwargs))
+
         # Process Dimensions
         for d in reversed(toposort):
             args.update(d._arg_values(self._dspace[d], grid, **kwargs))
-
-        # Process Thicknesses
-        for p in self.parameters:
-            if isinstance(p, Thickness):
-                args.update(p._arg_values(grid=grid, **kwargs))
 
         # Process Objects
         for o in self.objects:

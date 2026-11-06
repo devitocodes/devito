@@ -61,7 +61,7 @@ class GuardFactor(Guard, CondEq, Pickable):
     A guard for factor-based ConditionalDimensions.
 
     Given the ConditionalDimension `d` with factor `k`, create the
-    symbolic relational `d.parent % k == 0`.
+    symbolic relational `(d.parent - d.offset) % k == 0`.
     """
 
     __rargs__ = ('d',)
@@ -76,7 +76,7 @@ class GuardFactor(Guard, CondEq, Pickable):
         d, = args
         assert d.is_Conditional
 
-        obj = super().__new__(cls, d.parent % d.symbolic_factor, 0)
+        obj = super().__new__(cls, (d.parent - d.offset) % d.symbolic_factor, 0)
         obj.d = d
 
         return obj

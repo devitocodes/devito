@@ -1,3 +1,4 @@
+import pickle
 import re
 
 import numpy as np
@@ -11,6 +12,7 @@ from devito import (
 from devito.ir.iet import Conditional, Expression, FindNodes, Iteration
 from devito.symbolics import retrieve_indexed
 from devito.tools import as_tuple
+from devito.types.dimension import SubsamplingOffset
 
 
 def iteration(op, name):
@@ -320,6 +322,16 @@ class TestNumerics:
 
         assert np.array_equal(g.data, data[::3])
 
+    def test_bounds_from_user_values(self):
+        """The bounds follow the parent's, also when only given as keywords."""
+        grid = Grid(shape=(5, 5))
+        ct = ConditionalDimension(name='ct', parent=grid.time_dim, factor=2)
+
+        vals = ct._arg_values(None, time_m=4, time_M=7)
+
+        assert vals[ct.min_name] == 2
+        assert vals[ct.max_name] == 3
+
     def test_time_subsampling(self):
         """
         Time is SEQUENTIAL, so this keeps its guard -- but must still save the
@@ -533,11 +545,7 @@ class TestLegality:
 class TestInteractions:
 
     def test_with_blocking(self):
-        """
-        Blocking rewrites `x` into BlockDimensions, so the subsampled
-        Dimension's parent leaves the iteration space and the guard is kept.
-        Correct, if not strided.
-        """
+        """Striding comes first, so blocking tiles the subsampled Dimension."""
         grid = Grid(shape=(32, 32))
         x, y = grid.dimensions
         cd = ConditionalDimension(name='xs', parent=x, factor=4)
@@ -546,12 +554,19 @@ class TestInteractions:
                      space_order=0)
         u.data[:] = np.arange(32*32).reshape(32, 32).astype(u.dtype)
 
-        op = Operator(Eq(g, u.dx2 + u.dy2), opt=('advanced',
-                                                 {'blockrelax': True}))
+        eq = Eq(g, u.dx2 + u.dy2)
+        Operator(eq, opt='noop').apply()
+        expected = np.array(g.data)
+        g.data[:] = 0.
+
+        op = Operator(eq, opt=('advanced', {'blockrelax': True}))
         op.apply()
 
-        assert len(FindNodes(Conditional).visit(op)) == 1
-        assert np.all(np.isfinite(g.data))
+        assert not FindNodes(Conditional).visit(op)
+        assert any(i.dim.is_Block and i.dim.parent is cd
+                   for i in FindNodes(Iteration).visit(op))
+        # `h^-2*eps*u` of float32 roundoff, as the two builds reorder flops
+        assert np.allclose(g.data, expected, atol=0.5)
 
     @switchconfig(language='openmp')
     def test_with_openmp(self):
@@ -852,6 +867,92 @@ class TestSubGrid:
         assert [d.name for d in sub.dimensions] == ['xc', 'yc']
 
 
+class TestBlocking:
+
+    """
+    Striding happens first, so that blocking tiles the subsampled Dimensions.
+    """
+
+    @staticmethod
+    def build(factor, shape=(21, 21, 21)):
+        grid = Grid(shape=shape)
+        sub = SubGrid(grid, factor=factor)
+        x = grid.dimensions[0]
+
+        u = Function(name='u', grid=grid, space_order=2)
+        g = Function(name='g', grid=sub, space_order=2)
+        u.data[:] = np.arange(np.prod(shape), dtype=np.float64).reshape(shape) % 1009
+
+        eq = Eq(g, g + u.subs({x: x + 1})*u)
+        return eq, g, sub
+
+    def test_blocked_and_strided(self):
+        """The block loops span the subsampled Dimensions, with no guards."""
+        eq, _, sub = self.build(2)
+
+        op = Operator(eq, opt=('advanced', {'blockrelax': True}))
+
+        assert not FindNodes(Conditional).visit(op)
+        blocks = [i for i in FindNodes(Iteration).visit(op) if i.dim.is_Block]
+        assert {i.dim.parent for i in blocks if i.dim._depth == 1} == \
+            set(sub.dimensions)
+        for d in sub.dimensions:
+            assert iteration(op, d.name).limits[2] == 1
+
+    @pytest.mark.parametrize('factor', [2, (2, 3, 4), (3, 2, 1), (1, 2, 2)])
+    @pytest.mark.parametrize('block_size', [None, 3, 5])
+    def test_numerics(self, factor, block_size):
+        """Any tiling of a strided nest visits each point exactly once."""
+        eq, g, _ = self.build(factor)
+        Operator(eq, opt='noop').apply()
+        expected = np.array(g.data)
+
+        g.data[:] = 0.
+
+        op = Operator(eq, opt=('advanced', {'blockrelax': True}))
+        sizes = {p.name: block_size for p in op.parameters
+                 if block_size and p.name.endswith('_size')}
+        assert sizes or block_size is None
+        op.apply(**sizes)
+
+        assert np.array_equal(np.asarray(g.data), expected)
+
+    def test_manual_conditional_dimensions(self):
+        """Hand-built ConditionalDimensions are tiled like a SubGrid's."""
+        grid = Grid(shape=(21, 21, 21))
+        x, y, z = grid.dimensions
+        xd, yd, zd = [ConditionalDimension(f'{d.name}d', parent=d, factor=2)
+                      for d in grid.dimensions]
+
+        u = Function(name='u', grid=grid, space_order=2)
+        g = Function(name='g', dimensions=(xd, yd, zd), shape=(11, 11, 11),
+                     grid=grid, space_order=2)
+
+        op = Operator(Eq(g, g + u[x + 1, y, z]*u[x - 1, y, z]),
+                      opt=('advanced', {'blockrelax': True}))
+
+        assert not FindNodes(Conditional).visit(op)
+        assert any(i.dim.is_Block and i.dim.parent is xd
+                   for i in FindNodes(Iteration).visit(op))
+
+    def test_shared_nest_keeps_guards(self):
+        """A nest shared with unguarded work is blocked, not strided."""
+        grid = Grid(shape=(21, 21, 21))
+        sub = SubGrid(grid, factor=2)
+        x, y, z = grid.dimensions
+
+        u = Function(name='u', grid=grid, space_order=2)
+        v = Function(name='v', grid=grid, space_order=2)
+        g = Function(name='g', grid=sub, space_order=2)
+        u.data[:] = 2.
+
+        op = Operator([Eq(v, u[x + 1, y, z] + u[x - 1, y, z]), Eq(g, g + v)],
+                      opt=('advanced', {'blockrelax': True}))
+        op.apply()
+
+        assert np.all(np.asarray(g.data[1:-1, :, :]) == 4.)
+
+
 class TestMPI:
 
     """
@@ -878,6 +979,143 @@ class TestMPI:
 
         expected = glob[::factor, ::factor][g.local_indices]
         assert np.array_equal(np.asarray(g.data), expected)
+
+    @pytest.mark.parallel(mode=[2, 4])
+    @pytest.mark.parametrize('factor', [2, 3, 4])
+    def test_rank_boundary_off_the_subgrid(self, mode, factor):
+        """The factor applies to global indices, wherever the ranks split."""
+        n = 21
+        grid = Grid(shape=(n, n))
+        sub = SubGrid(grid, factor=factor)
+
+        u = Function(name='u', grid=grid)
+        g = Function(name='g', grid=sub, space_order=0)
+
+        glob = np.arange(n*n, dtype=u.dtype).reshape(n, n)
+        u.data[:] = glob
+
+        Operator(Eq(g, u)).apply()
+
+        expected = glob[::factor, ::factor][g.local_indices]
+        assert np.array_equal(np.asarray(g.data), expected)
+
+    @pytest.mark.parallel(mode=[2])
+    def test_guarded_rank_boundary_off_the_subgrid(self, mode):
+        """A guard surviving in a shared nest also uses global indices."""
+        n, factor = 21, 2
+        grid = Grid(shape=(n, n))
+        sub = SubGrid(grid, factor=factor)
+
+        u = Function(name='u', grid=grid)
+        v = Function(name='v', grid=grid)
+        g = Function(name='g', grid=sub, space_order=0)
+
+        glob = np.arange(n*n, dtype=u.dtype).reshape(n, n)
+        u.data[:] = glob
+
+        op = Operator([Eq(v, u + 1.), Eq(g, u)])
+
+        assert FindNodes(Conditional).visit(op)
+        op.apply()
+
+        expected = glob[::factor, ::factor][g.local_indices]
+        assert np.array_equal(np.asarray(g.data), expected)
+
+    @pytest.mark.parallel(mode=[2])
+    def test_subgrid_only(self, mode):
+        """With no parent Function, the SubGrid alone sets the bounds."""
+        grid = Grid(shape=(21, 21))
+        sub = SubGrid(grid, factor=3)
+
+        g = Function(name='g', grid=sub, space_order=0)
+
+        Operator(Eq(g, 1.)).apply()
+
+        assert np.all(np.asarray(g.data) == 1.)
+
+    @pytest.mark.parallel(mode=[2])
+    @pytest.mark.parametrize('factor', [2, 3])
+    def test_blocked_rank_boundary_off_the_subgrid(self, mode, factor):
+        """Blocking a strided nest preserves the global sampling."""
+        n = 21
+        grid = Grid(shape=(n, n, n))
+        sub = SubGrid(grid, factor=factor)
+        x = grid.dimensions[0]
+
+        u = Function(name='u', grid=grid, space_order=2)
+        g = Function(name='g', grid=sub, space_order=2)
+
+        glob = np.arange(n**3, dtype=np.float64).reshape(n, n, n) % 1009
+        u.data[:] = glob
+
+        op = Operator(Eq(g, g + u.subs({x: x + 1})*u),
+                      opt=('advanced', {'blockrelax': True}))
+
+        assert not FindNodes(Conditional).visit(op)
+        assert any(i.dim.is_Block for i in FindNodes(Iteration).visit(op))
+        op.apply()
+
+        padded = np.zeros((n + 1, n, n))
+        padded[:n] = glob
+        expected = (padded[1:]*glob)[::factor, ::factor, ::factor]
+        assert np.array_equal(np.asarray(g.data), expected[g.local_indices])
+
+    @pytest.mark.parallel(mode=[4])
+    def test_decomposition_follows_parent(self, mode):
+        """A rank owns exactly the subgrid points on its parent points."""
+        n, factor = 13, 6
+        grid = Grid(shape=(n,))
+        sub = SubGrid(grid, factor=factor)
+
+        for parent, child in zip(grid.distributor.decomposition[0],
+                                 sub.distributor.decomposition[0], strict=True):
+            assert np.array_equal(child*factor, parent[parent % factor == 0])
+
+    @pytest.mark.parallel(mode=[2])
+    def test_manual_function_stays_in_rank(self, mode):
+        """A strided nest over a non-decomposed Function stops at the rank."""
+        grid = Grid(shape=(21, 21))
+        x, y = grid.dimensions
+        factor = 2
+
+        xd = ConditionalDimension('xd', parent=x, factor=factor)
+        yd = ConditionalDimension('yd', parent=y, factor=factor)
+
+        u = Function(name='u', grid=grid)
+        g = Function(name='g', dimensions=(xd, yd), shape=(11, 11), grid=grid,
+                     space_order=0)
+
+        args = Operator(Eq(g, u)).arguments()
+
+        assert args['xd_M'] == args['x_M'] // factor
+
+    @pytest.mark.parallel(mode=[2])
+    def test_offset_is_rank_data(self, mode):
+        """Each rank's offset lands its loop on the global subgrid."""
+        grid = Grid(shape=(21,))
+        sub = SubGrid(grid, factor=2)
+        offset = sub.dimensions[0].offset
+
+        expected = {0: 0, 1: 1}[grid.distributor.myrank]
+        assert offset._arg_values(grid=grid) == {offset.name: expected}
+
+    def test_offset_pickles(self):
+        """An offset is rebuilt from its factor, so it holds no rank data."""
+        grid = Grid(shape=(21,))
+        x = grid.dimensions[0]
+        offset = SubsamplingOffset(name='xso', root=x, factor=3)
+
+        new = pickle.loads(pickle.dumps(offset))
+
+        assert new.name == offset.name
+        assert new.factor == 3
+        assert new.root.name == x.name
+
+    def test_serial_has_no_offset(self):
+        """Without a decomposition there's nothing to align."""
+        sub = SubGrid(Grid(shape=(21,)), factor=2)
+
+        assert sub.dimensions[0].offset == 0
 
     @pytest.mark.parallel(mode=[2, 4])
     def test_strided_codegen(self, mode):

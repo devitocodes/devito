@@ -20,8 +20,8 @@ def subsampling(clusters):
           if (x%xf == 0)                 ->     g[x/xf] = ...
             g[x/xf] = ...
 
-The loop is taken over the subsampled Dimension `cd` itself, with a *unit*
-    stride, and every access to the parent `d` is rescaled to `cd*factor`:
+    The loop is taken over the subsampled Dimension `cd` itself, with a *unit*
+    stride, and every access to the parent `d` is mapped to `cd*factor + offset`:
 
         for (x = x_m; x <= x_M; x += 1)      for (xs = xs_m; xs <= xs_M; xs++)
           if (x%xf == 0)                 ->     g[xs] = u[xs*xf]
@@ -30,8 +30,8 @@ The loop is taken over the subsampled Dimension `cd` itself, with a *unit*
     A non-unitary increment is deliberately avoided: it would escape the
     Lamport-style dependence analysis the compiler relies on. The loop bounds
     are `cd`'s own runtime values, which `ConditionalDimension._arg_values`
-    derives as `ceil(x_m/factor) .. floor(x_M/factor)`, so no anchoring of the
-    loop minimum is needed either.
+    derives by inverting that map, so no anchoring of the loop minimum is needed
+    either.
 
     Parameters
     ----------
@@ -73,17 +73,18 @@ class Subsampling(Queue):
 
         cd = guard.d
         factor = cd.symbolic_factor
+        offset = cd.offset
 
         processed = []
         for c in clusters:
             # Iterate the subsampled Dimension itself, with unit stride, and
-            # rescale every parent access `d` to `cd*factor`
+            # map every parent access `d` to `cd*factor + offset`
             ispace = c.ispace.switch(d, cd)
 
-            # `IntDiv(d, factor)` is how the subsampled access was lowered;
-            # with `d -> cd*factor` it collapses to `cd`, so rewrite it
-            # directly rather than leaving `(cd*factor)/factor` behind
-            subs = {IntDiv(d, factor): cd, d: cd*factor}
+            # `IntDiv(d - offset, factor)` is how the subsampled access was
+            # lowered; with `d -> cd*factor + offset` it collapses to `cd`, so
+            # rewrite it directly rather than leaving the division behind
+            subs = {IntDiv(d - offset, factor): cd, d: cd*factor + offset}
             exprs = [uxreplace(e, subs) for e in c.exprs]
 
             # `cd` inherits `d`'s computational properties: it covers the very
