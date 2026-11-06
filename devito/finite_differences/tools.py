@@ -299,12 +299,12 @@ def generate_indices(expr, dim, order, side=None, matvec=None, x0=None, nweights
         iexpr = x0 + d * dim.spacing
         return IndexSet(dim, expr=iexpr), x0
 
-    # Evaluation point relative to the expression's grid, which may be indexed by a
-    # SubDimension of `dim` (e.g., a Function on a SubDomain)
-    rel = x0 - expr.indices_ref[dim]
-    mid = rel.subs({**{i: 0 for i in rel.free_symbols
-                       if i.is_Dimension and i.root is dim.root},
-                    dim.spacing: 1})
+    # Normalize x0 `Dimension` to match index if the latter is a `SubDimension` of
+    # the former
+    x0 = x0.subs({d.root: d for d in expr.dimensions if d.root is dim and d.is_Sub})
+
+    # Evaluation point relative to the expression's grid
+    mid = (x0 - expr.indices_ref[dim]).subs({dim: 0, dim.spacing: 1})
 
     # Shift for side
     side = side or centered
@@ -322,10 +322,6 @@ def generate_indices(expr, dim, order, side=None, matvec=None, x0=None, nweights
     # StencilDimension and expression
     d = make_stencil_dimension(expr, o_min, o_max)
     iexpr = expr.indices_ref[dim] + d * dim.spacing
-
-    # Express `x0` in the same Dimension as the indices, or the FD weights retain
-    # e.g. `iy - y` and are not reduced to numbers
-    x0 = expr.indices_ref[dim] + mid * dim.spacing
 
     return IndexSet(dim, expr=iexpr), x0
 
