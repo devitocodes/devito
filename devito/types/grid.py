@@ -212,6 +212,9 @@ class Grid(CartesianDiscretization, ArgProvider):
         self._origin_symbols = tuple(Scalar(name=f'o_{d.name}', dtype=dtype,
                                             is_const=True)
                                      for d in self.dimensions)
+        self._origin_isymbols = tuple(Scalar(name=f'io_{d.name}', dtype=np.int32,
+                                             is_const=True)
+                                      for d in self.dimensions)
 
         # Sanity check
         assert (self.dim == len(self.origin) == len(self.extent) == len(self.spacing))
@@ -263,9 +266,19 @@ class Grid(CartesianDiscretization, ArgProvider):
         return dict(zip(self.origin_symbols, self.origin, strict=True))
 
     @property
+    def origin_isymbols(self):
+        """Symbols representing the global index of the rank's first grid point."""
+        return self._origin_isymbols
+
+    @property
+    def origin_imap(self):
+        """Map between index origin symbols and their values."""
+        return dict(zip(self.origin_isymbols, self.origin_ioffset, strict=True))
+
+    @property
     def origin_ioffset(self):
         """Offset index of the local (per-process) origin from the domain origin."""
-        grid_origin = [min(i) for i in self.distributor.glb_numb]
+        grid_origin = [i.start for i in self.distributor.glb_slices.values()]
         assert len(grid_origin) == len(self.spacing)
         return DimensionTuple(*grid_origin, getters=self.dimensions)
 
@@ -379,6 +392,7 @@ class Grid(CartesianDiscretization, ArgProvider):
         ret = []
         ret.append(self.time_dim.spacing.name)
         ret.extend([i.name for i in self.origin_map])
+        ret.extend([i.name for i in self.origin_imap])
         for i in self.spacing_map:
             try:
                 ret.append(i.name)
@@ -400,6 +414,7 @@ class Grid(CartesianDiscretization, ArgProvider):
 
         # Grid origin
         args.update({k.name: v for k, v in self.origin_map.items()})
+        args.update({k.name: v for k, v in self.origin_imap.items()})
 
         # MPI-related objects
         if self.distributor.is_parallel:

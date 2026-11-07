@@ -1137,6 +1137,60 @@ def check_halo_exchanges(op, exp0, exp1):
     return calls, tloop
 
 
+class TestGlobalIndex:
+
+    @pytest.mark.parallel(mode=[2, 4])
+    def test_dimension_as_expression(self, mode):
+        """Dimensions in an expression are global indices (issue #2214)."""
+        grid = Grid(shape=(8, 8))
+        x, y = grid.dimensions
+        f = Function(name='f', grid=grid)
+
+        Operator(Eq(f, 10*x + y))()
+
+        check = 10*np.arange(8)[:, None] + np.arange(8)
+        assert np.all(f.data[:] == check[f.local_indices])
+
+    @pytest.mark.parallel(mode=[2, 4])
+    def test_dimension_as_expression_subdomain(self, mode):
+        """Same as above, but restricted to a SubDomain."""
+        grid = Grid(shape=(8, 8))
+        x, y = grid.dimensions
+        f = Function(name='f', grid=grid)
+
+        Operator(Eq(f, 10*x + y, subdomain=grid.interior))()
+
+        check = 10*np.arange(8)[:, None] + np.arange(8)
+        check[[0, -1], :] = check[:, [0, -1]] = 0
+        assert np.all(f.data[:] == check[f.local_indices])
+
+    @pytest.mark.parallel(mode=[2])
+    def test_dimension_indexing_unaffected(self, mode):
+        """Dimensions indexing a Function remain rank-local."""
+        grid = Grid(shape=(8,))
+        x = grid.dimensions[0]
+        f = Function(name='f', grid=grid, space_order=1)
+        g = Function(name='g', grid=grid)
+
+        f.data[:] = np.arange(8)
+        Operator(Eq(g, f.subs(x, x + 1) + x))()
+
+        # The last point reads a zero from the physical boundary halo
+        check = 2*np.arange(8) + 1
+        check[-1] = 7
+        assert np.all(g.data[:] == check[g.local_indices])
+
+    def test_serial_code_unchanged(self):
+        """No index offset is generated without MPI."""
+        grid = Grid(shape=(4, 4))
+        x, y = grid.dimensions
+        f = Function(name='f', grid=grid)
+
+        op = Operator(Eq(f, x + y))
+
+        assert not any(p.name.startswith('io_') for p in op.parameters)
+
+
 class TestHaloWrites:
 
     @pytest.mark.parallel(mode=[1, 2])
