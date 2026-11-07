@@ -156,6 +156,8 @@ def _lower_exprs(expressions, subs):
         # Add dimensions map to the mapper in case dimensions are used
         # as an expression, i.e. Eq(u, x, subdomain=xleft)
         mapper.update(dimension_map)
+        # Dimensions used as an expression are global indices, unlike loop indices
+        mapper.update(_make_global_index_map(expr, dimension_map))
         # Add the user-supplied substitutions
         mapper.update(subs)
         # Apply mapper to expression
@@ -190,6 +192,21 @@ def _make_dimension_map(expr):
                                   for d in f.space_dimensions if d.is_Sub})
 
     return frozendict(dimension_map)
+
+
+def _make_global_index_map(expr, dimension_map):
+    """
+    Map the Dimensions of a distributed Grid to the global indices they stand for
+    when used as an expression, i.e. Eq(u, x + y) -> Eq(u[x, y], x + io_x + y + io_y).
+    Dimensions indexing an Indexed are unaffected as the Indexed is replaced as a whole.
+    """
+    if not isinstance(expr, Eq):
+        return {}
+
+    grids = {f.grid.root for f in retrieve_functions(expr) if f.grid is not None}
+    return {d: dimension_map.get(d, d) + o
+            for grid in grids if grid.distributor.is_parallel
+            for d, o in zip(grid.dimensions, grid.origin_isymbols, strict=True)}
 
 
 def concretize_subdims(exprs, **kwargs):
