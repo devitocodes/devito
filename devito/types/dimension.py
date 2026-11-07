@@ -942,6 +942,56 @@ class SubsamplingFactor(Scalar):
     pass
 
 
+class SubsamplingOffset(DataSymbol):
+
+    """
+    The local index of the first subsampled point on an MPI rank.
+
+    Subsampling is defined on global indices, but a rank need not start on a
+    subsampled point. E.g., with `factor=2` and two ranks:
+
+        global      0  1  2 ... 10 | 11 12 13 14 ... 20
+        local       0  1  2 ... 10 |  0  1  2  3 ...  9
+        subsampled  *  .  * ...  * |  .  *  .  * ...  *
+        offset      0              |     1
+
+    In local indices, `parent = factor*subsampled + offset`.
+    """
+
+    __rkwargs__ = DataSymbol.__rkwargs__ + ('root', 'factor')
+
+    def __new__(cls, *args, root=None, factor=None, **kwargs):
+        newobj = super().__new__(cls, *args, **kwargs)
+        newobj._root = root
+        newobj._factor = factor
+
+        return newobj
+
+    def __init_finalize__(self, *args, **kwargs):
+        kwargs.setdefault('dtype', np.int32)
+        kwargs.setdefault('is_const', True)
+        kwargs.setdefault('nonnegative', True)
+        super().__init_finalize__(*args, **kwargs)
+
+    @property
+    def root(self):
+        return self._root
+
+    @property
+    def factor(self):
+        return self._factor
+
+    def _arg_values(self, grid=None, **kwargs):
+        if grid is None:
+            return {self.name: 0}
+
+        # Runtime arguments bind by name, even when different spacing dtypes
+        # make the compiled and runtime Grid Dimensions distinct symbols
+        root = next(d for d in grid.dimensions if d.name == self.root.name)
+
+        return {self.name: -grid.origin_ioffset[root] % self.factor}
+
+
 class ConditionalDimension(DerivedDimension):
 
     """
@@ -971,6 +1021,9 @@ class ConditionalDimension(DerivedDimension):
         lowering for example combining Function's ConditionalDimension with
         an Equation's implicit_dim. All Dimensions within an equation
         must have `Or` relation for the final combined condition to be Or.
+    offset : SubsamplingOffset, optional, default=0
+        The intercept of the map onto the parent Dimension, that is
+        ``parent = factor*self + offset``.
 
     Examples
     --------
@@ -1065,10 +1118,10 @@ class ConditionalDimension(DerivedDimension):
     STRICT = 'strict'
 
     __rkwargs__ = DerivedDimension.__rkwargs__ + \
-        ('factor', 'condition', 'indirect', 'relation')
+        ('factor', 'condition', 'indirect', 'relation', 'offset')
 
     def __init_finalize__(self, name, parent=None, factor=None, condition=None,
-                          indirect=False, relation=sympy.And, **kwargs):
+                          indirect=False, relation=sympy.And, offset=0, **kwargs):
         # `parent=None` degenerates to a ConditionalDimension outside of
         # any iteration space
         if parent is None:
@@ -1087,6 +1140,7 @@ class ConditionalDimension(DerivedDimension):
         else:
             raise ValueError("factor must be an integer")
 
+        self._offset = offset
         self._condition = condition
         self._indirect = indirect
         self._relation = relation
@@ -1137,6 +1191,10 @@ class ConditionalDimension(DerivedDimension):
             )
 
     @property
+    def offset(self):
+        return self._offset
+
+    @property
     def condition(self):
         return self._condition
 
@@ -1168,17 +1226,19 @@ class ConditionalDimension(DerivedDimension):
             fact = fact.data
 
         vals = {}
+        offset = args.get(self.offset.name, 0) if self.offset else 0
 
-        # The first subsampled point at or after the parent's min...
+        # The first subsampled point at or after the parent's rank-local min...
         with suppress(KeyError, TypeError):
-            vals[self.min_name] = math.ceil(kwargs.get(self.parent.min_name) / fact)
+            vals[self.min_name] = math.ceil((args[self.parent.min_name] - offset) / fact)
 
         # ...and the last one at or before its max. Note `floor` rather than
         # `ceil`: with e.g. `factor=3` and `x_M=11` the last subsampled point
         # is `x=9`, hence index 3, while `ceil(11/3) == 4` would overshoot the
         # Function by one
         with suppress(KeyError, TypeError):
-            vals[self.max_name] = kwargs.get(self.parent.max_name) // fact
+            vals[self.max_name] = min((args[self.parent.max_name] - offset) // fact,
+                                      args[self.max_name])
 
         vals[self.symbolic_factor.name] = fact
 
@@ -1207,8 +1267,10 @@ class ConditionalDimension(DerivedDimension):
                                      f"{self.name}: {size} < {size0}")
             else:
                 # Given a factor the last time index is factor*(size - 1)
-                # The maximum allowed value is then factor*size - 1
-                defaults[dim.parent.max_name] = range(d0, d0 + factor*size)
+                # The maximum allowed value is then factor*size - 1, plus at
+                # most factor - 1 for an offset
+                stop = d0 + factor*size + (factor - 1 if dim.offset else 0)
+                defaults[dim.parent.max_name] = range(d0, stop)
 
         return defaults
 

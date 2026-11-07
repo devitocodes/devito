@@ -68,6 +68,7 @@ __all__ = [
     'Distributor',
     'SparseDistributor',
     'SubDistributor',
+    'SubGridDistributor',
     'devito_mpi_finalize',
     'devito_mpi_init',
 ]
@@ -375,10 +376,15 @@ class Distributor(DenseDistributor):
             self._comm = MPI.COMM_NULL
             self._topology = tuple(1 for _ in range(len(shape)))
 
-        # The domain decomposition
+        self.__decomposition_setup__()
+
+    def __decomposition_setup__(self):
+        """
+        Set up the domain decomposition.
+        """
         self._decomposition = [
             Decomposition(np.array_split(range(i), j), c)
-            for i, j, c in zip(shape, self.topology, self.mycoords, strict=True)
+            for i, j, c in zip(self.glb_shape, self.topology, self.mycoords, strict=True)
         ]
 
     @cached_property
@@ -483,6 +489,41 @@ class Distributor(DenseDistributor):
     def _rebuild(self, shape=None, dimensions=None, comm=None):
         return Distributor(shape or self.shape, dimensions or self.dimensions,
                            comm or self.comm)
+
+
+class SubGridDistributor(Distributor):
+
+    """
+    Decompose a SubGrid over a set of MPI processes in a manner consistent with
+    the parent distributor: a rank owns the SubGrid points on its parent points.
+
+    Parameters
+    ----------
+    subgrid : SubGrid
+        The SubGrid to be decomposed.
+    """
+
+    def __init__(self, subgrid):
+        self._parent = subgrid.parent.distributor
+        self._factors = subgrid.factor
+
+        super().__init__(subgrid.shape, subgrid.dimensions, self.parent.comm,
+                         tuple(self.parent.topology))
+
+    def __decomposition_setup__(self):
+        """
+        Set up the decomposition, aligned with that of the parent Distributor.
+        """
+        self._decomposition = [
+            Decomposition([d[d % f == 0] // f for d in dec], c)
+            for dec, f, c in zip(self.parent.decomposition, self._factors,
+                                 self.mycoords, strict=True)
+        ]
+
+    @property
+    def parent(self):
+        """The parent distributor of this SubGridDistributor."""
+        return self._parent
 
 
 class SubDistributor(DenseDistributor):
