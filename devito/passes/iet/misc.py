@@ -7,8 +7,8 @@ import sympy
 from devito.finite_differences import Max, Min
 from devito.finite_differences.differentiable import SafeInv
 from devito.ir import (
-    Any, DummyExpr, EmptyList, FindApplications, FindNodes, FindSymbols, Forward,
-    Iteration, Prodder, Transformer, Uxreplace, filter_iterations, pull_dims,
+    Any, DummyExpr, FindApplications, FindNodes, FindSymbols, Forward, Iteration, List,
+    MacroStatement, Prodder, Transformer, Uxreplace, filter_iterations, pull_dims,
     retrieve_iteration_tree
 )
 from devito.ir.iet.efunc import DeviceFunction, EntryFunction
@@ -49,12 +49,14 @@ def avoid_denormals(iet, platform=None, **kwargs):
     if iet.is_ElementalFunction:
         return iet, {}
 
-    header = (cgen.Comment('Flush denormal numbers to zero in hardware'),
-              cgen.Statement('_MM_SET_DENORMALS_ZERO_MODE(_MM_DENORMALS_ZERO_ON)'),
-              cgen.Statement('_MM_SET_FLUSH_ZERO_MODE(_MM_FLUSH_ZERO_ON)'),
-              cgen.Line())
+    header = List(
+        header=cgen.Comment('Flush denormal numbers to zero in hardware'),
+        body=(MacroStatement('_MM_SET_DENORMALS_ZERO_MODE(_MM_DENORMALS_ZERO_ON)'),
+              MacroStatement('_MM_SET_FLUSH_ZERO_MODE(_MM_FLUSH_ZERO_ON)')),
+        footer=cgen.Line()
+    )
 
-    body = iet.body._rebuild(body=(EmptyList(header=header),) + iet.body.body)
+    body = iet.body._rebuild(body=(header,) + iet.body.body)
     iet = iet._rebuild(body=body)
 
     return iet, {'includes': ('xmmintrin.h', 'pmmintrin.h')}
