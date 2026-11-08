@@ -166,6 +166,7 @@ class AnalyzeDeviceAwareBlocking(AnalyzeBlocking):
         super().__init__(options)
 
         self.gpu_fit = options.get('gpu-fit', ())
+        self.par_tile = options['par-tile']
 
     def _make_key_hook(self, cluster, level):
         return (is_on_device(cluster.functions, self.gpu_fit),)
@@ -174,22 +175,25 @@ class AnalyzeDeviceAwareBlocking(AnalyzeBlocking):
         return any(cluster.properties.is_parallel_atomic(i)
                    for i in set(cluster.ispace.itdims) - {d})
 
-    def _has_enough_large_blockable_dims(self, cluster, d, nested=False):
+    def _has_enough_blockable_dims(self, cluster, d, nested=False):
         if nested:
             _, ispace = cluster.ispace.split(d)
             dims = set(ispace.itdims)
         else:
             ispace = cluster.ispace
             dims = set(cluster.ispace.itdims) - {d}
-        return len([i for i in dims
-                    if (cluster.properties.is_parallel_relaxed(i) and
-                        not self._has_short_trip_count(i))]) >= 3
+        large = {i for i in dims if cluster.properties.is_parallel_relaxed(i)
+                 and not self._has_short_trip_count(i)}
+        blocked = {i for i in dims if cluster.properties.is_blockable(i)}
+        return len(large | blocked) >= 3
 
     def callback(self, clusters, prefix):
         if not prefix:
             return clusters
 
         d = prefix[-1].dim
+        unbound = self.par_tile.unbound if self.par_tile else False
+        tile_sparse = unbound and any(c.is_sparse for c in clusters)
 
         processed = []
         for c in clusters:
@@ -198,16 +202,16 @@ class AnalyzeDeviceAwareBlocking(AnalyzeBlocking):
 
             if is_on_device(c.functions, self.gpu_fit):
                 if self._has_short_trip_count(d):
-                    if self._has_atomic_blockable_dim(c, d):
+                    if self._has_atomic_blockable_dim(c, d) and not tile_sparse:
                         # Optimization: minimize number of parallel reductions
                         # if we think there's already enough parallelism around
                         return clusters
-                    elif self._has_enough_large_blockable_dims(c, d):
+                    elif self._has_enough_blockable_dims(c, d):
                         # Optimization: pointless, from a performance standpoint,
-                        # to have more than three large blockable Dimensions
+                        # to have more than three blockable Dimensions
                         return clusters
 
-                if self._has_enough_large_blockable_dims(c, d, nested=True):
+                if self._has_enough_blockable_dims(c, d, nested=True):
                     # Virtually all device programming models forbid parallelism
                     # along more than three dimensions
                     return clusters
@@ -431,7 +435,34 @@ def stencil_footprint(clusters, d):
 def decompose(ispace, d, block_dims):
     """
     Create a new IterationSpace in which the `d` Interval is decomposed
-    into a hierarchy of Intervals over ``block_dims``.
+    into a hierarchy of Intervals over `block_dims`.
+
+    Examples
+    --------
+    For ordinary loops over `x` and `y`, decomposing `x` with
+    `block_dims=(xb, xi)` gives one level of blocking with block size `B`:
+
+        for x = 0..N-1:           for xb = 0..N-1 step B:
+          for y:          ->       for xi = xb..min(xb+B-1, N-1):
+            u[x, y] = f[x, y]        for y:
+                                       u[xi, y] = f[xi, y]
+
+    The relation `(x, y)` becomes `(xb, y)` and `(xi, y)`, together with
+    `(xb, xi)`. Here `x._defines={x}`, so only `x` is replaced.
+
+    In a sparse injection, `p` indexes source points and `r` indexes the local
+    stencil offsets. A CustomDimension `r` with parent `p` has `_defines={p, r}`,
+    but both occur as independent loops in the IterationSpace. Blocking `r`
+    with `block_dims=(rb, ri)` must preserve the loop over `p`:
+
+        for p:                         for p:
+          for r = -3..4:       ->        for rb = -3..4 step B:
+            u[gp[p]+r] += w[r]             for ri = rb..min(rb+B-1, 4):
+                                             u[gp[p]+ri] += w[ri]
+
+    The relation `(p, r)` therefore becomes `(p, rb)` and `(p, ri)`, together
+    with `(rb, ri)`. Replacing every member of `r._defines` would instead turn
+    `(p, r)` into `(rb, rb)`, dropping the ordering constraint for `p`.
     """
     # Create the new Intervals
     intervals = []
@@ -442,13 +473,16 @@ def decompose(ispace, d, block_dims):
         else:
             intervals.append(i)
 
+    # Retain independently iterated parents, as in the example above
+    defines = (d._defines - set(ispace.itdims)) | {d}
+
     # Create the intervals relations
     # 1: `bbd > bd`
     relations = [block_dims]
 
     # 2: Suitably replace `d` with all `bd`'s
     for r in ispace.relations:
-        if not d._defines.intersection(r):
+        if not defines.intersection(r):
             relations.append(r)
             continue
 
@@ -458,7 +492,7 @@ def decompose(ispace, d, block_dims):
                 continue
 
             # E.g., `r=(z, i0z)` -> `[i0z0_blk0, i0z0_blk0]`
-            v = [bd if i in d._defines else i for i in r]
+            v = [bd if i in defines else i for i in r]
 
             # E.g., `v=[i0z0_blk0, i0z0_blk0]` -> `v=(i0z0_blk0,)`
             v = tuple(filter_ordered(v))
