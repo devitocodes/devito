@@ -7,7 +7,7 @@ from sympy import Or
 
 from devito import (
     CondEq, ConditionalDimension, Constant, Eq, Function, Grid, Inc, Operator,
-    SpaceDimension, SubGrid, TimeFunction, switchconfig
+    SpaceDimension, SubDomain, SubGrid, TimeFunction, switchconfig
 )
 from devito.ir.iet import Conditional, Expression, FindNodes, Iteration
 from devito.symbolics import retrieve_indexed
@@ -347,6 +347,11 @@ class TestNumerics:
 
         Operator([Eq(u.forward, u + 1.), Eq(usave, u)]).apply(time_M=nt-2)
 
+        # Time keeps its guard even where it is parallel
+        op = Operator(Eq(usave, 1.))
+        assert FindNodes(Conditional).visit(op)
+        assert all(i.dim is not ts for i in FindNodes(Iteration).visit(op))
+
         # time runs 0..nt-2, so only the slots whose time index is reached
         # are written; `u` holds the step count at that point
         nwritten = (nt - 2)//factor + 1
@@ -578,6 +583,22 @@ class TestInteractions:
         assert np.array_equal(g.data, data[::2])
 
 
+class Middle(SubDomain):
+
+    name = 'middle'
+
+    def define(self, dimensions):
+        # Thicknesses deliberately not multiples of the SubGrid factors
+        return {d: ('middle', 2, 3) for d in dimensions}
+
+
+def middle_of(data):
+    """`data` zeroed outside the `Middle` SubDomain."""
+    ret = np.zeros_like(data)
+    ret[2:-3, 2:-3] = data[2:-3, 2:-3]
+    return ret
+
+
 class TestSubGrid:
 
     """The `SubGrid` API."""
@@ -639,6 +660,22 @@ class TestSubGrid:
 
         fx, fy = sub.factor
         assert np.array_equal(f.data, data[::fx, ::fy])
+
+    @pytest.mark.parametrize('factor', [2, 3, (2, 1), (3, 2)])
+    def test_copy_on_subdomain(self, factor):
+        """Within a SubDomain, only the SubGrid points inside it are written."""
+        grid = Grid(shape=(12, 12))
+        sub = SubGrid(grid, factor=factor)
+
+        u = Function(name='u', grid=grid)
+        f = Function(name='f', grid=sub, space_order=0)
+        data = np.arange(1, 145, dtype=u.dtype).reshape(12, 12)
+        u.data[:] = data
+
+        Operator(Eq(f, u, subdomain=Middle(grid=grid))).apply()
+
+        fx, fy = sub.factor
+        assert np.array_equal(f.data, middle_of(data)[::fx, ::fy])
 
     def test_copy_is_strided(self):
         """
@@ -978,6 +1015,25 @@ class TestMPI:
         Operator(Eq(g, u)).apply()
 
         expected = glob[::factor, ::factor][g.local_indices]
+        assert np.array_equal(np.asarray(g.data), expected)
+
+    @pytest.mark.parallel(mode=[2, 4])
+    @pytest.mark.parametrize('factor', [2, 3])
+    def test_copy_on_subdomain(self, mode, factor):
+        """The SubDomain bounds the SubGrid on every rank."""
+        n = 24
+        grid = Grid(shape=(n, n))
+        sub = SubGrid(grid, factor=factor)
+
+        u = Function(name='u', grid=grid)
+        g = Function(name='g', grid=sub, space_order=0)
+
+        glob = np.arange(1, n*n + 1, dtype=u.dtype).reshape(n, n)
+        u.data[:] = glob
+
+        Operator(Eq(g, u, subdomain=Middle(grid=grid))).apply()
+
+        expected = middle_of(glob)[::factor, ::factor][g.local_indices]
         assert np.array_equal(np.asarray(g.data), expected)
 
     @pytest.mark.parallel(mode=[2, 4])

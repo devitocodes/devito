@@ -695,10 +695,14 @@ class Operator(Callable):
             # No need to do anything more if only checking the memory
             return args
 
-        # Process the symbols localized by MPI
-        for p in self.parameters:
-            if isinstance(p, (SubsamplingOffset, Thickness)):
-                args.update(p._arg_values(grid=grid, **kwargs))
+        # Process the symbols localized by MPI. A SubDimension's thicknesses are
+        # needed even when they only bound another Dimension, e.g. a subsampled one
+        localized = OrderedSet(*[p for p in self.parameters
+                                 if isinstance(p, (SubsamplingOffset, Thickness))])
+        localized.update(t for d in toposort if isinstance(d, SubDimension)
+                         for t in d.thickness)
+        for p in localized:
+            args.update(p._arg_values(grid=grid, **kwargs))
 
         # Process Dimensions
         for d in reversed(toposort):

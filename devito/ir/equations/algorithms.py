@@ -186,10 +186,20 @@ def _make_dimension_map(expr):
         # Some Relationals may be pure SymPy objects, thus lacking the SubDomain
         dimension_map = {}
     else:
-        functions = [f for f in retrieve_functions(expr) if f._is_on_subdomain]
+        functions = retrieve_functions(expr)
         for f in functions:
-            dimension_map.update({d: expr.subdomain.dimension_map[d.root]
-                                  for d in f.space_dimensions if d.is_Sub})
+            if f._is_on_subdomain:
+                dimension_map.update({d: expr.subdomain.dimension_map[d.root]
+                                      for d in f.space_dimensions if d.is_Sub})
+
+        # A subsampled Function, e.g. on a SubGrid, is subsampled from the
+        # SubDomain's Dimensions rather than from the whole Grid's
+        for f in functions:
+            dimension_map.update({
+                d: d._rebuild(parent=expr.subdomain.dimension_map[d.parent])
+                for d in f.dimensions
+                if d.is_Conditional and d.parent in expr.subdomain.dimension_map
+            })
 
     return frozendict(dimension_map)
 

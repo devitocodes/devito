@@ -113,6 +113,10 @@ def _is_strideable(cluster, d, guard):
     if d not in cluster.ispace.itdims:
         return False
 
+    # Time keeps its guard, which later passes (e.g. buffering) rely upon
+    if d.is_Time:
+        return False
+
     # Skipping points is only sound if no dependence is carried along `d`;
     # otherwise the discarded iterations may be doing work that `d`'s
     # remaining iterations rely upon
