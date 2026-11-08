@@ -638,6 +638,17 @@ def get_m1_llvm_path(language):
         if os.path.exists(os.path.join(prefix, 'lib', 'libomp.dylib')):
             libs = os.path.join(prefix, "lib")
             include = os.path.join(prefix, "include")
+            # Reuse an existing LLVM OpenMP runtime. Loading another copy, e.g.
+            # after importing a numerical package, aborts on first parallel use
+            dyld = ctypes.CDLL(None)
+            dyld._dyld_image_count.restype = ctypes.c_uint32
+            dyld._dyld_get_image_name.argtypes = [ctypes.c_uint32]
+            dyld._dyld_get_image_name.restype = ctypes.c_char_p
+            for i in range(dyld._dyld_image_count()):
+                name = os.fsdecode(dyld._dyld_get_image_name(i))
+                if os.path.basename(name) == 'libomp.dylib':
+                    libs = os.path.dirname(name)
+                    break
             return {'libs': libs, 'include': include}
         elif language == "openmp":
             warning("Apple's arm64 clang found but openmp libraries not found."

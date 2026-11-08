@@ -9,6 +9,11 @@ from operator import mul
 import numpy as np
 from cgen import dtype_to_ctype as cgen_dtype_to_ctype
 
+try:
+    import torch
+except ImportError:
+    torch = None
+
 from .utils import as_tuple
 
 __all__ = ['int2', 'int3', 'int4', 'float2', 'float3', 'float4', 'double2',  # noqa
@@ -16,7 +21,8 @@ __all__ = ['int2', 'int3', 'int4', 'float2', 'float3', 'float4', 'double2',  # n
            'dtype_to_cstr', 'dtype_to_ctype', 'infer_datasize', 'dtype_to_mpitype',
            'dtype_len', 'ctypes_to_cstr', 'c_restrict_void_p', 'ctypes_vector_mapper',
            'is_external_ctype', 'infer_dtype', 'infer_dtype_from_args', 'extract_dtype',
-           'CustomDtype', 'mpi4py_mapper', 'as_fp64_decimal']
+           'CustomDtype', 'mpi4py_mapper', 'as_fp64_decimal',
+           'dtype_to_torch', 'dtype_from_torch']
 
 
 def as_fp64_decimal(v):
@@ -412,3 +418,28 @@ def infer_dtype_from_args(args):
     dtypes = {extract_dtype(i) for i in args} - {None}
 
     return infer_dtype(dtypes, vector=True)
+
+
+# PyTorch and NumPy scalar types used by Function storage
+_torch_dtypes = {} if torch is None else {
+    np.dtype('float32'): torch.float32, np.dtype('float64'): torch.float64,
+    np.dtype('int32'): torch.int32, np.dtype('int64'): torch.int64
+}
+
+
+def dtype_to_torch(dtype):
+    """Lower a Function dtype to the corresponding PyTorch scalar type."""
+    if torch is None:
+        raise ImportError("PyTorch is required for tensor allocation")
+    try:
+        return _torch_dtypes[np.dtype(dtype)]
+    except KeyError:
+        raise TypeError(f"Unsupported tensor dtype {dtype}") from None
+
+
+def dtype_from_torch(dtype):
+    """Return the compiler dtype corresponding to a PyTorch scalar type."""
+    try:
+        return next(n for n, t in _torch_dtypes.items() if t == dtype)
+    except StopIteration:
+        raise TypeError(f"Unsupported tensor dtype {dtype}") from None

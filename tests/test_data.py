@@ -8,7 +8,7 @@ from devito import (  # noqa
     PrecomputedSparseFunction, PrecomputedSparseTimeFunction, SparseFunction,
     SparseTimeFunction, TimeFunction, clear_cache, configuration, switchconfig
 )
-from devito.data import LEFT, RIGHT, Decomposition, convert_index, loc_data_idx
+from devito.data import LEFT, RIGHT, Decomposition, NumpyData, convert_index, loc_data_idx
 from devito.data.allocators import DataReference, PosixAllocator
 from devito.data.distributed.layout import Layout
 from devito.data.distributed.selection import (
@@ -321,6 +321,21 @@ class TestDataBasic:
         s.coordinates.data[-1, :] = s.coordinates.data[-1, :] / 2
 
         assert np.allclose(s.coordinates.data[-1, :], coords[-1, :] / 2)
+
+    @pytest.mark.parametrize('value', [
+        np.arange(12, dtype=np.float32).reshape(3, 4),
+        np.arange(6, dtype=np.int32).reshape(2, 3),
+        np.ones((2, 3), dtype=np.float64),
+        np.empty((0, 2), dtype=np.float32),
+        np.arange(100, dtype=np.int64),
+    ])
+    def test_representation(self, value):
+        class Data(np.ndarray):
+            pass
+
+        data = NumpyData(value.shape, value.dtype.type, modulo=(False,)*value.ndim)
+        data[:] = value
+        assert repr(data) == repr(value.view(Data))
 
 
 class TestLocDataIDX:

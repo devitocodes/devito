@@ -166,6 +166,8 @@ class Operator(Callable):
     refer to the relevant documentation.
     """
 
+    _compiler_options = {}
+
     def __new__(cls, expressions, **kwargs):
         if expressions is None:
             # Return a dummy Callable. This is exploited by unpickling. Users
@@ -520,6 +522,7 @@ class Operator(Callable):
 
         # Lower IET to a target-specific IET
         graph = Graph(iet, **kwargs)
+        cls._Target.initialize(graph, **kwargs)
         graph = cls._specialize_iet(graph, **kwargs)
 
         # Instrument the IET for C-level profiling
@@ -792,7 +795,8 @@ class Operator(Callable):
     def _postprocess_arguments(self, args, **kwargs):
         """Process runtime arguments upon returning from ``.apply()``."""
         for p in self.parameters:
-            p._arg_apply(args[p.name], alias=kwargs.get(p.name))
+            p._arg_apply(args[p.name], alias=kwargs.get(p.name),
+                         access_mode=self._access_modes.get(p))
 
     @cached_property
     def _known_arguments(self):
@@ -852,10 +856,14 @@ class Operator(Callable):
     def namespaces(self):
         return OrderedSet(*self._printer._namespaces).union(self._namespaces)
 
+    @property
+    def _ccode_handler(self):
+        from devito.ir.iet.visitors import CGen
+        return CGen
+
     @cached_property
     def ccode(self):
-        from devito.ir.iet.visitors import CGen
-        return CGen(printer=self._printer).visit(self)
+        return self._ccode_handler(printer=self._printer).visit(self)
 
     def _jit_compile(self):
         """
@@ -1743,6 +1751,9 @@ def parse_kwargs(**kwargs):
         kwargs['language'] = configuration['language']
 
     # `compiler`
+    backend = operator_selector(**kwargs)
+    compiler_options = dict(backend._compiler_options)
+    compiler_options['openmp'] = options['openmp']
     compiler = kwargs.get('compiler')
     if compiler is not None:
         if not isinstance(compiler, str):
@@ -1752,14 +1763,16 @@ def parse_kwargs(**kwargs):
         kwargs['compiler'] = compiler_registry[compiler](platform=kwargs['platform'],
                                                          language=kwargs['language'],
                                                          mpi=configuration['mpi'],
-                                                         name=compiler)
+                                                         name=compiler,
+                                                         **compiler_options)
     elif any([platform, language]):
         kwargs['compiler'] =\
             configuration['compiler'].__new_with__(platform=kwargs['platform'],
                                                    language=kwargs['language'],
-                                                   mpi=configuration['mpi'])
+                                                   mpi=configuration['mpi'],
+                                                   **compiler_options)
     else:
-        kwargs['compiler'] = configuration['compiler'].__new_with__()
+        kwargs['compiler'] = configuration['compiler'].__new_with__(**compiler_options)
 
     # Make sure compiler and language are compatible
     if compiler is not None and kwargs['compiler']._cpp and \

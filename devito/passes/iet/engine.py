@@ -157,6 +157,7 @@ class Graph(Byproduct):
                 compiler.add_library_dirs(as_tuple(metadata.get('lib_dirs')),
                                           rpath=metadata.get('rpath', False))
                 compiler.add_libraries(as_tuple(metadata.get('libs')))
+                compiler.add_defines(as_tuple(metadata.get('defines')))
             except KeyError:
                 pass
 

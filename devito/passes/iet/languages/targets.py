@@ -9,6 +9,8 @@ from devito.passes.iet.languages.openmp import (
     DeviceOmpDataManager, DeviceOmpizer, DeviceOmpOrchestrator, OmpDataManager, Ompizer,
     OmpOrchestrator, SimdOmpizer
 )
+from devito.passes.iet.languages.torch import TorchPrinter
+from devito.passes.iet.languages.torch import initialize as initialize_torch
 
 __all__ = [
     'COmpTarget',
@@ -19,6 +21,7 @@ __all__ = [
     'DeviceCXXOmpTarget',
     'DeviceOmpTarget',
     'OmpTarget',
+    'TorchTarget',
 ]
 
 
@@ -27,6 +30,10 @@ class Target:
     DataManager = None
     Orchestrator = None
     Printer = None
+
+    @staticmethod
+    def initialize(graph, **kwargs):
+        return
 
     @classmethod
     def langbb(cls):
@@ -90,3 +97,17 @@ class DeviceAccTarget(Target):
     DataManager = DeviceAccDataManager
     Orchestrator = AccOrchestrator
     Printer = AccPrinter
+
+
+class TorchTarget(CXXOmpTarget):
+    initialize = staticmethod(initialize_torch)
+    Printer = TorchPrinter
+
+    @classmethod
+    def langbb(cls):
+        return CXXOmpTarget.langbb()
+
+    @staticmethod
+    def Parizer(**kwargs):
+        parizer = CXXOmpizer if kwargs['options']['openmp'] else CXXSimdOmpizer
+        return parizer(**kwargs)

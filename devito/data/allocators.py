@@ -9,7 +9,12 @@ import numpy as np
 
 from devito.logger import logger
 from devito.parameters import configuration
-from devito.tools import infer_datasize, is_integer
+from devito.tools import dtype_to_torch, infer_datasize, is_integer
+
+try:
+    import torch
+except ImportError:
+    torch = None
 
 __all__ = [
     'ALLOC_ALIGNED',
@@ -18,6 +23,7 @@ __all__ = [
     'ALLOC_KNL_MCDRAM',
     'ALLOC_NUMA_ANY',
     'ALLOC_NUMA_LOCAL',
+    'TorchAllocator',
     'default_allocator',
 ]
 
@@ -29,6 +35,9 @@ class AbstractMemoryAllocator:
     """
 
     __metaclass__ = abc.ABCMeta
+
+    _array_type = np.ndarray
+    is_Device = False
 
     guaranteed_alignment = 64
     """Guaranteed data alignment."""
@@ -340,6 +349,66 @@ class NumaAllocator(MemoryAllocator):
     @property
     def put_local(self):
         return self._node == 'local'
+
+
+class TorchAllocator(AbstractMemoryAllocator):
+
+    """PyTorch-owned storage for ordinary Functions and TimeFunctions.
+
+    Parameters
+    ----------
+    device : str, optional
+        PyTorch device. Defaults to the supplied tensor's device, or CPU.
+    tensor : torch.Tensor, optional
+        Existing contiguous allocation, including halo and padding. As with
+        DataReference, use a no-op initializer to retain its values.
+    """
+
+    _array_type = torch.Tensor if torch is not None else None
+
+    def __init__(self, device=None, tensor=None):
+        if torch is None:
+            raise ImportError("TorchAllocator requires PyTorch")
+        self.device = torch.device(device or getattr(tensor, 'device', 'cpu'))
+        if self.device.type not in ('cpu', 'cuda'):
+            raise ValueError("TorchAllocator supports CPU and CUDA storage")
+        if self.device.type == 'cpu':
+            # PyTorch reports CPU storage without a device index, even for cpu:0.
+            self.device = torch.device('cpu')
+        elif self.device.index is None:
+            self.device = torch.device('cuda', torch.cuda.current_device())
+        self.tensor = tensor
+
+    @classmethod
+    def available(cls):
+        return torch is not None
+
+    @property
+    def is_Device(self):
+        return self.device.type == 'cuda'
+
+    def alloc(self, shape, dtype, padding=0):
+        if self.tensor is None:
+            try:
+                left, right = padding
+            except TypeError:
+                left = right = padding
+            size = int(np.prod(shape))
+            storage = torch.empty(size + left + right, device=self.device,
+                                  dtype=dtype_to_torch(dtype))
+            tensor = storage[left:left + size].reshape(tuple(shape))
+        else:
+            tensor = self.tensor
+            if tuple(tensor.shape) != tuple(shape):
+                raise ValueError(
+                    f"External tensor must have allocated shape {tuple(shape)}")
+            if tensor.dtype != dtype_to_torch(dtype):
+                raise ValueError("External tensor dtype does not match Function dtype")
+        return tensor, None
+
+    def free(self, *args):
+        # PyTorch owns the storage; dropping its last reference releases it.
+        return
 
 
 class DataReference(MemoryAllocator):

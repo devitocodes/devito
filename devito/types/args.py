@@ -54,6 +54,9 @@ class ArgProvider:
         """
         Postprocess arguments upon returning from dynamically executed code. May be
         called if self's state needs to be updated.
+
+        Array arguments receive the compiler's access mode through the optional
+        ``access_mode`` keyword so native storage can record writes.
         """
         # By default, this is a no-op
         return
