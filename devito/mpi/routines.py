@@ -1286,7 +1286,17 @@ class MPIMsgEnriched(MPIMsg):
         super()._arg_defaults(alias, args=args)
 
         f = alias or self.target.c0
-        neighborhood = args.grid.distributor.neighborhood
+
+        # The ranks are taken from the `nb` provided at runtime by the (possibly
+        # overriding) Grid or SubDomain, as `f` may be a compiler-generated Array
+        # still attached to the Grid the Operator was built with
+        nb = f.grid.distributor._obj_neighborhood
+        try:
+            value = args[nb.name]
+        except (KeyError, TypeError):
+            value = nb._arg_defaults()[nb.name]
+        neighborhood = {i: getattr(value._obj, name)
+                        for name, i in zip(nb.fields, nb.entries, strict=True)}
 
         for i, halo in enumerate(self.halos):
             entry = self.value[i]
