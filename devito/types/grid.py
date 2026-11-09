@@ -12,7 +12,7 @@ from devito.deprecations import deprecations
 from devito.finite_differences.elementary import Max, Min
 from devito.logger import warning
 from devito.mpi import MPI, Distributor, SubDistributor
-from devito.tools import ReducerMap, as_tuple, frozendict, is_integer
+from devito.tools import ReducerMap, as_fp64_decimal, as_tuple, frozendict, is_integer
 from devito.types.args import ArgProvider
 from devito.types.basic import Scalar
 from devito.types.dense import Function
@@ -252,6 +252,11 @@ class Grid(CartesianDiscretization, ArgProvider):
         """Physical coordinates of the domain origin."""
         return self._origin
 
+    @cached_property
+    def _origin_fp64(self):
+        """Origin in fp64, preserving the grid's decimal values."""
+        return np.array([as_fp64_decimal(o) for o in self.origin])
+
     @property
     def origin_symbols(self):
         """Symbols representing the grid origin in each SpaceDimension."""
@@ -312,6 +317,11 @@ class Grid(CartesianDiscretization, ArgProvider):
             return self._spacing
         spacing = (np.array(self.extent) / (np.array(self.shape) - 1)).astype(self.dtype)
         return as_tuple(spacing)
+
+    @cached_property
+    def _spacing_fp64(self):
+        """Spacing in fp64, preserving the grid's decimal values."""
+        return np.array([as_fp64_decimal(h) for h in self.spacing])
 
     @cached_property
     def spacing_symbols(self):

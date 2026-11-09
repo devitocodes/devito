@@ -37,7 +37,7 @@ def make_tempdir(prefix=None):
     return tmpdir
 
 
-def atomic_write(path, data, mode='w'):
+def atomic_write(path, data, mode='w', *, overwrite=True):
     """
     Write `data` to `path` through a private temporary file in the same
     directory, then rename it into place. The rename is atomic, so a concurrent
@@ -45,10 +45,14 @@ def atomic_write(path, data, mode='w'):
     the new one, and a reader that already opened the previous file keeps
     reading that one in full. The temporary file is removed if the write fails.
 
+    With `overwrite=False`, publish through an exclusive hard link instead,
+    preserving an existing destination. Missing parent directories are created.
+
     Note: the resulting file has the restrictive mode of the temporary file
     (0600, further restricted by the process umask).
     """
     path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
     fd, tmpfile = mkstemp(dir=path.parent, prefix=f'{path.name}.', suffix='.tmp')
     try:
         try:
@@ -58,9 +62,14 @@ def atomic_write(path, data, mode='w'):
             raise
         with f:
             f.write(data)
-        os.replace(tmpfile, path)
-    except BaseException:
+            f.flush()
+            os.fsync(f.fileno())
+        if overwrite:
+            os.replace(tmpfile, path)
+        else:
+            with suppress(FileExistsError):
+                os.link(tmpfile, path)
+    finally:
         with suppress(FileNotFoundError):
             os.unlink(tmpfile)
-        raise
     return path

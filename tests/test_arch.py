@@ -1,15 +1,19 @@
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import suppress
+from io import BytesIO
+from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 from packaging.version import Version
 
 from devito import configuration, switchconfig
-from devito.arch import BLACKWELL, NVIDIAX, platform_registry
+from devito.arch import BLACKWELL, NVIDIAX, archinfo, platform_registry
 from devito.arch.archinfo import AppleArm, get_apple_platform
 from devito.arch.compiler import (
-    CudaCompiler, GNUCompiler, compiler_registry, sniff_compiler_version
+    Compiler, CudaCompiler, GNUCompiler, compiler_registry, sniff_compiler_version
 )
+from devito.tools import os_helper
 
 
 @pytest.mark.parametrize("cc", [
@@ -127,3 +131,63 @@ def test_fp32x2_support(platform, cc, expected, language, monkeypatch):
     monkeypatch.setattr('devito.arch.archinfo.get_nvidia_cc', lambda: cc)
     platform = platform_registry[platform]()
     assert platform.supports('fp32x2', language) is (expected and language == 'cuda')
+
+
+@pytest.mark.parametrize('memory', ['total', 'free', 'used'])
+def test_nvidia_memory_units(monkeypatch, memory):
+    responses = {
+        ('nvidia-smi', '-L'): (
+            b'GPU 0: NVIDIA A100-SXM4-80GB (UUID: GPU-0)\n'
+            b'GPU 1: NVIDIA A100-SXM4-80GB (UUID: GPU-1)\n'
+        ),
+        ('nvidia-smi', f'--query-gpu=memory.{memory}', '--format=csv'): (
+            f'memory.{memory} [MiB]\n1024 MiB\n81920 MiB\n'.encode()
+        )
+    }
+
+    def popen(command, **kwargs):
+        return SimpleNamespace(stdout=BytesIO(responses[tuple(command)]))
+
+    monkeypatch.setattr(archinfo, 'Popen', popen)
+    info = archinfo.get_gpu_info.func()
+
+    assert info[f'mem.{memory}'](0) == 1024**3
+    assert info[f'mem.{memory}'](1) == 80*1024**3
+
+
+class TestLibraryPublication:
+    """Concurrent Operator restoration must never expose a partial library."""
+
+    def test_complete_binary(self, tmp_path, monkeypatch):
+        compiler = SimpleNamespace(get_jit_dir=lambda: tmp_path, so_ext='.so')
+        target = tmp_path/'shared.so'
+        binary = b'ELF-binary-content'*1024
+        original = os_helper.os.link
+        publications = []
+
+        def observe(source, destination):
+            assert not target.exists()
+            assert Path(source).read_bytes() == binary
+            publications.append(source)
+            original(source, destination)
+
+        monkeypatch.setattr(os_helper.os, 'link', observe)
+        Compiler.save(compiler, 'shared', binary)
+        assert publications
+        assert target.read_bytes() == binary
+        assert list(tmp_path.iterdir()) == [target]
+        Compiler.save(compiler, 'shared', b'different')
+        assert target.read_bytes() == binary
+
+    def test_concurrent_binary(self, tmp_path):
+        compiler = SimpleNamespace(get_jit_dir=lambda: tmp_path, so_ext='.so')
+        target = tmp_path/'shared.so'
+        binary = b'ELF-binary-content'*(1 << 18)
+
+        def restore(_):
+            Compiler.save(compiler, 'shared', binary)
+            assert target.read_bytes() == binary
+
+        with ThreadPoolExecutor(max_workers=8) as pool:
+            list(pool.map(restore, range(32)))
+        assert list(tmp_path.iterdir()) == [target]

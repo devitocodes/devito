@@ -934,6 +934,71 @@ class TestSparseFunction:
         op.apply(time_M=5)
         assert np.all(s.data == 1)
 
+    @pytest.mark.parallel(mode=[2, 4])
+    @pytest.mark.parametrize('ndim', [1, 2, 3])
+    @pytest.mark.parametrize('interpolation,radius',
+                             [('nearest', 0), ('linear', 1), ('sinc', 4)])
+    def test_rank_map_equivalence(self, mode, ndim, interpolation, radius):
+        """Send each point to every rank owning a cell in its interpolation stencil."""
+        grid = Grid(shape=(9,)*ndim, extent=(1.,)*ndim)
+        # Include partition boundaries and coordinates outside the global domain
+        coordinates = np.array([[value + (axis % 2)*0.125 for axis in range(ndim)]
+                                for value in (-0.25, 0., 0.125, 0.49, 0.5, 0.875,
+                                              1., 1.25)],
+                               dtype=np.float32)
+        src = SparseFunction(name='support_src', grid=grid, npoint=len(coordinates),
+                             interpolation=interpolation, r=radius)
+        src.coordinates.data[:] = coordinates
+        plain = Function(name='support_plain', grid=grid, space_order=8)
+        shifted = Function(name='support_shifted', grid=grid, space_order=8,
+                           staggered=grid.dimensions)
+        Operator(src.inject(field=(plain, shifted), expr=src), name='SparseSupport')
+
+        # Reference: enumerate all stencil cells, including the half-cell shift
+        expected = grid.distributor.glb_to_rank(src._support) or {}
+        assert src._dist_datamap == expected
+
+    @pytest.mark.parallel(mode=[2, 4])
+    @pytest.mark.parametrize('override', [False, True])
+    def test_staggered_injection_support(self, mode, override):
+        """Half-cell shifts must redistribute across partition boundaries."""
+        grid = Grid(shape=(64,), extent=(63/32,))
+        coordinate = 2/grid.distributor.nprocs
+        x, = grid.dimensions
+        u = Function(name='u', grid=grid, space_order=2, staggered=x)
+        u.data[:] = 0
+        src = SparseFunction(name='src', grid=grid, npoint=1)
+        src.coordinates.data[:] = coordinate
+        src.data[:] = 1
+        op = Operator(src.inject(field=u, expr=src))
+        if override:
+            replacement = SparseFunction(name='replacement', grid=grid, npoint=1)
+            replacement.coordinates.data[:] = coordinate
+            replacement.data[:] = 1
+            op(src=replacement)
+        else:
+            op()
+
+        total = MPI.COMM_WORLD.allreduce(float(np.asarray(u.data).sum()), op=MPI.SUM)
+        assert np.isclose(total, 1, rtol=0, atol=1e-7)
+
+    @pytest.mark.parallel(mode=4)
+    @pytest.mark.parametrize('interpolation', ['nearest', 'linear'])
+    def test_staggered_support_union(self, mode, interpolation):
+        grid = Grid(shape=(8, 8), extent=(7., 7.), topology=(2, 2))
+        x, y = grid.dimensions
+        u = Function(name='ux', grid=grid, space_order=2, staggered=x)
+        v = Function(name='uy', grid=grid, space_order=2, staggered=y)
+        src = SparseFunction(name='src', grid=grid, npoint=1,
+                             interpolation=interpolation)
+        src.coordinates.data[:] = 4.
+        Operator(src.inject(field=(u, v), expr=src), name='SparseSupportUnion')
+
+        # Boxing the union would also send the point to rank 0
+        ranks = (1, 2) if interpolation == 'nearest' else (1, 2, 3)
+        expected = {r: [0] for r in ranks} if src.npoint else {}
+        assert src._dist_datamap == expected
+
 
 class TestOperatorSimple:
 
@@ -2452,6 +2517,39 @@ class TestCodeGeneration:
         # Halo should not be considered touched, despite symbolic offsets in indices due
         # to Function on SubDomain
         check_halo_exchanges(op, 0, 0)
+
+    @pytest.mark.parallel(mode=[(1, 'overlap'), (1, 'overlap2'), (1, 'full'),
+                                (2, 'overlap'), (2, 'overlap2'), (2, 'full')])
+    @pytest.mark.parametrize('time_dependent', [False, True])
+    def test_overlap_within_iteration(self, mode, time_dependent):
+        grid = Grid(shape=(16, 16), extent=(15., 15.), topology=('*', 1))
+        if time_dependent:
+            u = TimeFunction(name='u', grid=grid, space_order=2)
+            v = TimeFunction(name='v', grid=grid, space_order=2)
+            u.data_with_halo[:] = 0
+            equations = [Eq(u.forward, u + u.laplace + 1),
+                         Eq(v.forward, u.forward + u.forward.laplace)]
+        else:
+            u = Function(name='u', grid=grid, space_order=2)
+            v = Function(name='v', grid=grid, space_order=2)
+            equations = [Eq(u, 1), Eq(v, u + u.laplace)]
+
+        op = Operator(equations, name='OverlapWithinIteration')
+        calls = FindNodes(ComputeCall).visit(op)
+        assert len(calls) == int(time_dependent)
+        if time_dependent:
+            check_halo_exchanges(op, 2, 1)
+            assert calls == FindNodes(ComputeCall).visit(get_time_loop(op))
+            op.apply(time_M=0)
+            values = np.asarray(v.data[1])
+        else:
+            op.apply()
+            values = np.asarray(v.data)
+
+        x, y = np.meshgrid(*grid.distributor.glb_numb, indexing='ij')
+        # The zero exterior halo subtracts one at each physical boundary
+        expected = 1 - (x == 0) - (x == 15) - (y == 0) - (y == 15)
+        np.testing.assert_allclose(values, expected, rtol=0, atol=1e-7)
 
 
 class TestOperatorAdvanced:
