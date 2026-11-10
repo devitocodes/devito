@@ -1241,7 +1241,7 @@ class MPIMsg(CompositeObject):
 
         return {self.name: self.value}
 
-    def _arg_values(self, args=None, **kwargs):
+    def _arg_alias(self, **kwargs):
         # Since the components are by construction homogeneous, any will do
         v = self.target
         if isinstance(v, BundleView):
@@ -1260,7 +1260,10 @@ class MPIMsg(CompositeObject):
         else:
             alias = f
 
-        return self._arg_defaults(alias=alias, args=args)
+        return alias
+
+    def _arg_values(self, args=None, **kwargs):
+        return self._arg_defaults(alias=self._arg_alias(**kwargs), args=args)
 
     def _arg_apply(self, *args, **kwargs):
         self._C_memfree()
@@ -1282,21 +1285,11 @@ class MPIMsgEnriched(MPIMsg):
         (_C_field_components, POINTER(c_int)),
     ]
 
-    def _arg_defaults(self, alias=None, args=None):
+    def _arg_defaults(self, alias=None, args=None, neighborhood=None):
         super()._arg_defaults(alias, args=args)
 
         f = alias or self.target.c0
-
-        # The ranks are taken from the `nb` provided at runtime by the (possibly
-        # overriding) Grid or SubDomain, as `f` may be a compiler-generated Array
-        # still attached to the Grid the Operator was built with
-        nb = f.grid.distributor._obj_neighborhood
-        try:
-            value = args[nb.name]
-        except (KeyError, TypeError):
-            value = nb._arg_defaults()[nb.name]
-        neighborhood = {i: getattr(value._obj, name)
-                        for name, i in zip(nb.fields, nb.entries, strict=True)}
+        neighborhood = neighborhood or f.grid.distributor.neighborhood
 
         for i, halo in enumerate(self.halos):
             entry = self.value[i]
@@ -1340,6 +1333,20 @@ class MPIMsgEnriched(MPIMsg):
                 entry.components = (c_int*ncomp)(*range(ncomp))
 
         return {self.name: self.value}
+
+    def _arg_values(self, args=None, **kwargs):
+        alias = self._arg_alias(**kwargs)
+
+        # Neighbors as per the Grid or SubDomain provided at apply time, as
+        # `alias` may be a compiler-generated Array with no override
+        name = alias.grid.distributor._obj_neighborhood.name
+        neighborhood = None
+        for i in getattr(args, 'discretizations', ()):
+            if i.distributor.comm and i.distributor._obj_neighborhood.name == name:
+                neighborhood = i.distributor.neighborhood
+                break
+
+        return self._arg_defaults(alias=alias, args=args, neighborhood=neighborhood)
 
 
 class MPIRegion(CompositeObject):
