@@ -689,7 +689,7 @@ class Operator(Callable):
 
         # An ArgumentsMap carries additional metadata that may be used by
         # the subsequent phases of the arguments processing
-        args = kwargs['args'] = ArgumentsMap(args, grid, self)
+        args = kwargs['args'] = ArgumentsMap(args, grid, self, discretizations)
 
         if estimate_memory:
             # No need to do anything more if only checking the memory
@@ -1355,11 +1355,12 @@ IRs = namedtuple('IRs', 'expressions clusters stree uiet iet')
 
 class ArgumentsMap(dict):
 
-    def __init__(self, args, grid, op):
+    def __init__(self, args, grid, op, discretizations=()):
         super().__init__(args)
 
         self.grid = grid
         self.op = op
+        self.discretizations = tuple(discretizations)
 
     @property
     def comm(self):
