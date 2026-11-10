@@ -120,6 +120,18 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
 
     _subs = Differentiable._subs
 
+    def _data_is_initialized(self):
+        """
+        Whether the storage `_create_data` just produced already holds valid
+        values, so that `_allocate_memory` must not initialize it.
+
+        False for a plain allocation, which is why `_allocate_memory` zeroes it
+        or runs the `initializer`. A `_DataType` that *attaches* to storage
+        living elsewhere -- memory another process owns, a mapped file, a device
+        buffer already populated -- answers True so the values survive.
+        """
+        return False
+
     def _create_data(self):
         if self._data is None:
             debug(f"Allocating host memory for {self.name}{self.shape_allocated} "
@@ -145,6 +157,9 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
 
                 # Allocate the actual data object
                 self._create_data()
+
+                if self._data_is_initialized():
+                    return func(self)
 
                 # Initialize data
                 if self._first_touch:
