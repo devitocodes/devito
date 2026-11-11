@@ -28,7 +28,7 @@ from devito.symbolics.unevaluation import Mod
 from devito.tools import EnrichedTuple, dtypes_vector_mapper
 from devito.types import (
     Array, ComponentAccess, CustomDimension, DefaultDimension, DeviceID, FIndexed,
-    Indirection, Lock, NPThreads, PointerArray, PThreadArray, Scalar, SharedData
+    Indirection, Lock, NPThreads, Pointer, PointerArray, PThreadArray, Scalar, SharedData
 )
 from devito.types import Symbol as dSymbol
 from devito.types import TempFunction, ThreadID, Timer
@@ -58,6 +58,20 @@ class SeparatedSD(SD):
 
 @pytest.mark.parametrize('pickle', [pickle0, pickle1])
 class TestBasic:
+
+    @pytest.mark.parametrize('dtype', [
+        ctypes.c_void_p, ctypes.POINTER(ctypes.c_float),
+        ctypes.POINTER(ctypes.POINTER(ctypes.c_double))
+    ])
+    def test_pointer(self, pickle, dtype):
+        p = Pointer(name='p', dtype=dtype, liveness='eager', scope='shared')
+
+        restored = pickle.loads(pickle.dumps(p))
+
+        assert restored == p
+        assert restored.dtype is dtype
+        assert restored.liveness == p.liveness
+        assert restored.scope == p.scope
 
     def test_abstractsymbol(self, pickle):
         s0 = AbstractSymbol('s')
@@ -152,12 +166,12 @@ class TestBasic:
         assert f.dtype == new_f.dtype
         assert f.shape == new_f.shape
 
-    @pytest.mark.parametrize('interp', ['linear', 'sinc'])
-    def test_sparse_function(self, pickle, interp):
+    @pytest.mark.parametrize('interp,r', [('linear', 1), ('sinc', 3), ('sinc', 4)])
+    def test_sparse_function(self, pickle, interp, r):
         grid = Grid(shape=(3,))
         sf = SparseFunction(name='sf', grid=grid, npoint=3, space_order=2,
                             coordinates=[(0.,), (1.,), (2.,)],
-                            interpolation=interp)
+                            interpolation=interp, r=r)
         sf.data[0] = 1.
 
         pkl_sf = pickle.dumps(sf)
@@ -167,6 +181,7 @@ class TestBasic:
         assert np.all(sf.data[0] == 1.)
         assert np.all(new_sf.data[0] == 1.)
         assert new_sf.interpolation == interp
+        assert new_sf.r == r
 
         # coordinates should also have been pickled
         assert np.all(sf.coordinates.data == new_sf.coordinates.data)
