@@ -18,8 +18,9 @@ from devito.symbolics import (  # noqa
     INT, BaseCast, CallFromComposite, CallFromPointer, Cast, DefFunction,
     FieldFromComposite, FieldFromPointer, IndexedPointer, IntDiv, ListInitializer,
     Namespace, ReservedWord, RoundUp, Rvalue, SizeOf, VectorAccess, cast, evalrel,
-    pow_to_mul, q_negative, q_positive, retrieve_derivatives, retrieve_functions,
-    retrieve_indexed, subs_if_composite, unevaluate, uxreplace, xreplace_indices
+    has_integer_args, pow_to_mul, q_negative, q_positive, retrieve_derivatives,
+    retrieve_functions, retrieve_indexed, subs_if_composite, unevaluate, uxreplace,
+    xreplace_indices
 )
 from devito.symbolics.unevaluation import Add as UnevalAdd
 from devito.symbolics.unevaluation import Mul as UnevalMul
@@ -326,6 +327,17 @@ def test_field_from_composite():
 
     # Free symbols
     assert ffc1.free_symbols == {s}
+
+
+@pytest.mark.parametrize('dtype, expected', [
+    (np.int32, True), (c_uint64, True), (np.float32, False),
+    (CustomDtype('size_t'), False)
+])
+def test_integer_args(dtype, expected):
+    s = dSymbol('s', dtype=dtype)
+
+    assert has_integer_args(s) == expected
+    assert has_integer_args(s, 1) == expected
 
 
 def test_extended_sympy_arithmetic():
