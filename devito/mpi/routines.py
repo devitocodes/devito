@@ -1210,14 +1210,30 @@ class MPIMsg(CompositeObject):
             assert args is not None
             return int(subs_op_args(v, args))
 
-    def _arg_defaults(self, alias, args=None):
+    def _arg_defaults(self, alias=None, args=None):
+        """
+        A map of default argument values defined by this MPIMsg.
+
+        Parameters
+        ----------
+        alias : MPIMsg, optional
+            The MPIMsg used at build time, which provides the name, the
+            structure (halos, dtype, components) and the storage the values
+            are bound to. Use self's if None. The buffer sizes are instead
+            derived from `self`'s target.
+        args : ArgumentsMap
+            The runtime arguments, providing the allocator and the values of
+            any symbolic sizes.
+        """
+        alias = alias or self
+
         # `allocator` is lazily initialized as it is not known until an Operator
         # is constructed
-        self._allocator = allocator = args.allocator
+        alias._allocator = allocator = args.allocator
 
-        f = alias or self.target.c0
-        for i, halo in enumerate(self.halos):
-            entry = self.value[i]
+        f = self.target.c0
+        for i, halo in enumerate(alias.halos):
+            entry = alias.value[i]
 
             # Buffer shape for this peer
             shape = []
@@ -1231,17 +1247,22 @@ class MPIMsg(CompositeObject):
 
             # Allocate the send/recv buffers
             ctype, datasize = infer_datasize(f.dtype, shape)
-            size = datasize * dtype_len(self.target.dtype)
+            size = datasize * dtype_len(alias.target.dtype)
             entry.bufg, bufg_memfree_args = allocator._alloc_C_libcall(size, ctype)
             entry.bufs, bufs_memfree_args = allocator._alloc_C_libcall(size, ctype)
 
             # The `memfree_args` will be used to deallocate the buffer upon
             # returning from C-land
-            self._memfree_args.extend([bufg_memfree_args, bufs_memfree_args])
+            alias._memfree_args.extend([bufg_memfree_args, bufs_memfree_args])
 
-        return {self.name: self.value}
+        return {alias.name: alias.value}
 
-    def _arg_alias(self, **kwargs):
+    def _arg_key(self, **kwargs):
+        """
+        The MPIMsg from which the runtime values are sourced: `self` rebuilt
+        around the target override provided at apply time, if any, otherwise
+        `self`.
+        """
         # Since the components are by construction homogeneous, any will do
         v = self.target
         if isinstance(v, BundleView):
@@ -1253,17 +1274,22 @@ class MPIMsg(CompositeObject):
             v = v.parent
         for f in v.components:
             try:
-                alias = kwargs[f.name]
+                new = kwargs[f.name]
                 break
             except KeyError:
                 pass
         else:
-            alias = f
+            return self
 
-        return alias
+        if not getattr(new, 'is_AbstractFunction', False):
+            # A pure-data replacement, so the build-time target still applies
+            return self
+
+        return self._rebuild(target=new)
 
     def _arg_values(self, args=None, **kwargs):
-        return self._arg_defaults(alias=self._arg_alias(**kwargs), args=args)
+        key = self._arg_key(**kwargs)
+        return key._arg_defaults(alias=self, args=args)
 
     def _arg_apply(self, *args, **kwargs):
         self._C_memfree()
@@ -1286,13 +1312,15 @@ class MPIMsgEnriched(MPIMsg):
     ]
 
     def _arg_defaults(self, alias=None, args=None, neighborhood=None):
-        super()._arg_defaults(alias, args=args)
+        super()._arg_defaults(alias=alias, args=args)
 
-        f = alias or self.target.c0
+        alias = alias or self
+
+        f = self.target.c0
         neighborhood = neighborhood or f.grid.distributor.neighborhood
 
-        for i, halo in enumerate(self.halos):
-            entry = self.value[i]
+        for i, halo in enumerate(alias.halos):
+            entry = alias.value[i]
 
             # `torank` peer + gather offsets
             entry.torank = neighborhood[halo.side]
@@ -1324,29 +1352,29 @@ class MPIMsgEnriched(MPIMsg):
             # Track the component accesses for packing/unpacking as numbers
             # representing the field being accessed (that is: .x -> 0, .y -> 1,
             # .z -> 2, .w -> 3), if any
-            if isinstance(self.target, BundleView):
-                ncomp = self.target.ncomp
-                component_indices = self.target.component_indices
+            if isinstance(alias.target, BundleView):
+                ncomp = alias.target.ncomp
+                component_indices = alias.target.component_indices
                 entry.components = (c_int*ncomp)(*component_indices)
-            elif self.target.is_Bundle:
-                ncomp = self.target.ncomp
+            elif alias.target.is_Bundle:
+                ncomp = alias.target.ncomp
                 entry.components = (c_int*ncomp)(*range(ncomp))
 
-        return {self.name: self.value}
+        return {alias.name: alias.value}
 
     def _arg_values(self, args=None, **kwargs):
-        alias = self._arg_alias(**kwargs)
+        key = self._arg_key(**kwargs)
 
         # Neighbors as per the Grid or SubDomain provided at apply time, as
-        # `alias` may be a compiler-generated Array with no override
-        name = alias.grid.distributor._obj_neighborhood.name
+        # the target may be a compiler-generated Array with no override
+        name = key.target.c0.grid.distributor._obj_neighborhood.name
         neighborhood = None
-        for i in getattr(args, 'discretizations', ()):
+        for i in args.discretizations:
             if i.distributor.comm and i.distributor._obj_neighborhood.name == name:
                 neighborhood = i.distributor.neighborhood
                 break
 
-        return self._arg_defaults(alias=alias, args=args, neighborhood=neighborhood)
+        return key._arg_defaults(alias=self, args=args, neighborhood=neighborhood)
 
 
 class MPIRegion(CompositeObject):
