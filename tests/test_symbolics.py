@@ -21,10 +21,10 @@ from devito.passes.iet.languages.CXX import CXXPrinter
 from devito.passes.iet.languages.openacc import AccPrinter
 from devito.symbolics import (  # noqa
     INT, BaseCast, CallFromComposite, CallFromPointer, Cast, DefFunction,
-    FieldFromComposite, FieldFromPointer, IndexedPointer, IntDiv, ListInitializer, Namespace,
-    ReservedWord, RoundUp, Rvalue, SizeOf, VectorAccess, cast, evalrel, pow_to_mul, q_negative,
-    q_positive, retrieve_derivatives, retrieve_functions, retrieve_indexed,
-    subs_if_composite, unevaluate, uxreplace, xreplace_indices
+    FieldFromComposite, FieldFromPointer, IndexedPointer, IntDiv, ListInitializer,
+    Namespace, ReservedWord, RoundUp, Rvalue, SizeOf, VectorAccess, cast, evalrel,
+    pow_to_mul, q_negative, q_positive, retrieve_derivatives, retrieve_functions,
+    retrieve_indexed, subs_if_composite, unevaluate, uxreplace, xreplace_indices
 )
 from devito.symbolics.unevaluation import Add as UnevalAdd
 from devito.symbolics.unevaluation import Mul as UnevalMul
