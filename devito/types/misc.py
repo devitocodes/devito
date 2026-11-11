@@ -1,4 +1,4 @@
-from ctypes import POINTER, _Pointer, c_double, c_void_p
+from ctypes import POINTER, c_double
 
 import numpy as np
 import sympy
@@ -201,35 +201,36 @@ class Hyperplane(tuple):
 
 class Pointer(LocalObject, sympy.Expr):
 
-    __rkwargs__ = LocalObject.__rkwargs__ + ('dtype',)
+    """
+    A Pointer is defined by the pointee base type and its indirections.
 
-    def __init__(self, *args, dtype=c_void_p, **kwargs):
+    Unlike plain LocalObjects, Pointers can be used within arbitrary expressions.
+
+    Examples
+    --------
+    `Pointer('p', dtype_base=c_float, stars='**')` declares `float **p`.
+    """
+
+    __rkwargs__ = LocalObject.__rkwargs__ + ('dtype_base', 'stars')
+
+    def __init__(self, *args, dtype_base=None, stars='*', **kwargs):
         super().__init__(*args, **kwargs)
-        self._dtype = dtype
+        if not isinstance(stars, str) or any(i != '*' for i in stars):
+            raise ValueError('`stars` must be a string of zero or more `*` characters')
+        self.dtype_base = dtype_base
+        self.stars = stars
+
+    def _hashable_content(self):
+        return super()._hashable_content() + (self.stars,)
 
     @property
     def dtype(self):
-        return self._dtype
-
-    def __reduce_ex__(self, proto):
-        dtype = self.dtype
-        depth = 0
-        while isinstance(dtype, type) and issubclass(dtype, _Pointer):
-            dtype = dtype._type_
-            depth += 1
-        if not depth:
-            return super().__reduce_ex__(proto)
-
-        args, kwargs = self.__getnewargs_ex__()
-        kwargs.pop('dtype')
-        return self._rebuild_pointer, (type(self), args, kwargs, dtype, depth)
-
-    @staticmethod
-    def _rebuild_pointer(cls, args, kwargs, dtype, depth):
-        # Recreate generated ctypes classes without serializing their metaclass
-        for _ in range(depth):
-            dtype = POINTER(dtype)
-        return cls(*args, dtype=dtype, **kwargs)
+        ctype = self.dtype_base
+        if isinstance(ctype, CustomDtype):
+            return CustomDtype(ctype.name, ctype.template, ctype.modifier + self.stars)
+        for _ in self.stars:
+            ctype = POINTER(ctype)
+        return ctype
 
 
 class Indirection(Symbol):
