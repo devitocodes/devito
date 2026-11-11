@@ -983,7 +983,8 @@ class SparseFunction(AbstractSparseFunction):
 
     _sub_functions = ('coordinates',)
 
-    __rkwargs__ = AbstractSparseFunction.__rkwargs__ + ('coordinates', 'interpolation')
+    __rkwargs__ = AbstractSparseFunction.__rkwargs__ + ('coordinates', 'interpolation',
+                                                        'r')
 
     def __init_finalize__(self, *args, **kwargs):
         # Interpolation method
