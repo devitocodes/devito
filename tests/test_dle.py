@@ -380,25 +380,32 @@ class TestBlockingParTile:
     @pytest.mark.parametrize('tile', [(8, 8, 1), (32, 4, 1)])
     def test_sparse_device(self, tile):
         """Local injection axes use the native block structure on devices."""
+
         grid = Grid(shape=(25, 27, 29), extent=(24., 26., 28.))
+
         u = TimeFunction(name='u', grid=grid, space_order=8)
         v = u.func(name='v')
         src = SparseTimeFunction(name='src', grid=grid, npoint=1, nt=2,
                                  interpolation='sinc', r=4)
-        src.coordinates.data[:] = (12.25, 12.5, 12.75)
-        src.data[:] = .5
-        equations = src.inject(field=u.forward, expr=src)
-        reference = Operator(equations, name='SparseSerial',
-                             opt=('advanced', {'blockrelax': True}))
-        op = Operator(equations, name='SparseDeviceTiled', opt=('advanced', {
+
+        eqs = src.inject(field=u.forward, expr=src)
+
+        op0 = Operator(eqs, name='SparseSerial',
+                       opt=('advanced', {'blockrelax': True}))
+        op1 = Operator(eqs, name='SparseDeviceTiled', opt=('advanced', {
             'blocklevels': 1, 'blockrelax': 'device-aware', 'par-tile': tile}))
 
-        iters = FindNodes(Iteration).visit(op)
+        iters = FindNodes(Iteration).visit(op1)
         steps = tuple(i.step for i in iters if i.dim.is_Block and i.dim._depth == 1)
         assert steps == tuple(reversed(tile))
+
+        src.coordinates.data[:] = (12.25, 12.5, 12.75)
+        src.data[:] = .5
         u.data[:] = v.data[:] = 1.
-        reference.apply(time_M=1, u=v)
-        op.apply(time_M=1)
+
+        op0.apply(time_M=1, u=v)
+        op1.apply(time_M=1)
+
         np.testing.assert_array_equal(u.data, v.data)
 
 
