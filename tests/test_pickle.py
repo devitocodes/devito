@@ -25,7 +25,7 @@ from devito.symbolics import (
     as_long, indexify, pow_to_mul
 )
 from devito.symbolics.unevaluation import Mod
-from devito.tools import EnrichedTuple
+from devito.tools import CustomDtype, EnrichedTuple, ctypes_to_cstr
 from devito.types import (
     Array, ComponentAccess, CustomDimension, DefaultDimension, DeviceID, FIndexed,
     Indirection, Lock, NPThreads, Pointer, PointerArray, PThreadArray, Scalar, SharedData
@@ -86,17 +86,23 @@ class TestBasic:
         assert restored.function.dtype == f.dtype
         assert restored._C_ctype == ctype
 
-    @pytest.mark.parametrize('depth', [1, 2])
-    def test_typed_pointer(self, pickle, depth):
-        dtype = ctypes.c_float
-        for _ in range(depth):
-            dtype = ctypes.POINTER(dtype)
-        p = Pointer(name='p', dtype=dtype, liveness='eager')
+    @pytest.mark.parametrize('dtype_base,stars,expected', [
+        (None, '*', 'void *'),
+        (ctypes.c_float, '*', 'float *'),
+        (ctypes.c_float, '**', 'float **'),
+        (ctypes.c_float, '***', 'float ***'),
+        ('cufftHandle', '', 'cufftHandle'),
+        (CustomDtype('float'), '*', 'float*'),
+    ])
+    def test_typed_pointer(self, pickle, dtype_base, stars, expected):
+        p = Pointer(name='p', dtype_base=dtype_base, stars=stars,
+                    liveness='eager', scope='shared')
 
         restored = pickle.loads(pickle.dumps(p))
         assert restored.name == p.name
-        assert restored.dtype == dtype
-        assert restored.liveness == p.liveness
+        assert restored.dtype_base == dtype_base and restored.stars == stars
+        assert ctypes_to_cstr(restored._C_ctype) == expected
+        assert restored.liveness == p.liveness and restored.scope == p.scope
 
     def test_constant(self, pickle):
         c = Constant(name='c')

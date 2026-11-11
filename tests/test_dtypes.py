@@ -1,3 +1,4 @@
+import ctypes
 import pickle
 from pathlib import Path
 
@@ -22,7 +23,7 @@ from devito.passes.iet.languages.openmp import CXXOmpBB, OmpBB
 from devito.symbolics import DefFunction, sympy_dtype
 from devito.symbolics.extended_dtypes import ctypes_vector_mapper
 from devito.tools import dtype_to_cstr, dtypes_vector_mapper, extract_dtype, infer_dtype
-from devito.types import Array, ComponentAccess
+from devito.types import Array, ComponentAccess, Pointer
 from devito.types.basic import Basic, Scalar, Symbol
 from devito.types.dense import TimeFunction
 from devito.types.sparse import SparseTimeFunction
@@ -111,6 +112,13 @@ def test_array_components(dtype):
     array = Array(name='a', dimensions=x, dtype=vector)
     assert ComponentAccess(array[x], 0).dtype == dtype
     assert extract_dtype(ComponentAccess(array[x], 1)) == dtype
+
+
+def test_pointer_stars():
+    p = Pointer(name='p', dtype_base=ctypes.c_float)
+    q = Pointer(name='p', dtype_base=ctypes.c_float, stars='**')
+
+    assert p != q
 
 
 @pytest.mark.parametrize('dtype', [np.complex64, np.complex128])
