@@ -295,9 +295,21 @@ class AbstractSparseFunction(DiscreteFunction):
             if self.coordinates_data is None:
                 raise ValueError("No coordinates or gridpoints attached"
                                  "to this SparseFunction")
+            coordinates = self._projected(self.coordinates, self.coordinates_data)
             return (
-                np.floor((self.coordinates_data - self.grid.origin) / self.grid.spacing)
+                np.floor((coordinates - self.grid.origin) / self.grid.spacing)
             ).astype(int)
+
+    def _projected(self, subfunc, values):
+        """
+        Return the values of `subfunc` that the Operator reads.
+
+        The coordinates are converted to the computational coordinates of the
+        grid. Other values are returned unchanged.
+        """
+        if subfunc is not self.coordinates:
+            return values
+        return self.grid.root.to_computational(values).astype(values.dtype, copy=False)
 
     @property
     def _support(self):
@@ -639,9 +651,9 @@ class AbstractSparseFunction(DiscreteFunction):
         if self._distributor.nprocs == 1 or self.is_local:
             if self.is_local and self.dist_origin[subfunc] is not None:
                 shift = np.array(self.dist_origin[subfunc], dtype=subfunc.dtype)
-                subfuncd = subfunc.data._local - shift
+                subfuncd = self._projected(subfunc, subfunc.data._local) - shift
             else:
-                subfuncd = subfunc.data
+                subfuncd = self._projected(subfunc, subfunc.data)
             return {subfunc: subfuncd}
 
         # Compute dist map only once
@@ -650,7 +662,9 @@ class AbstractSparseFunction(DiscreteFunction):
 
         # Pack (reordered) SubFunction values so that they can be sent out
         # via an Alltoallv
-        sfuncd = subfunc.data._local[mask[self._sparse_position]]
+        sfuncd = self._projected(subfunc, subfunc.data._local)[
+            mask[self._sparse_position]
+        ]
 
         # Send out the sparse point SubFunction
         _, scount, sdisp, rshape, rcount, rdisp = \
@@ -693,8 +707,10 @@ class AbstractSparseFunction(DiscreteFunction):
     def _dist_subfunc_gather(self, sfuncd, subfunc):
         with suppress(AttributeError):
             sfuncd = subfunc._C_as_ndarray(sfuncd)
-        # If not using MPI, don't waste time
-        if self._distributor.nprocs == 1 or self.is_local:
+        # If not using MPI, don't waste time. An Operator never writes the
+        # coordinates, so they are not gathered back
+        if self._distributor.nprocs == 1 or self.is_local or \
+                subfunc is self.coordinates:
             return
 
         # Compute dist map only once

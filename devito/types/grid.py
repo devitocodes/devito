@@ -626,6 +626,48 @@ class SubGrid(Grid):
         return f"SubGrid[shape={self.shape}, factor={tuple(self._factors)}]"
 
 
+class MappedGrid(Grid):
+
+    """
+    A Cartesian Grid split over the ranks of another Grid, the parent.
+
+    An Operator over the parent can then read a Function on it (see `resample`).
+
+    Parameters
+    ----------
+    parent : Grid
+        The Grid whose ranks hold the points.
+    grid : Grid
+        The Cartesian Grid whose points it holds.
+    name : str, optional
+        The suffix added to the names of the parent Dimensions to name its own.
+        Defaults to `'m'`, giving `xm`, `ym`.
+    """
+
+    def __init__(self, parent, grid, name='m'):
+        dimensions = tuple(
+            SpaceDimension(name=f'{d.name}{name}',
+                           spacing=Spacing(name=f'h_{d.name}{name}', dtype=grid.dtype,
+                                           is_const=True))
+            for d in parent.dimensions
+        )
+
+        self._parent = parent
+        super().__init__(shape=grid.shape, extent=grid.extent, origin=grid.origin,
+                         dimensions=dimensions, dtype=grid.dtype,
+                         comm=parent.distributor.comm,
+                         topology=tuple(parent.distributor.topology))
+
+    @property
+    def root(self):
+        # An Operator over the parent treats this grid as part of the parent (see
+        # `SubGrid.root`)
+        return self._parent.root
+
+    def __repr__(self):
+        return f"MappedGrid[shape={self.shape}, parent={self._parent}]"
+
+
 class AbstractSubDomain(CartesianDiscretization):
 
     """
