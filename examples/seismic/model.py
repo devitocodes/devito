@@ -1,3 +1,4 @@
+from collections import namedtuple
 from contextlib import suppress
 
 import numpy as np
@@ -7,8 +8,8 @@ with suppress(ImportError):
     import pytest
 
 from devito import (
-    Abs, Constant, Eq, Function, Grid, Inc, Operator, SubDimension, SubDomain, div, sin,
-    warning
+    Abs, Constant, CurvilinearGrid, Eq, Function, Grid, Inc, MeshMap, Operator,
+    SubDimension, SubDomain, TerrainFollowing, div, sin, warning
 )
 from devito.builtins import gaussian_smooth, initialize_function, mmax, mmin
 from devito.tools import as_tuple
@@ -63,77 +64,173 @@ def initialize_damp(damp, padsizes, spacing, abc_type="damp", fs=False):
     Operator(eqs, name='initdamp')()
 
 
-class PhysicalDomain(SubDomain):
+class RowsDomain(SubDomain):
 
-    name = 'physdomain'
+    """
+    A SubDomain of consecutive rows along the last Dimension of a grid.
 
-    def __init__(self, so, fs=False):
-        super().__init__()
-        self.so = so
-        self.fs = fs
+    Parameters
+    ----------
+    name : str
+        The name of the SubDomain.
+    start : int
+        The first row.
+    thickness : int
+        The number of rows.
+    grid : Grid
+        The grid.
+    """
+
+    def __init__(self, name, start, thickness, grid):
+        # Set these before `SubDomain.__init__`, because it calls `define`
+        self.name = name
+        self.start = start
+        self.thickness = thickness
+        self.size = grid.shape[-1]
+        super().__init__(grid=grid)
 
     def define(self, dimensions):
-        map_d = {d: d for d in dimensions}
-        if self.fs:
-            map_d[dimensions[-1]] = ('middle', self.so, 0)
-        return map_d
+        vertical = dimensions[-1]
+        rows = ('middle', self.start, self.size - self.start - self.thickness)
+        return {d: (d if d != vertical else rows) for d in dimensions}
 
 
-class FSDomain(SubDomain):
-
-    name = 'fsdomain'
-
-    def __init__(self, so):
-        super().__init__()
-        self.size = so
-
-    def define(self, dimensions):
-        """
-        Definition of the upper section of the domain for wrapped indices FS.
-        """
-
-        return {d: (d if d != dimensions[-1] else ('left', self.size))
-                for d in dimensions}
+# The SubDomains of a free surface: the rows above it, the surface row, and the
+# rows that the mirror reads, for a field on the nodes and for a staggered one
+FreeSurfaceRows = namedtuple('FreeSurfaceRows',
+                             ('above', 'surface', 'mirrored', 'mirrored_staggered'))
 
 
 class GenericModel:
+
     """
-    General model class with common properties
+    General model class with common properties.
+
+    With a free surface, `fs=True`, the grid has `space_order` rows above the
+    surface and no absorbing layer at the top. The free surface mirrors the
+    fields into these rows (see `examples.seismic.free_surface`). A grid given
+    with `fs=True` must have this layout.
     """
+
     def __init__(self, origin, spacing, shape, space_order, nbl=20,
                  dtype=np.float32, subdomains=(), bcs="damp", grid=None,
-                 fs=False, topology=None):
+                 fs=False, topology=None, surface=None, depth=None,
+                 mapping=None):
         self.shape = shape
         self.space_order = space_order
         self.nbl = int(nbl)
         self.origin = tuple([dtype(o) for o in origin])
         self.fs = fs
-        # Default setup
-        origin_pml = [dtype(o - s*nbl) for o, s in zip(origin, spacing, strict=True)]
-        shape_pml = np.array(shape) + 2 * self.nbl
+        self._mirror_rows = space_order if fs else 0
 
-        # Model size depending on freesurface
-        physdomain = PhysicalDomain(space_order, fs=fs)
-        subdomains = subdomains + (physdomain,)
-        if fs:
-            fsdomain = FSDomain(space_order)
-            subdomains = subdomains + (fsdomain,)
-            origin_pml[-1] = origin[-1]
-            shape_pml[-1] -= self.nbl
+        given = [name for name, value in (('grid', grid), ('surface', surface),
+                                          ('depth', depth), ('mapping', mapping))
+                 if value is not None]
+        if len(given) > 1:
+            raise ValueError(f"Give only one of grid, surface, depth and mapping, not "
+                             f"{' and '.join(given)}")
 
-        # Origin of the computational domain with boundary to inject/interpolate
-        # at the correct index
         if grid is None:
-            # Physical extent is calculated per cell, so shape - 1
-            extent = tuple(np.array(spacing) * (shape_pml - 1))
-            self.grid = Grid(extent=extent, shape=shape_pml, origin=origin_pml,
-                             dtype=dtype, subdomains=subdomains, topology=topology)
+            grid = self._build_grid(origin, spacing, shape, dtype, subdomains, topology,
+                                    surface, depth, mapping)
+        elif fs:
+            self._check_layout(grid, origin, spacing, shape)
+        self.grid = grid
+
+        # The SubDomains of the updates and of the free surface
+        if fs:
+            rows = self._mirror_rows
+            self.updated_rows = RowsDomain('updated_rows', rows, grid.shape[-1] - rows,
+                                           grid)
+            self.free_surface_rows = FreeSurfaceRows(
+                above=RowsDomain('above_surface', 0, rows, grid),
+                surface=RowsDomain('surface', rows, 1, grid),
+                mirrored=RowsDomain('mirrored', rows + 1, rows, grid),
+                mirrored_staggered=RowsDomain('mirrored_staggered', rows, rows, grid))
         else:
-            self.grid = grid
+            self.updated_rows = None
+            self.free_surface_rows = None
 
         self._physical_parameters = set()
         self.damp = None
         self._initialize_bcs(bcs=bcs)
+
+    def _build_grid(self, origin, spacing, shape, dtype, subdomains, topology,
+                    surface, depth, mapping):
+        """
+        Build the grid of the model.
+
+        The grid is the physical domain padded by the absorbing layers, except
+        at the top of a free surface, where the mirror rows are. It is a
+        CurvilinearGrid if a surface, node depths or a map is given.
+        """
+        origin_pml = [dtype(o - s*self.nbl) for o, s in zip(origin, spacing, strict=True)]
+        shape_pml = np.array(shape) + 2*self.nbl
+        if self.fs:
+            origin_pml[-1] = dtype(origin[-1] - self._mirror_rows*spacing[-1])
+            shape_pml[-1] += self._mirror_rows - self.nbl
+
+        # Physical extent is calculated per cell, so shape - 1
+        extent = tuple(np.array(spacing)*(shape_pml - 1))
+        kwargs = {'extent': extent, 'shape': shape_pml, 'origin': origin_pml,
+                  'dtype': dtype, 'subdomains': subdomains, 'topology': topology}
+        if surface is None and depth is None and mapping is None:
+            return Grid(**kwargs)
+
+        if not self.fs:
+            raise ValueError("surface, depth and mapping require fs=True")
+        mapping = self._curvilinear_map(surface, depth, mapping, origin, shape)
+        return CurvilinearGrid(mapping=mapping, **kwargs)
+
+    def _check_layout(self, grid, origin, spacing, shape):
+        """
+        Check that a grid given with a free surface has the layout the model
+        builds.
+
+        That is `space_order` rows above the surface at the top, no absorbing
+        layer there, and absorbing layers everywhere else.
+        """
+        rows = self._mirror_rows
+        top = float(origin[-1]) - rows*float(spacing[-1])
+        size = shape[-1] + rows + self.nbl
+        if not np.isclose(float(grid.origin[-1]), top) or grid.shape[-1] != size:
+            raise ValueError(f"With a free surface and space order {self.space_order}, "
+                             f"the grid needs {size} rows from depth {top}, "
+                             f"including {rows} rows above the surface. It has "
+                             f"{grid.shape[-1]} rows from depth {grid.origin[-1]}")
+
+    def _curvilinear_map(self, surface, depth, mapping, origin, shape):
+        """
+        Return the map of the whole grid, including the absorbing layers and the
+        mirror rows.
+
+        It is `mapping` if given. Otherwise it is a MeshMap of the node `depth`,
+        or a TerrainFollowing map of `surface`, which is extended flat across
+        the absorbing layers.
+        """
+        if mapping is not None:
+            return mapping
+
+        if depth is not None:
+            if np.shape(depth) != tuple(shape):
+                raise ValueError(f"The node depths have shape {np.shape(depth)}, "
+                                 f"expected the shape of the model {tuple(shape)}")
+            padding = (self.nbl,)*(len(shape) - 1) + (self._mirror_rows,)
+            return MeshMap(depth, padding=padding, order=self.space_order)
+
+        # A TerrainFollowing map puts the surface at computational depth 0
+        if origin[-1] != 0:
+            raise ValueError("A model over a surface has its surface at depth 0, "
+                             f"not at the vertical origin {origin[-1]}")
+        if callable(surface):
+            return TerrainFollowing(surface=surface, order=self.space_order)
+
+        surface = np.asarray(surface, dtype=np.float64)
+        if surface.shape != tuple(shape[:-1]):
+            raise ValueError(f"The surface has shape {surface.shape}, expected one "
+                             f"value per lateral node {tuple(shape[:-1])}")
+        return TerrainFollowing(surface=np.pad(surface, self.nbl, mode='edge'),
+                                order=self.space_order)
 
     def _initialize_bcs(self, bcs="damp"):
         # Create dampening field as symbol `damp`
@@ -164,11 +261,32 @@ class GenericModel:
     @property
     def padsizes(self):
         """
-        Padding size for each dimension.
+        The sizes of the absorbing layers along each Dimension, with none at the
+        top of a free surface.
         """
         padsizes = [(self.nbl, self.nbl) for _ in range(self.dim-1)]
         padsizes.append((0 if self.fs else self.nbl, self.nbl))
         return padsizes
+
+    @property
+    def mirror_rows(self):
+        """
+        The number of rows above the free surface, into which it mirrors the
+        fields.
+
+        It is `space_order` with a free surface, else 0.
+        """
+        return self._mirror_rows
+
+    @property
+    def parameter_padsizes(self):
+        """
+        The padding of the physical parameters along each Dimension: the
+        absorbing layers, plus the mirror rows above a free surface.
+        """
+        padsizes = self.padsizes
+        (top, bottom) = padsizes[-1]
+        return padsizes[:-1] + [(top + self._mirror_rows, bottom)]
 
     def physical_params(self, **kwargs):
         """
@@ -184,7 +302,7 @@ class GenericModel:
         if isinstance(field, np.ndarray):
             function = Function(name=name, grid=self.grid, space_order=space_order,
                                 avg_mode=avg_mode)
-            initialize_function(function, field, self.padsizes)
+            initialize_function(function, field, self.parameter_padsizes)
         else:
             function = Constant(name=name, value=field, dtype=self.grid.dtype)
         self._physical_parameters.update([name])
@@ -275,15 +393,30 @@ class SeismicModel(GenericModel):
         P-wave attenuation.
     qs : array_like or float
         S-wave attenuation.
+    surface : array_like or callable, optional
+        Depth of a free surface, positive down, e.g. topography, with
+        `fs=True`: one value per lateral node of the physical domain, continued
+        flat across the absorbing layers, or a callable of the lateral
+        coordinates. The model is built on a CurvilinearGrid with a
+        TerrainFollowing map.
+    depth : array_like, optional
+        The depth of the nodes of the physical domain, positive down, of shape
+        `shape`, with `fs=True`. The model is built on a CurvilinearGrid with a
+        MeshMap of these depths, its first row the free surface.
+    mapping : CurvilinearMap, optional
+        The map of the whole grid, absorbing layers and mirror rows included,
+        with `fs=True`.
     """
     _known_parameters = ['vp', 'damp', 'vs', 'b', 'epsilon', 'delta',
                          'theta', 'phi', 'qp', 'qs', 'lam', 'mu']
 
     def __init__(self, origin, spacing, shape, space_order, vp, nbl=20, fs=False,
                  dtype=np.float32, subdomains=(), bcs="mask", grid=None,
-                 topology=None, **kwargs):
+                 topology=None, surface=None, depth=None, mapping=None,
+                 **kwargs):
         super().__init__(origin, spacing, shape, space_order, nbl, dtype, subdomains,
-                         topology=topology, grid=grid, bcs=bcs, fs=fs)
+                         topology=topology, grid=grid, bcs=bcs, fs=fs, surface=surface,
+                         depth=depth, mapping=mapping)
 
         # Initialize physics
         self._initialize_physics(vp, space_order, **kwargs)
@@ -375,7 +508,7 @@ class SeismicModel(GenericModel):
         #
         # The CFL condition is then given by
         # dt <= coeff * h / (max(velocity))
-        dt = self._cfl_coeff * np.min(self.spacing) / (self._thomsen_scale*self._max_vp)
+        dt = self._cfl_coeff * self.grid.min_spacing / (self._thomsen_scale*self._max_vp)
         dt = self.dtype("%.3e" % (self.dt_scale * dt))
         if self._dt:
             return self._dt
@@ -396,7 +529,7 @@ class SeismicModel(GenericModel):
             if value.shape == param.shape:
                 param.data[:] = value[:]
             elif value.shape == self.shape:
-                initialize_function(param, value, self.nbl)
+                initialize_function(param, value, self.parameter_padsizes)
             else:
                 raise ValueError(f"Incorrect input size {value.shape} for model" +
                                  f" {self.shape} without or {param.shape} with padding")

@@ -1,53 +1,8 @@
-from devito import Eq, Function, Inc, Operator, TimeFunction, sign, solve
-from devito.symbolics import INT, retrieve_derivatives, retrieve_functions
+from devito import Eq, Function, Inc, Operator, TimeFunction, solve
+from examples.seismic.free_surface import fold, mirror, solve_update, update_domain
 
 
-def freesurface(model, eq):
-    """
-    Generate the stencil that mirrors the field as a free surface modeling for
-    the acoustic wave equation.
-
-    Parameters
-    ----------
-    model : Model
-        Physical model.
-    eq : Eq
-        Time-stepping stencil (time update) to mirror at the freesurface.
-    """
-    lhs, rhs = eq.args
-    # Get vertical dimension and corresponding subdimension
-    fsdomain = model.grid.subdomains['fsdomain']
-    zfs = fsdomain.dimensions[-1]
-    z = zfs.parent
-
-    # Retrieve vertical derivatives
-    dzs = {d for d in retrieve_derivatives(rhs) if z in d.dims}
-    # Remove inner duplicate
-    dzs = dzs - {d for D in dzs for d in retrieve_derivatives(D.expr) if z in d.dims}
-    dzs = {d: d._eval_at(lhs).evaluate for d in dzs}
-
-    # Finally get functions for evaluated derivatives
-    funcs = {f for f in retrieve_functions(dzs.values())}
-
-    mapper = {}
-    # Antisymmetric mirror at negative indices
-    # TODO: Make a proper "mirror_indices" tool function
-    for f in funcs:
-        zind = f.indices[-1]
-        if (zind - z).as_coeff_Mul()[0] < 0:
-            s = sign(zind.subs({z: zfs, z.spacing: 1}))
-            mapper.update({f: s * f.subs({zind: INT(abs(zind))})})
-
-    # Mapper for vertical derivatives
-    dzmapper = {d: v.subs(mapper) for d, v in dzs.items()}
-
-    fs_eq = [eq.func(lhs, rhs.subs(dzmapper), subdomain=fsdomain)]
-    fs_eq.append(eq.func(lhs._subs(z, 0), 0, subdomain=fsdomain))
-
-    return fs_eq
-
-
-def laplacian(field, model, kernel):
+def laplacian(field, model, kernel, forward=True):
     """
     Spatial discretization for the isotropic acoustic wave equation. For a 4th
     order in time formulation, the 4th order time derivative is replaced by a
@@ -60,12 +15,71 @@ def laplacian(field, model, kernel):
         The computed solution.
     model : Model
         Physical model.
+    forward : bool, optional
+        Whether to propagate forward (True) or backward (False) in time.
+        Backward, the Laplacian is replaced by its transpose, which is its exact
+        adjoint, also on a CurvilinearGrid.
     """
     if kernel not in ['OT2', 'OT4']:
         raise ValueError("Unrecognized kernel")
     s = model.grid.time_dim.spacing
-    biharmonic = field.biharmonic(1/model.m) if kernel == 'OT4' else 0
-    return field.laplace + s**2/12 * biharmonic
+    if forward:
+        biharmonic = field.biharmonic(1/model.m) if kernel == 'OT4' else 0
+        return field.laplace + s**2/12 * biharmonic
+
+    lap = _laplace_adjoint(field, model)
+    biharmonic = _laplace_adjoint(lap/model.m, model) if kernel == 'OT4' else 0
+    return lap + s**2/12 * biharmonic
+
+
+def _laplace_adjoint(expr, model):
+    """Return the transpose of the Laplacian, applied to `expr`."""
+    return sum(expr.diff(d, 2).T for d in model.space_dimensions)
+
+
+def time_terms(field, model, forward=True):
+    """
+    Return the time terms of the acoustic wave equation and the updated field.
+
+    The time terms are `m u.dt2 + damp u.dt`, and the updated field is
+    `field.forward`, or `field.backward` for a backward run.
+
+    Parameters
+    ----------
+    field : TimeFunction
+        The computed solution.
+    model : Model
+        Physical model.
+    forward : bool, optional
+        Whether to propagate forward (True) or backward (False) in time.
+
+    Returns
+    -------
+    tuple
+        The time terms, and `field.forward` or `field.backward`.
+    """
+    if forward:
+        return model.m*field.dt2 + model.damp*field.dt, field.forward
+    return model.m*field.dt2 + model.damp*field.dt.T, field.backward
+
+
+def update_factor(field, model, forward=True):
+    """
+    Return the factor of the spatial operator in the update of `field`.
+
+    For example, `dt**2/(m + damp*dt)` backward in time. `fold` needs it.
+
+    Parameters
+    ----------
+    field : TimeFunction
+        The computed solution.
+    model : Model
+        Physical model.
+    forward : bool, optional
+        Whether the update is forward (True) or backward (False) in time.
+    """
+    terms, target = time_terms(field, model, forward)
+    return solve_update(terms, 0, target)[1]
 
 
 def iso_stencil(field, model, kernel, **kwargs):
@@ -88,23 +102,16 @@ def iso_stencil(field, model, kernel, **kwargs):
     """
     # Forward or backward
     forward = kwargs.get('forward', True)
-    # Define time step to be updated
-    unext = field.forward if forward else field.backward
-    udt = field.dt if forward else field.dt.T
     # Get the spacial FD
-    lap = laplacian(field, model, kernel)
+    lap = laplacian(field, model, kernel, forward=forward)
     # Get source
     q = kwargs.get('q', 0)
     # Define PDE and update rule
-    eq_time = solve(model.m * field.dt2 - lap - q + model.damp * udt, unext)
+    terms, unext = time_terms(field, model, forward)
+    eq_time = solve(terms - lap - q, unext)
 
-    # Time-stepping stencil.
-    eqns = [Eq(unext, eq_time, subdomain=model.grid.subdomains['physdomain'])]
-
-    # Add free surface
-    if model.fs:
-        eqns.append(freesurface(model, Eq(unext, eq_time)))
-    return eqns
+    # Time-stepping stencil
+    return [Eq(unext, eq_time, subdomain=update_domain(model, forward))]
 
 
 def ForwardOperator(model, geometry, space_order=4,
@@ -146,7 +153,8 @@ def ForwardOperator(model, geometry, space_order=4,
     rec_term = rec.interpolate(expr=u)
 
     # Substitute spacing terms to reduce flops
-    return Operator(eqn + src_term + rec_term, subs=model.spacing_map,
+    return Operator(eqn + src_term + mirror(model, u.forward) + rec_term,
+                    subs=model.spacing_map,
                     name='Forward', **kwargs)
 
 
@@ -184,7 +192,9 @@ def AdjointOperator(model, geometry, space_order=4,
     source_a = srca.interpolate(expr=v)
 
     # Substitute spacing terms to reduce flops
-    return Operator(eqn + receivers + source_a, subs=model.spacing_map,
+    surface_eqs = fold(model, v.backward, update_factor(v, model, forward=False))
+    return Operator(eqn + receivers + surface_eqs + source_a,
+                    subs=model.spacing_map,
                     name='Adjoint', **kwargs)
 
 
@@ -228,7 +238,9 @@ def GradientOperator(model, geometry, space_order=4, save=True,
     receivers = rec.inject(field=v.backward, expr=rec * s**2 / m)
 
     # Substitute spacing terms to reduce flops
-    return Operator(eqn + receivers + [gradient_update], subs=model.spacing_map,
+    surface_eqs = fold(model, v.backward, update_factor(v, model, forward=False))
+    return Operator(eqn + receivers + surface_eqs + [gradient_update],
+                    subs=model.spacing_map,
                     name='Gradient', **kwargs)
 
 
@@ -273,5 +285,6 @@ def BornOperator(model, geometry, space_order=4,
     receivers = rec.interpolate(expr=U)
 
     # Substitute spacing terms to reduce flops
-    return Operator(eqn1 + source + eqn2 + receivers, subs=model.spacing_map,
+    return Operator(eqn1 + source + mirror(model, u.forward) + eqn2 +
+                    mirror(model, U.forward) + receivers, subs=model.spacing_map,
                     name='Born', **kwargs)

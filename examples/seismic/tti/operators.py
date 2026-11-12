@@ -1,5 +1,6 @@
 from devito import NODE, Eq, Function, Inc, Operator, TimeFunction, cos, sin, solve, sqrt
-from examples.seismic.acoustic.operators import freesurface
+from examples.seismic.acoustic.operators import laplacian, time_terms, update_factor
+from examples.seismic.free_surface import fold, mirror, update_domain
 
 
 def _subs(func, d, d0):
@@ -15,28 +16,17 @@ def second_order_stencil(model, u, v, H0, Hz, qu, qv, forward=True):
     m * u.dt2 =  (epsilon * H0 + delta * Hz) - damp * u.dt
     m * v.dt2 =  (delta * H0 + Hz) - damp * v.dt
     """
-    m, damp = model.m, model.damp
-
-    unext = u.forward if forward else u.backward
-    vnext = v.forward if forward else v.backward
-    udt = u.dt if forward else u.dt.T
-    vdt = v.dt if forward else v.dt.T
+    terms_u, unext = time_terms(u, model, forward)
+    terms_v, vnext = time_terms(v, model, forward)
 
     # Stencils
-    stencilp = solve(m * u.dt2 - H0 - qu + damp * udt, unext)
-    stencilr = solve(m * v.dt2 - Hz - qv + damp * vdt, vnext)
+    stencilp = solve(terms_u - H0 - qu, unext)
+    stencilr = solve(terms_v - Hz - qv, vnext)
 
-    first_stencil = Eq(unext, stencilp, subdomain=model.grid.subdomains['physdomain'])
-    second_stencil = Eq(vnext, stencilr, subdomain=model.grid.subdomains['physdomain'])
+    first_stencil = Eq(unext, stencilp, subdomain=update_domain(model, forward))
+    second_stencil = Eq(vnext, stencilr, subdomain=update_domain(model, forward))
 
-    stencils = [first_stencil, second_stencil]
-
-    # Add free surface
-    if model.fs:
-        stencils.append(freesurface(model, Eq(unext, stencilp)))
-        stencils.append(freesurface(model, Eq(vnext, stencilr)))
-
-    return stencils
+    return [first_stencil, second_stencil]
 
 
 def trig_func(model):
@@ -93,13 +83,15 @@ def Gzz_centered(model, field, b=None):
           _subs(b, y, y+dy) * sintheta * sinphi * field.dy(fd_order=order1, x0=y+dy) +
           _subs(b, z, z+dz) * costheta * field.dz(fd_order=order1, x0=z+dz))
 
-    Gzz = (Gz * costheta).dz(fd_order=order1, x0=z-dz)
+    # Each outer derivative is the transpose of an inner one, which makes the
+    # operator self-adjoint, also on a CurvilinearGrid
+    Gzz = -(Gz * costheta).dz(fd_order=order1, x0=z+dz).T
     # Add rotated derivative if angles are not zero. If angles are
     # zeros then `0*Gz = 0` and doesn't have any `.dy` ....
     if sintheta != 0:
-        Gzz += (Gz * sintheta * cosphi).dx(fd_order=order1, x0=x-dx)
+        Gzz -= (Gz * sintheta * cosphi).dx(fd_order=order1, x0=x+dx).T
     if sinphi != 0:
-        Gzz += (Gz * sintheta * sinphi).dy(fd_order=order1, x0=y-dy)
+        Gzz -= (Gz * sintheta * sinphi).dy(fd_order=order1, x0=y+dy).T
 
     return Gzz
 
@@ -133,17 +125,19 @@ def Gzz_centered_2d(model, field, b=None):
 
     Gz = (_subs(b, x, x+dx) * sintheta * field.dx(fd_order=order1, x0=x+dx) +
           _subs(b, y, y+dy) * costheta * field.dy(fd_order=order1, x0=y+dy))
-    Gzz = (Gz * costheta).dy(fd_order=order1, x0=y-dy)
+    # Each outer derivative is the transpose of an inner one, which makes the
+    # operator self-adjoint, also on a CurvilinearGrid
+    Gzz = -(Gz * costheta).dy(fd_order=order1, x0=y+dy).T
 
     # Add rotated derivative if angles are not zero. If angles are
     # zeros then `0*Gz = 0` and doesn't have any `.dy` ....
     if sintheta != 0:
-        Gzz += (Gz * sintheta).dx(fd_order=order1, x0=x-dx)
+        Gzz -= (Gz * sintheta).dx(fd_order=order1, x0=x+dx).T
     return Gzz
 
 
 # Centered case produces directly Gxx + Gyy
-def Gh_centered(model, field, b=None):
+def Gh_centered(model, field, b=None, forward=True):
     """
     Sum of the 3D rotated second order derivative in the direction x and y.
     As the Laplacian is rotation invariant, it is computed as the conventional
@@ -159,6 +153,10 @@ def Gh_centered(model, field, b=None):
     b : Function, optional
         Buoyancy to build the operator with, defaulting to the model's. See
         :func:`Gzz_centered`.
+    forward : bool, optional
+        Whether to propagate forward (True) or backward (False) in time.
+        Backward, the Laplacian without buoyancy is replaced by its transpose
+        (see `examples.seismic.acoustic.operators.laplacian`).
 
     Returns
     -------
@@ -175,11 +173,10 @@ def Gh_centered(model, field, b=None):
         lap = 0
         for d in model.space_dimensions:
             x0 = d + d.spacing / 2
-            x0m = d - d.spacing / 2
-            lap += _diff(_subs(b, d, x0) * _diff(field, d)(x0=x0, fd_order=so),
-                         d)(x0=x0m, fd_order=so)
+            lap -= _diff(_subs(b, d, x0) * _diff(field, d)(x0=x0, fd_order=so),
+                         d)(x0=x0, fd_order=so).T
     else:
-        lap = field.laplace
+        lap = laplacian(field, model, 'OT2', forward=forward)
     return lap - Gzz
 
 
@@ -242,7 +239,7 @@ def kernel_centered(model, u, v, **kwargs):
         Hz = delta*Gxx + Gzz
         return second_order_stencil(model, u, v, H0, Hz, qu, qv)
     else:
-        H0 = Gh_centered(model, (epsilon*u + delta*v))
+        H0 = Gh_centered(model, (epsilon*u + delta*v), forward=False)
         Hz = Gzz(model, (delta*u + v))
         return second_order_stencil(model, u, v, H0, Hz, qu, qv, forward=forward)
 
@@ -474,6 +471,7 @@ def ForwardOperator(model, geometry, space_order=4,
     # Source and receivers
     expr = src * dt / m if kernel == 'staggered' else src * dt**2 / m
     stencils += src.inject(field=(u.forward, v.forward), expr=expr)
+    stencils += mirror(model, u.forward) + mirror(model, v.forward)
     stencils += rec.interpolate(expr=u + v)
 
     # Substitute spacing terms to reduce flops
@@ -521,6 +519,10 @@ def AdjointOperator(model, geometry, space_order=4,
     # Construct expression to inject receiver values
     expr = rec * dt / m if kernel == 'staggered' else rec * dt**2 / m
     stencils += rec.inject(field=(p.backward, r.backward), expr=expr)
+    if model.fs:
+        # The adjoint of the free surface
+        stencils += fold(model, p.backward, update_factor(p, model, forward=False))
+        stencils += fold(model, r.backward, update_factor(r, model, forward=False))
 
     # Create interpolation expression for the adjoint-source
     stencils += srca.interpolate(expr=p + r)
@@ -582,7 +584,10 @@ def JacobianOperator(model, geometry, space_order=4,
     rec_term = rec.interpolate(expr=du + dv)
 
     # Substitute spacing terms to reduce flops
-    return Operator(eqn1 + src_term + eqn2 + rec_term, subs=model.spacing_map,
+    surface_eqs = mirror(model, u0.forward) + mirror(model, v0.forward)
+    surface_lin = mirror(model, du.forward) + mirror(model, dv.forward)
+    return Operator(eqn1 + src_term + surface_eqs + eqn2 + surface_lin + rec_term,
+                    subs=model.spacing_map,
                     name='BornTTI', **kwargs)
 
 
@@ -632,7 +637,9 @@ def JacobianAdjOperator(model, geometry, space_order=4,
     rec_term = rec.inject(field=(du.backward, dv.backward), expr=rec * dt**2 / m)
 
     # Substitute spacing terms to reduce flops
-    return Operator(eqn + rec_term + [dm_update], subs=model.spacing_map,
+    surface_eqs = (fold(model, du.backward, update_factor(du, model, forward=False)) +
+                   fold(model, dv.backward, update_factor(dv, model, forward=False)))
+    return Operator(eqn + rec_term + surface_eqs + [dm_update], subs=model.spacing_map,
                     name='GradientTTI', **kwargs)
 
 
