@@ -193,6 +193,27 @@ def test_timefunction():
                                t.bound_symbols | x.bound_symbols | y.bound_symbols)
 
 
+def test_indexify_staggered():
+    """A staggered Function indexed at a negated or scaled Dimension."""
+    grid = Grid(shape=(11, 11))
+    x, y = grid.dimensions
+    w = Function(name='w', grid=grid, staggered=y)
+    f = Function(name='f', grid=grid)
+    index = w.indices[1]
+
+    cases = [(w, 'w[x, y]'),
+             (w.subs(y, y + 3), 'w[x, y + 3]'),
+             (w.subs(y, 4), 'w[x, 4]'),
+             (w.subs(y, 7 - y), 'w[x, 7 - y]'),
+             (w.subs(y, 2*y), 'w[x, 2*y]'),
+             (w.subs(y, 2*y + 1), 'w[x, 2*y + 1]'),
+             (f.subs(y, 7 - y), 'f[x, 7 - y]'),
+             (w.subs(index, INT(Abs(index))), 'w[x, (int)Abs(y)]'),
+             (w.subs(index, sympy.floor(index)), 'w[x, floor(y)]')]
+    for expr, expected in cases:
+        assert str(expr.indexify()) == expected
+
+
 def test_indexed():
     grid = Grid(shape=(10, 10))
     x, y = grid.dimensions

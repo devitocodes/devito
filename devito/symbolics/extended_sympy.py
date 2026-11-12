@@ -446,6 +446,8 @@ class Cast(UnaryOp):
     Symbolic representation of the C notation `(type)expr`.
     """
 
+    is_Cast = True
+
     __rargs__ = ('base', )
     __rkwargs__ = ('dtype', 'stars', 'reinterpret')
 
