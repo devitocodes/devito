@@ -1770,40 +1770,25 @@ class CustomDimension(BasicDimension):
 
     @cached_property
     def symbolic_min(self):
-        try:
-            return sympy.Number(self._symbolic_min)
-        except (TypeError, ValueError):
-            pass
         if self._symbolic_min is None:
             return super().symbolic_min
-        else:
-            return self._symbolic_min
+        return sympy.sympify(self._symbolic_min)
 
     @cached_property
     def symbolic_max(self):
-        try:
-            return sympy.Number(self._symbolic_max)
-        except (TypeError, ValueError):
-            pass
         if self._symbolic_max is None:
             return super().symbolic_max
-        else:
-            return self._symbolic_max
+        return sympy.sympify(self._symbolic_max)
 
     @cached_property
     def symbolic_size(self):
-        try:
-            return sympy.Number(self._symbolic_size)
-        except (TypeError, ValueError):
-            pass
         if self._symbolic_size is None:
             v = self.symbolic_max - self.symbolic_min + 1
             if v.is_Number:
                 return v
             else:
                 return super().symbolic_size
-        else:
-            return self._symbolic_size
+        return sympy.sympify(self._symbolic_size)
 
     def _arg_defaults(self, **kwargs):
         return {}
