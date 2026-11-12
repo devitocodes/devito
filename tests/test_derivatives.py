@@ -1,6 +1,6 @@
 import numpy as np
 import pytest
-from sympy import Float, Symbol, diff, simplify, sympify
+from sympy import Float, Rational, Symbol, diff, nsimplify, simplify, sympify
 
 from conftest import assert_structure
 from devito import (
@@ -617,6 +617,103 @@ class TestFD:
         a = np.dot(f_deriv.data.reshape(-1), g.data.reshape(-1))
         b = np.dot(g_deriv.data.reshape(-1), f.data.reshape(-1))
         assert np.isclose(1 - a/b, 0, atol=1e-5)
+
+    @pytest.mark.parametrize('staggered, fd_indices', [
+        (False, (0, 1, 2)),
+        (False, (-1, 0, 1, 2)),
+        (True, (.5, 1.5, 2.5)),
+        (True, (-.5, .5, 1.5))])
+    def test_given_fd_indices(self, staggered, fd_indices):
+        """
+        A derivative with `fd_indices` reads only those points, and is exact to
+        their degree.
+        """
+        grid = Grid(shape=(11,), extent=(10.,), dtype=np.float64)
+        x, = grid.dimensions
+        shift = Rational(1, 2) if staggered else 0
+        f = Function(name='f', grid=grid, space_order=4,
+                     staggered=x if staggered else None)
+        out = Function(name='out', grid=grid, space_order=4)
+        degree = len(fd_indices) - 1
+        f.data[:] = (np.arange(11.) + float(shift))**degree
+        eq = Eq(out, f.dx(fd_indices=fd_indices))
+        read = {a.args[0] for a in eq.evaluate.rhs.atoms(type(f))}
+        assert read <= {x + nsimplify(o)*x.spacing for o in fd_indices}
+        Operator(eq).apply()
+        inner = slice(2, -4)
+        assert np.allclose(out.data[inner], degree*np.arange(11.)[inner]**(degree - 1),
+                           rtol=1e-10, atol=1e-10)
+
+    @pytest.mark.parametrize('source, target, fd_indices, weights', [
+        (False, False, (0, 1, 2), None),
+        (False, True, (-.5, .5, 1.5), None),
+        (True, False, (.5, 1.5, 2.5), None),
+        (False, True, (-.5, .5, 1.5), (-1., 2., -.5)),
+        (True, False, (.5,), (2.,))])
+    def test_fd_indices_adjoint(self, source, target, fd_indices, weights):
+        """A derivative with `fd_indices` passes the dot test with its `.T`."""
+        grid = Grid(shape=(21,), extent=(20.,), dtype=np.float64)
+        x, = grid.dimensions
+        rng = np.random.default_rng(0)
+        at = {False: (None, x), True: (x, x + x.spacing/2)}
+        f, f_out = (Function(name=n, grid=grid, space_order=4, staggered=at[k][0])
+                    for n, k in (('f', source), ('fo', target)))
+        g, g_out = (Function(name=n, grid=grid, space_order=4, staggered=at[k][0])
+                    for n, k in (('g', target), ('go', source)))
+        f.data[4:-6] = rng.standard_normal(11)
+        g.data[4:-6] = rng.standard_normal(11)
+        kwargs = {'fd_indices': fd_indices} if weights is None else \
+            {'fd_indices': fd_indices, 'weights': weights}
+        Operator([Eq(f_out, f.dx(x0={x: at[target][1]}, **kwargs)),
+                  Eq(g_out, g.dx(x0={x: 2*x - at[source][1]}, **kwargs).T)]).apply()
+        forward = np.dot(f_out.data, g.data)
+        backward = np.dot(f.data, g_out.data)
+        assert np.isclose(forward, backward, rtol=1e-12, atol=0)
+
+    def test_fd_indices_tuple(self):
+        """A tuple of fd_indices is refused for a derivative along two Dimensions."""
+        grid = Grid(shape=(11, 11))
+        x, y = grid.dimensions
+        f = Function(name='f', grid=grid, space_order=4)
+        assert f.dx(fd_indices=(0, 1)).fd_indices == {x: (0, 1)}
+        with pytest.raises(ValueError, match='one Dimension'):
+            f.dxdy(fd_indices=(0, 1))
+
+    def test_fd_indices_order_zero(self):
+        """
+        A zeroth-order derivative with `fd_indices` reads those points, e.g. a
+        shift.
+        """
+        grid = Grid(shape=(11,), extent=(10.,), dtype=np.float64)
+        x, = grid.dimensions
+        f = Function(name='f', grid=grid, space_order=4)
+        out = Function(name='out', grid=grid, space_order=4)
+        f.data[:] = np.arange(11.)**2
+        Operator(Eq(out, f.diff((x, 0), x0={x: x}, fd_indices=(2,)))).apply()
+        assert np.allclose(out.data[:-2], f.data[2:], rtol=1e-12, atol=0)
+
+    @pytest.mark.parametrize('ndim', [2, 3])
+    @pytest.mark.parametrize('staggered', [False, True])
+    def test_rsfd_adjoint(self, ndim, staggered):
+        """Rotated staggered derivatives pass the dot test with their `.T`."""
+        grid = Grid(shape=(21,)*ndim, extent=(20.,)*ndim, dtype=np.float64)
+        rng = np.random.default_rng(0)
+        x0 = {d: d + d.spacing/2 for d in grid.dimensions} if staggered else {}
+        for d in grid.dimensions:
+            f = Function(name='f', grid=grid, space_order=4)
+            g = Function(name='g', grid=grid, space_order=4)
+            f_out = Function(name='f_out', grid=grid, space_order=4)
+            g_out = Function(name='g_out', grid=grid, space_order=4)
+            f.data[:] = rng.standard_normal(grid.shape)
+            g.data[:] = rng.standard_normal(grid.shape)
+            deriv = f'd{d.name}'
+
+            Operator([Eq(f_out, getattr(f, deriv)(method='RSFD', x0=x0)),
+                      Eq(g_out, getattr(g, deriv)(method='RSFD', x0=x0).T)]).apply()
+
+            forward = np.dot(f_out.data.ravel(), g.data.ravel())
+            backward = np.dot(f.data.ravel(), g_out.data.ravel())
+            assert np.isclose(forward, backward, rtol=1e-12, atol=0)
 
     @pytest.mark.parametrize('dtype', [np.float32, np.float64])
     @pytest.mark.parametrize('shift, ndim', [(None, 2), (.5, 2), (.5, 3),
@@ -1833,6 +1930,75 @@ class TestHaloZero:
 
         assert np.linalg.norm(ref.data) > 0
         assert np.allclose(out.data, ref.data, rtol=1e-12, atol=1e-12)
+
+    def test_cross(self):
+        """`g.dxdy(halo=0)` grows the SubDomain along both Dimensions."""
+        grid = Grid(shape=(24, 24), extent=(23., 23.), dtype=np.float64)
+        x, y = grid.dimensions
+        subdomain = Region('s', {'x': ('middle', 7, 9), 'y': ('middle', 8, 6)},
+                           grid=grid)
+        kwargs = {'grid': grid, 'space_order': 4, 'dtype': np.float64}
+        g = Function(name='g', **kwargs)
+        g_zero = Function(name='g_zero', **kwargs)
+        out = Function(name='out', **kwargs)
+        ref = Function(name='ref', **kwargs)
+
+        g.data[:] = np.random.default_rng(2).normal(size=g.shape)
+        g_zero.data[7:-9, 8:-6] = g.data[7:-9, 8:-6]
+
+        eq = Eq(out, g.dxdy(halo=0), subdomain=subdomain)
+        Operator([eq, Eq(ref, g_zero.dxdy)]).apply()
+
+        assert eq.evaluate.subdomain.growth == {x: 2, y: 2}
+        assert np.linalg.norm(ref.data) > 0
+        assert np.allclose(out.data, ref.data, rtol=1e-12, atol=1e-12)
+
+    def test_single_tap(self):
+        """
+        A scaled transpose of a single-tap derivative keeps its growth and is
+        the adjoint.
+        """
+        grid = Grid(shape=(24,), extent=(23.,), dtype=np.float64)
+        x, = grid.dimensions
+        subdomain = Region('s', {'x': ('middle', 7, 9)}, grid=grid)
+        kwargs = {'grid': grid, 'space_order': 4, 'dtype': np.float64}
+        g, out_bar, c = (Function(name=n, **kwargs) for n in ('g', 'out_bar', 'c'))
+        out, g_bar = (Function(name=n, **kwargs) for n in ('out', 'g_bar'))
+        rng = np.random.default_rng(5)
+        for f in (g, out_bar, c):
+            f.data[:] = rng.normal(size=f.shape)
+
+        tap = {'x0': {x: x}, 'fd_indices': (2,), 'weights': (1,)}
+        adjoint = Inc(g_bar, 3*Derivative(c*out_bar, x, halo=0, **tap).T,
+                      subdomain=subdomain)
+        Operator([Eq(out, 3*c*Derivative(g, x, **tap), subdomain=subdomain),
+                  adjoint]).apply()
+
+        assert adjoint.evaluate.subdomain.growth == {x: 2}
+        lhs = np.vdot(out.data, out_bar.data)
+        assert abs(lhs - np.vdot(g.data, g_bar.data)) < 1e-12*abs(lhs)
+
+    def test_rational_sum(self):
+        """
+        A rational factor distributed over a sum of transposes keeps them
+        adjoint.
+        """
+        grid = Grid(shape=(16, 24), extent=(15., 23.), dtype=np.float64)
+        subdomain = Region('s', {'x': ('middle', 4, 5), 'y': ('middle', 7, 7)},
+                           grid=grid)
+        kwargs = {'grid': grid, 'space_order': 4, 'dtype': np.float64}
+        g, out_bar = (Function(name=n, **kwargs) for n in ('g', 'out_bar'))
+        out, g_bar = (Function(name=n, **kwargs) for n in ('out', 'g_bar'))
+        rng = np.random.default_rng(6)
+        for f in (g, out_bar):
+            f.data[:] = rng.normal(size=f.shape)
+
+        transposes = out_bar.dx(halo=0).T + out_bar.dy(halo=0).T
+        Operator([Eq(out, (g.dx + g.dy)/4, subdomain=subdomain),
+                  Inc(g_bar, -(-transposes/2)/2, subdomain=subdomain)]).apply()
+
+        lhs = np.vdot(out.data, out_bar.data)
+        assert abs(lhs - np.vdot(g.data, g_bar.data)) < 1e-12*abs(lhs)
 
     def test_default_unchanged(self):
         """

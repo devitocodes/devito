@@ -6,7 +6,7 @@ from sympy import sympify
 
 from devito.logger import warning
 
-from .differentiable import DiffDerivative, EvalDerivative, Weights
+from .differentiable import DiffDerivative, EvalDerivative, Weights, merge_growth
 from .tools import (
     centered, check_input, direct, fd_weights_registry, generate_indices, left,
     process_weights, right, transpose
@@ -31,7 +31,8 @@ _PRECISION = {np.float16: 9, np.float32: 9, np.float64: 20,
 
 
 @check_input
-def cross_derivative(expr, dims, fd_order, deriv_order, x0=None, side=None, **kwargs):
+def cross_derivative(expr, dims, fd_order, deriv_order, x0=None, side=None,
+                     fd_indices=None, **kwargs):
     """
     Arbitrary-order cross derivative of a given expression.
 
@@ -57,6 +58,8 @@ def cross_derivative(expr, dims, fd_order, deriv_order, x0=None, side=None, **kw
     expand : bool, optional, default=True
         If True, the derivative is fully expanded as a sum of products,
         otherwise an IndexSum is returned.
+    fd_indices : dict of {Dimension: tuple of numbers}, optional
+        The stencil points along each Dimension (see `generic_derivative`).
 
     Returns
     -------
@@ -96,9 +99,10 @@ f(x + 2*h_x, y + h_y)*g(x + 2*h_x, y + h_y)/h_x) + \
 f(x + 2*h_x, y + 2*h_y)*g(x + 2*h_x, y + 2*h_y)/h_x)/h_y
     """
     x0 = x0 or {}
+    fd_indices = fd_indices or {}
     for d, fd, dim in zip(deriv_order, fd_order, dims, strict=True):
         expr = generic_derivative(expr, dim=dim, fd_order=fd, deriv_order=d, x0=x0,
-                                  side=side, **kwargs)
+                                  side=side, fd_indices=fd_indices.get(dim), **kwargs)
 
     return expr
 
@@ -129,7 +133,7 @@ def index_at(expr, dim):
 @check_input
 def generic_derivative(expr, dim, fd_order, deriv_order, matvec=direct, x0=None,
                        coefficients='taylor', expand=True, weights=None, side=None,
-                       subdomain=None):
+                       subdomain=None, fd_indices=None):
     """
     Arbitrary-order derivative of a given expression.
 
@@ -159,6 +163,9 @@ def generic_derivative(expr, dim, fd_order, deriv_order, matvec=direct, x0=None,
         If given, `expr` is treated as zero outside `subdomain` (see
         `Derivative`'s `halo`): each stencil tap is multiplied by the
         indicator of `subdomain` at the point it reads.
+    fd_indices : tuple of numbers, optional
+        The stencil points, as offsets from `x0` in grid spacings. They replace
+        the points given by `fd_order` and `side`.
 
     Returns
     -------
@@ -170,16 +177,18 @@ def generic_derivative(expr, dim, fd_order, deriv_order, matvec=direct, x0=None,
     if deriv_order == 1 and fd_order == 2 and side is None:
         fd_order = 1
 
-    # Zeroth order is the identity when `expr` already sits at `x0`, not a
-    # stencil centred there.
-    if deriv_order == 0 and (not x0 or index_at(expr, dim) == x0.get(dim)):
+    # A zeroth-order derivative of `expr` at its own point is `expr` itself,
+    # unless the stencil points are given
+    if deriv_order == 0 and fd_indices is None and \
+            (not x0 or index_at(expr, dim) == x0.get(dim)):
         return expr
 
     # Enforce stable time coefficients
     coefficients = 'taylor' if dim.is_Time else expr.coefficients
 
     return make_derivative(expr, dim, fd_order, deriv_order, side,
-                           matvec, x0, coefficients, expand, weights, subdomain)
+                           matvec, x0, coefficients, expand, weights, subdomain,
+                           fd_indices=fd_indices)
 
 
 # Backward compatibility
@@ -188,16 +197,25 @@ def first_derivative(expr, dim, fd_order, **kwargs):
 
 
 def make_derivative(expr, dim, fd_order, deriv_order, side, matvec, x0, coefficients,
-                    expand, weights=None, subdomain=None):
+                    expand, weights=None, subdomain=None, fd_indices=None):
     # Always expand time derivatives to avoid issue with buffering and streaming.
     # Time derivative are almost always short stencils and won't benefit from
     # unexpansion in the rare case the derivative is not evaluated for time stepping.
     expand = True if dim.is_Time else expand
 
+    # A derivative along a Dimension derived from one that indexes `expr`, e.g.
+    # along `xi` for `x` on a CurvilinearGrid, is taken along the indexing one
+    dimensions = getattr(expr, 'dimensions', ())
+    if dim not in dimensions:
+        indexed = next((d for d in dimensions if d.root is dim.root), dim)
+        x0 = {indexed if d is dim else d: sympify(v).subs(dim, indexed)
+              for d, v in (x0 or {}).items()}
+        dim = indexed
+
     # The stencil indices
     nweights, wdim, scale = process_weights(weights, expr, dim)
     indices, x0 = generate_indices(expr, dim, fd_order, side=side, matvec=matvec,
-                                   x0=x0, nweights=nweights)
+                                   x0=x0, nweights=nweights, fd_indices=fd_indices)
     # Finite difference weights corresponding to the indices. Computed via the
     # `coefficients` method (`taylor` or `symbolic`)
     if weights is None:
@@ -236,8 +254,10 @@ def make_derivative(expr, dim, fd_order, deriv_order, side, matvec, x0, coeffici
     # With a `subdomain`, `expr` is treated as zero outside it: every stencil tap
     # is multiplied by the indicator of the point it reads, 1 if `subdomain`
     # spans the whole of `dim`. The derivative then extends past `subdomain` by
-    # the stencil radius
-    growth = {dim.root: indices.radius} if subdomain is not None else {}
+    # the stencil radius, plus any growth that `expr` already has, e.g. in a
+    # cross derivative
+    growth = merge_growth([{dim.root: indices.radius}, getattr(expr, '_growth', {})]) \
+        if subdomain is not None else {}
 
     if not expand and indices.expr is not None:
         weights = Weights(name='w', dimensions=indices.free_dim,

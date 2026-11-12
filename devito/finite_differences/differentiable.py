@@ -7,7 +7,7 @@ import sympy
 from sympy.core.add import _addsort
 from sympy.core.decorators import call_highest_priority
 from sympy.core.evalf import evalf_table
-from sympy.core.mul import _keep_coeff, _mulsort
+from sympy.core.mul import _mulsort
 
 try:
     from sympy.core.core import ordering_of_classes
@@ -717,13 +717,15 @@ class Mul(DifferentiableOp, sympy.Mul):
         # `sympy.Mul.flatten(coeff, Add)` flattens out nested Adds within Add,
         # which would destroy `EvalDerivative`s if present. So here we perform
         # a similar thing, but cautiously construct an evaluated Add, which
-        # will preserve the integrity of `EvalDerivative`s, if any
+        # will preserve the integrity of `EvalDerivative`s, if any. The terms
+        # stay differentiable, so that derivatives with `halo=0` still get the
+        # SubDomain of their equation
         try:
             a, b = args
             if a.is_Rational:
                 r, b = b.as_coeff_Mul()
                 if r is sympy.S.One and type(b) is Add:
-                    return Add(*[_keep_coeff(a, bi) for bi in b.args], evaluate=False)
+                    return Add(*[cls(a, bi) for bi in b.args], evaluate=False)
         except (AttributeError, ValueError):
             pass
 
@@ -1437,7 +1439,12 @@ class EvalDerivative(DifferentiableOp, sympy.Add):
         # Reorder for homogeneity with pure SymPy types
         _addsort(args)
 
-        obj = super().__new__(cls, *args, **kwargs)
+        if len(args) == 1 and growth:
+            # Keep a single tap with a growth as an EvalDerivative. Otherwise
+            # the growth would be lost when the tap is multiplied
+            obj = sympy.Basic.__new__(cls, *args)
+        else:
+            obj = super().__new__(cls, *args, **kwargs)
 
         try:
             if base is obj:

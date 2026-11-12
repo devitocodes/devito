@@ -1,5 +1,5 @@
 from collections import defaultdict
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 from contextlib import suppress
 from functools import cached_property
 from itertools import chain
@@ -50,6 +50,11 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
     x0 : dict, optional
         Origin (where the finite-difference is evaluated at) for the finite-difference
         scheme, e.g. {x: x, y: y + h_y/2}.
+    fd_indices : tuple of numbers or dict of {Dimension: tuple of numbers}, optional
+        The stencil points, as offsets from `x0` in grid spacings, e.g. a
+        one-sided stencil next to a boundary. They replace the points given by
+        `fd_order` and `side`. A tuple can only be given for a derivative along
+        one Dimension.
 
     Examples
     --------
@@ -102,7 +107,7 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
 
     __rargs__ = ('expr', '*dims')
     __rkwargs__ = ('side', 'deriv_order', 'fd_order', 'transpose', '_ppsubs',
-                   'x0', 'method', 'weights', 'halo', 'subdomain')
+                   'x0', 'method', 'weights', 'halo', 'subdomain', 'fd_indices')
 
     def __new__(cls, expr, *dims, **kwargs):
         # Validate the input arguments `expr`, `dims` and `deriv_order`
@@ -163,6 +168,7 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
         obj._weights = cls._process_weights(**kwargs)
         obj._halo = cls._validate_halo(kwargs.get("halo"))
         obj._subdomain = kwargs.get("subdomain")
+        obj._fd_indices = cls._process_fd_indices(obj._dims, **kwargs)
 
         ppsubs = kwargs.get("subs", kwargs.get("_ppsubs", []))
         processed = []
@@ -325,6 +331,20 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
         return x0
 
     @classmethod
+    def _process_fd_indices(cls, dims, **kwargs):
+        fd_indices = kwargs.get('fd_indices') or {}
+        if not isinstance(fd_indices, Mapping):
+            if len(dims) != 1:
+                raise ValueError(f"fd_indices given as a tuple need a derivative along "
+                                 f"one Dimension, not {dims}")
+            fd_indices = {dims[0]: fd_indices}
+
+        # Use rationals, so that a half-point index lands exactly on a staggered
+        # point
+        return frozendict({d: tuple(sympy.nsimplify(i, rational=True) for i in v)
+                           for d, v in fd_indices.items()})
+
+    @classmethod
     def _process_weights(cls, **kwargs):
         weights = kwargs.get('weights', kwargs.get('w'))
         if weights is None:
@@ -339,6 +359,9 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
         rkw = {}
         if 'halo' in kwargs:
             rkw['halo'] = kwargs['halo']
+        if kwargs.get('fd_indices') is not None:
+            fd_indices = self._process_fd_indices(self.dims, **kwargs)
+            rkw['fd_indices'] = frozendict({**self.fd_indices, **fd_indices})
         if side is not None:
             rkw['side'] = side
         if method is not None:
@@ -504,6 +527,10 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
         return self._weights
 
     @property
+    def fd_indices(self):
+        return self._fd_indices
+
+    @property
     def T(self):
         """Transpose of the Derivative.
 
@@ -624,6 +651,7 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
              shited derivative.
         - 4: Apply substitutions.
         """
+
         # Differentiation is linear, and a sum of terms at different staggered
         # locations must use it: `Add` reports its first argument's location,
         # so `x0` would shift the other terms off the point they sat at.
@@ -667,20 +695,22 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
         if self.method == 'RSFD':
             assert len(self.dims) == 1
             assert self.deriv_order[0] == 1
-            res = d45(expr, self.dims[0], x0=self.x0, expand=expand)
+            res = d45(expr, self.dims[0], x0=self.x0, expand=expand,
+                      matvec=self.transpose)
         elif len(self.dims) > 1:
             assert self.method == 'FD'
             res = cross_derivative(expr, self.dims, self.fd_order, self.deriv_order,
                                    matvec=self.transpose, x0=x0_deriv, expand=expand,
                                    side=self.side, weights=self.weights,
-                                   subdomain=subdomain)
+                                   subdomain=subdomain, fd_indices=self.fd_indices)
         else:
             assert self.method == 'FD'
             res = generic_derivative(expr, self.dims[0], self.fd_order[0],
                                      self.deriv_order[0], weights=self.weights,
                                      side=self.side, matvec=self.transpose,
                                      x0=self.x0, expand=expand,
-                                     subdomain=subdomain)
+                                     subdomain=subdomain,
+                                     fd_indices=self.fd_indices.get(self.dims[0]))
 
         # Step 4: Apply substitutions
         for e in self._ppsubs:
@@ -708,6 +738,11 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
         used to construct the derivative.
         """
         if not isinstance(self.expr, self.__class__):
+            return self
+
+        # Do not merge if either derivative has fd_indices: they would apply to the
+        # wrong derivative
+        if self.fd_indices or self.expr.fd_indices:
             return self
 
         # This is necessary as tools.abc.Reconstructable._rebuild will copy

@@ -255,7 +255,8 @@ fd_weights_registry = {'taylor': numeric_weights, 'standard': numeric_weights,
 coeff_priority = {'taylor': 1, 'standard': 1}
 
 
-def generate_indices(expr, dim, order, side=None, matvec=None, x0=None, nweights=0):
+def generate_indices(expr, dim, order, side=None, matvec=None, x0=None, nweights=0,
+                     fd_indices=None):
     """
     Indices for the finite-difference scheme.
 
@@ -274,11 +275,18 @@ def generate_indices(expr, dim, order, side=None, matvec=None, x0=None, nweights
         finite difference. Defaults to `direct`.
     x0 : dict of {Dimension: Dimension or Expr or Number}, optional
         Origin of the scheme, ie. `x`, `x + .5 * x.spacing`, ...
+    fd_indices : tuple of numbers, optional
+        The stencil points, as offsets from `x0` in grid spacings. They replace
+        the points given by `order` and `side`.
 
     Returns
     -------
     An IndexSet, representing an ordered list of indices.
     """
+    if fd_indices is not None:
+        x0 = sympify((x0 or {}).get(dim) or expr.indices_ref[dim])
+        return IndexSet(dim, indices=[x0 + o*dim.spacing for o in fd_indices]), x0
+
     # Check size of input weights
     if nweights > 0:
         do, dw = order + 1 + order % 2, nweights
