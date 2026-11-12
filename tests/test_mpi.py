@@ -1,3 +1,4 @@
+import pickle
 from functools import cached_property
 
 import numpy as np
@@ -25,7 +26,7 @@ from devito.mpi.distributed import CustomTopology
 from devito.mpi.routines import ComputeCall, HaloUpdateCall, HaloUpdateList, MPICall
 from devito.tools import Bunch
 from devito.types import Bundle
-from devito.types.dimension import ModuloDimension
+from devito.types.dimension import ModuloDimension, RankOffset
 from examples.seismic.acoustic import acoustic_setup
 
 
@@ -3502,6 +3503,64 @@ class TestOperatorAdvanced:
             assert np.all(glb[:, :3] == 1.)
             assert np.all(glb[:, 3:-3] == 0.)
             assert np.all(glb[:, -3:] == 2.)
+
+    @pytest.mark.parallel(mode=4)
+    @pytest.mark.parametrize('expand', [True, False])
+    @pytest.mark.parametrize('region', [('middle', 6, 6), ('middle', 16, 16),
+                                        ('middle', 15, 17), ('left', 17),
+                                        ('right', 18)])
+    def test_halo_zero_subdomain(self, region, expand, mode):
+        """
+        Derivatives with `halo=0` treat their argument as zero outside the global
+        SubDomain, not outside its part on each rank. The rank edges lie at 16,
+        32 and 48, within the stencil radius of some of the SubDomain edges.
+        """
+        class Region(SubDomain):
+            name = 'region'
+
+            def define(self, dimensions):
+                x, = dimensions
+                return {x: region}
+
+        serial = Grid(shape=(64,), comm=MPI.COMM_SELF)
+        grid = Grid(shape=(64,))
+        subdomain = Region(grid=serial)
+
+        def functions(grid):
+            kwargs = {'grid': grid, 'space_order': 4}
+            return [Function(name=n, **kwargs) for n in ('f', 'o', 'g')]
+
+        f0, o0, g0 = functions(serial)
+        f1, o1, g1 = functions(grid)
+        f0.data[:] = f1.data[:] = np.random.default_rng(0).normal(size=grid.shape)
+
+        # Compiled for the serial Grid, applied to both
+        op = Operator([Eq(o0, f0.dx(halo=0), subdomain=subdomain),
+                       Inc(g0, f0.dx(halo=0).T, subdomain=subdomain)],
+                      opt=('advanced', {'expand': expand}))
+        op.apply()
+        op.apply(f=f1, o=o1, g=g1)
+
+        glb = grid.distributor.glb_slices[grid.dimensions[0]]
+        assert np.allclose(o1.data, o0.data[glb], rtol=1e-12)
+        assert np.allclose(g1.data, g0.data[glb], rtol=1e-12)
+
+    @pytest.mark.parallel(mode=4)
+    def test_rank_offset_empty(self, mode):
+        """
+        The offsets of a rank from the Grid edges, including an empty rank, also
+        once unpickled.
+        """
+        grid = Grid(shape=(3,))
+        x = grid.dimensions[0]
+
+        lofs = pickle.loads(pickle.dumps(RankOffset(name='x_lofs', side=LEFT, root=x)))
+        rofs = pickle.loads(pickle.dumps(RankOffset(name='x_rofs', side=RIGHT, root=x)))
+        values = (lofs._arg_values(grid=grid)['x_lofs'],
+                  rofs._arg_values(grid=grid)['x_rofs'])
+
+        # Rank 3 is empty
+        assert values == [(0, 2), (1, 1), (2, 0), (0, 0)][grid.distributor.myrank]
 
     @pytest.mark.parallel(mode=[(4, 'full')])
     def test_custom_subdomain(self, mode):
