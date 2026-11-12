@@ -39,8 +39,8 @@ from devito.passes import (
 from devito.symbolics import estimate_cost, subs_op_args
 from devito.tools import (
     DAG, CacheInstances, MemoryEstimate, OrderedSet, ReducerMap, Signer, as_mapper,
-    as_tuple, contains_val, filter_sorted, flatten, frozendict, is_integer, memoized_func,
-    split, timed_pass, timed_region
+    as_tuple, contains_val, filter_ordered, filter_sorted, flatten, frozendict,
+    is_integer, memoized_func, split, timed_pass, timed_region
 )
 from devito.types import Buffer, Evaluable, device_layer, disk_layer, host_layer
 from devito.types.dimension import SubDimension, SubsamplingOffset, Thickness
@@ -611,24 +611,25 @@ class Operator(Callable):
 
         # DiscreteFunctions may be created from CartesianDiscretizations, which in
         # turn could be Grids or SubDomains. Both may provide arguments
-        discretizations = {getattr(kwargs.get(p.name, p), 'grid', None)
-                           for p in self.input} - {None}
+        discretizations = [i for i in filter_ordered(
+            getattr(kwargs.get(p.name, p), 'grid', None) for p in self.input
+        ) if i is not None]
 
-        # There can only be one Grid from which DiscreteFunctions were created
-        grids = {i.root for i in discretizations}
+        # There can only be one Grid from which DiscreteFunctions were created.
+        # We loosely tolerate several for backwards compatibility with spatial
+        # subsampling, which should be revisited however. With MPI, they must be
+        # split over the same ranks, e.g. a MappedGrid and its parent
+        grids = filter_ordered(i.root for i in discretizations)
 
-        if len(grids) > 1 and configuration['mpi']:
-            # We loosely tolerate multiple Grids for backwards compatibility
-            # with spatial subsampling, which should be revisited however. And
-            # With MPI it would definitely break!
+        if configuration['mpi'] and not _same_ranks(grids):
             raise ValueError("Multiple Grids found")
 
         nodes = set(self.dimensions)
-        if grids:
-            grid = grids.pop()
-            nodes.update(grid.dimensions)
-        else:
-            grid = None
+        for i in grids:
+            nodes.update(i.dimensions)
+        grid = grids[0] if grids else None
+        # The Grid of each of their Dimensions, which decomposes it
+        owners = {d: i for i in reversed(grids) for d in i.dimensions}
 
         # Pre-process Dimension overrides. This may help ruling out ambiguities
         # when processing the `defaults` arguments. A topological sorting is used
@@ -706,7 +707,8 @@ class Operator(Callable):
 
         # Process Dimensions
         for d in reversed(toposort):
-            args.update(d._arg_values(self._dspace[d], grid, **kwargs))
+            args.update(d._arg_values(self._dspace[d], owners.get(d.root, grid),
+                                      **kwargs))
 
         # Process Objects
         for o in self.objects:
@@ -1351,6 +1353,14 @@ def rcompile(expressions, kwargs, options, target=None):
 
 
 IRs = namedtuple('IRs', 'expressions clusters stree uiet iet')
+
+
+def _same_ranks(grids):
+    """True if the Grids `grids` are split over the same ranks the same way."""
+    first, *others = grids or [None]
+    return all(MPI.Comm.Compare(i.comm, first.comm) in (MPI.IDENT, MPI.CONGRUENT) and
+               tuple(i.distributor.topology) == tuple(first.distributor.topology)
+               for i in others)
 
 
 class ArgumentsMap(dict):
