@@ -56,6 +56,10 @@ def lower_local_sum(cluster, reduction, sregistry):
     """
     value = Temp(name=sregistry.make_name(prefix='sum'), dtype=reduction.dtype)
 
+    expr = reduction.expr
+    if reduction.weights is not None:
+        expr = uxreplace(expr, {reduction.weights: reduction.weights.base})
+
     dims = reduction.dimensions
     inner = IterationSpace([Interval(d) for d in dims])
     ispace = IterationSpace.union(
@@ -65,7 +69,7 @@ def lower_local_sum(cluster, reduction, sregistry):
     init = cluster.rebuild(exprs=[Eq(value, 0)])
     # Attach the interpolation's original guards to the accumulation only
     expr = ClusterizedEq(
-        Inc(value, reduction.expr), ispace=ispace, conditionals=reduction.conditionals
+        Inc(value, expr), ispace=ispace, conditionals=reduction.conditionals
     )
 
     properties = cluster.properties.sequentialize(dims)

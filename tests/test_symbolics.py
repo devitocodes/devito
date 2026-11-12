@@ -1,3 +1,4 @@
+import pickle
 from ctypes import c_uint64, c_void_p
 
 import numpy as np
@@ -10,13 +11,13 @@ from devito import (  # noqa
     Operator, Real, SubDimension, SubDomain, TimeDimension, TimeFunction, configuration,
     cos, norm, sin, solve, switchconfig
 )
-from devito.finite_differences.differentiable import Mul, SafeInv, Weights
+from devito.finite_differences.differentiable import Mul, SafeInv, Weights, WeightsExpr
 from devito.ir import Expression, FindNodes, ccode
 from devito.ir.support.guards import GuardExpr, pairwise_or, simplify_and
 from devito.mpi.halo_scheme import HaloTouch
 from devito.symbolics import (  # noqa
     INT, BaseCast, CallFromComposite, CallFromPointer, Cast, DefFunction,
-    FieldFromComposite, FieldFromPointer, IntDiv, ListInitializer, Namespace,
+    FieldFromComposite, FieldFromPointer, InlineIf, IntDiv, ListInitializer, Namespace,
     ReservedWord, RoundUp, Rvalue, SizeOf, VectorAccess, evalrel, pow_to_mul, q_negative,
     q_positive, retrieve_derivatives, retrieve_functions, retrieve_indexed,
     subs_if_composite, unevaluate, uxreplace, xreplace_indices
@@ -30,6 +31,53 @@ from devito.types import (
 from devito.types import Symbol as dSymbol
 from devito.types import Temp
 from devito.types.basic import AbstractSymbol
+
+
+@pytest.mark.parametrize('condition,combine', [
+    (And, np.logical_and), (sympy.Or, np.logical_or)
+])
+def test_inline_if_boolean(condition, combine):
+    """Compound predicates survive power lowering and Operator execution."""
+
+    grid = Grid(shape=(7, 9))
+    x, y = grid.dimensions
+
+    f = Function(name='f', grid=grid)
+    out = Function(name='out', grid=grid)
+
+    eq = Eq(out, InlineIf(condition(x > 1, y < 6), f**2, f + 1))
+
+    op = Operator(eq)
+
+    f.data[:] = np.arange(63).reshape(grid.shape) % 7
+
+    op.apply()
+
+    xx, yy = np.indices(grid.shape)
+    expected = np.where(combine(xx > 1, yy < 6), f.data**2, f.data + 1)
+    assert np.array_equal(out.data, expected)
+
+
+def test_weights_expr():
+    """An identity wrapper retains its reads, precedence and serialized operand."""
+
+    grid = Grid(shape=(7, 9))
+
+    f = Function(name='f', grid=grid)
+    g = Function(name='g', grid=grid)
+    out = Function(name='out', grid=grid)
+
+    weights = pickle.loads(pickle.dumps(WeightsExpr(f + g)))
+    eq = Eq(out, 2*weights)
+
+    op = Operator(eq, name='WeightsIdentity')
+
+    f.data[:] = np.arange(63).reshape(grid.shape) % 7
+    g.data[:] = 3.
+
+    op.apply(f=f, g=g)
+
+    assert np.array_equal(out.data, 2*(f.data + g.data))
 
 
 def test_float_indices():

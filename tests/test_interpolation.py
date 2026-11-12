@@ -11,12 +11,12 @@ from devito import (
     SparseFunction, SparseTimeFunction, SubDomain, TimeFunction, VectorFunction,
     switchconfig
 )
-from devito.finite_differences import LocalSum
+from devito.finite_differences import LocalSum, WeightsExpr
 from devito.ir import FindSymbols, LoweredEq
 from devito.operations.interpolators import (
     LinearInterpolator, SincInterpolator, _cell_indices
 )
-from devito.symbolics import uxreplace
+from devito.symbolics import retrieve_functions, uxreplace
 from devito.tools import as_tuple
 from devito.types import Temp
 from examples.seismic import (
@@ -49,6 +49,9 @@ class TestLocalSum:
         assert not lowered.conditionals
         rdims = rcv.interpolator._rdim()
         assert reduction.cdims == rdims
+        assert isinstance(reduction.weights, WeightsExpr)
+        assert {f.function for f in retrieve_functions(reduction.weights)} == \
+            set(rcv.interpolator._coeffs())
         assert reduction.conditionals == {d: d.condition for d in rdims}
         assert reduction.evaluate == reduction
         assert reduction.func(reduction.expr) == reduction
@@ -57,6 +60,7 @@ class TestLocalSum:
         x, _ = grid.dimensions
         mapper = {x.symbolic_max: Integer(10)}
         replaced = uxreplace(reduction, mapper)
+        assert reduction.xreplace(mapper) == replaced
         assert str(replaced.expr) == str(reduction.expr)
         assert replaced.conditionals != reduction.conditionals
         assert LoweredEq(expr._rebuild(rhs=replaced)).ispace == lowered.ispace

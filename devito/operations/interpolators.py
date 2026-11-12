@@ -11,7 +11,7 @@ try:
 except ImportError:
     from numpy import i0
 
-from devito.finite_differences.differentiable import LocalSum, Mul
+from devito.finite_differences.differentiable import LocalSum, Mul, WeightsExpr
 from devito.finite_differences.elementary import floor
 from devito.logger import warning
 from devito.symbolics import INT, retrieve_function_carriers, retrieve_functions
@@ -266,6 +266,7 @@ class WeightedInterpolator(GenericInterpolator):
 
     @memoized_meth
     def _weights(self, subdomain=None, shifts=None):
+        """The marked coefficient expression for the guarded tap dimensions."""
         raise NotImplementedError
 
     @property
@@ -617,7 +618,7 @@ class WeightedInterpolator(GenericInterpolator):
                                                 implicit_dims=implicit_dims,
                                                 subdomain=subdomain, shifts=shifts)
 
-            w = self._weights(subdomain=subdomain, shifts=shifts)
+            w = self._weights(subdomain=subdomain, shifts=shifts).base
             temps.extend(_temps)
             ecls = Inc if increment else Eq
             eqns.extend([ecls(f.xreplace(idx_subs), (w * e).xreplace(idx_subs),
@@ -755,10 +756,10 @@ class LinearInterpolator(WeightedInterpolator):
     def _weights(self, subdomain=None, shifts=None):
         rdims = self._rdim(subdomain=subdomain, shifts=shifts)
         coeffs = self._coeffs(shifts=shifts)
-        return Mul(*[
+        return WeightsExpr(Mul(*[
             w._subs(rd, rd - rd.parent.symbolic_min)
             for (rd, w) in zip(rdims, coeffs, strict=True)
-        ])
+        ]))
 
     def _coeff_data(self, coords, grid, shifts, spacing, origin):
         return {
@@ -788,7 +789,7 @@ class NearestInterpolator(LinearInterpolator):
 
     @memoized_meth
     def _weights(self, subdomain=None, shifts=None):
-        return sympy.S.One
+        return WeightsExpr(sympy.S.One)
 
     def _coeffs(self, shifts=None):
         return ()
@@ -832,8 +833,8 @@ class PrecomputedInterpolator(WeightedInterpolator):
         mappers = [{ddim: ri, cdim: rd-rd.parent.symbolic_min}
                    for (ri, rd) in enumerate(self._rdim(subdomain=subdomain,
                                                         shifts=shifts))]
-        return Mul(*[self.interpolation_coeffs.subs(mapper)
-                     for mapper in mappers])
+        return WeightsExpr(Mul(*[self.interpolation_coeffs.subs(mapper)
+                                 for mapper in mappers]))
 
 
 class SincInterpolator(WeightedInterpolator):
@@ -891,10 +892,10 @@ of the SincInterpolator that uses i0 (Bessel function).
     @memoized_meth
     def _weights(self, subdomain=None, shifts=None):
         rdims = self._rdim(subdomain=subdomain, shifts=shifts)
-        return Mul(*[
+        return WeightsExpr(Mul(*[
             w._subs(rd, rd-rd.parent.symbolic_min)
             for (rd, w) in zip(rdims, self._coeffs(shifts=shifts), strict=True)
-        ])
+        ]))
 
     def _coeff_data(self, coords, grid, shifts, spacing, origin):
         b = self._b_table[self.r]
