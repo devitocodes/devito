@@ -42,8 +42,9 @@ jobs:
         include:
         # -------------------- NVIDIA job --------------------
         - name: pytest-gpu-acc-nvidia
-          test_files: "tests/test_adjoint.py tests/test_gpu_common.py tests/test_gpu_openacc.py tests/test_operator.py::TestEstimateMemory"
+          test_files: "tests/test_adjoint.py tests/test_gpu_common.py tests/test_gpu_openacc.py tests/torch/test_openacc.py tests/test_operator.py::TestEstimateMemory"
           base: "devitocodes/bases:nvidia-nvc12"
+          build_args: "--build-arg TORCH_INDEX_URL=https://download.pytorch.org/whl/cu124"
           runner_label: NVIDIAGPU
           test_drive_cmd: "nvidia-smi"
           # Respect CUDA_VISIBLE_DEVICES and also hard-limit Docker to that device.
@@ -80,6 +81,7 @@ jobs:
         file: docker/Dockerfile.devito
         tag: ${{ matrix.name }}
         base: ${{ matrix.base }}
+        args: ${{ matrix.build_args }}
 
     - id: probe
       name: Probe GPU

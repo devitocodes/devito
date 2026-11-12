@@ -1,5 +1,5 @@
 from collections import namedtuple
-from ctypes import POINTER, Structure, byref, c_int, c_ulong, c_void_p, cast
+from ctypes import POINTER, Structure, byref, c_int, c_ulong, c_void_p
 from functools import cached_property, reduce, wraps
 from operator import mul
 from textwrap import dedent, wrap
@@ -7,6 +7,7 @@ from textwrap import dedent, wrap
 import numpy as np
 import sympy
 
+from devito.arch import Device
 from devito.builtins import assign
 from devito.data import (
     CENTER, DOMAIN, FULL, HALO, LEFT, NOPAD, OWNED, RIGHT, Data, default_allocator
@@ -22,8 +23,8 @@ from devito.mpi import MPI
 from devito.parameters import configuration
 from devito.symbolics import FieldFromPointer, IndexedPointer, normalize_args
 from devito.tools import (
-    ReducerMap, as_tuple, c_restrict_void_p, dtype_to_ctype, flatten, humanbytes,
-    is_integer, memoized_meth, mpi4py_mapper
+    ReducerMap, as_tuple, c_restrict_void_p, flatten, humanbytes, is_integer,
+    memoized_meth, mpi4py_mapper
 )
 from devito.types.args import ArgProvider
 from devito.types.basic import AbstractFunction
@@ -83,6 +84,8 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
         self._data = None
         self._first_touch = kwargs.get('first_touch', configuration['first-touch'])
         self._allocator = kwargs.get('allocator') or default_allocator()
+        if self._allocator.is_Device:
+            self._space = 'local'
 
         # Data initialization
         initializer = kwargs.get('initializer')
@@ -101,7 +104,7 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
         elif initializer is None or callable(initializer) or self.alias:
             # Initialization postponed until the first access to .data
             self._initializer = initializer
-        elif isinstance(initializer, (np.ndarray, list, tuple)):
+        elif isinstance(initializer, (list, tuple)) or Data._is_array(initializer):
             # Allocate memory and initialize it. Note that we do *not* hold
             # a reference to the user-provided buffer
             self._initializer = None
@@ -585,7 +588,7 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
         """
         self._is_halo_dirty = True
         self._halo_exchange()
-        return np.asarray(self._data[self._mask_inhalo])
+        return self._data[self._mask_inhalo]._raw
 
     @property
     @_allocate_memory
@@ -608,7 +611,7 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
         """
         self._is_halo_dirty = True
         self._halo_exchange()
-        return np.asarray(self._data)
+        return self._data._raw
 
     def _data_buffer(self, **kwargs):
         """
@@ -650,23 +653,21 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
             for d, s, (pl, pr)
             in zip(self.dimensions, self.shape_allocated, self._padding, strict=True)
         ]
-        return np.asarray(self._data[index_array])
+        return self._data[index_array]
 
     @property
     @_allocate_memory
     def data_ro_domain(self):
         """Read-only view of the domain data values."""
         view = self._data._global(self._mask_domain, self._decomposition)
-        view.setflags(write=False)
-        return view
+        return view._readonly()
 
     @property
     @_allocate_memory
     def data_ro_with_halo(self):
         """Read-only view of the domain+outhalo data values."""
         view = self._data._global(self._mask_outhalo, self._decomposition_outhalo)
-        view.setflags(write=False)
-        return view
+        return view._readonly()
 
     _data_ro_with_outhalo = data_ro_with_halo
 
@@ -681,8 +682,7 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
         This accessor does *not* support global indexing.
         """
         view = self._data[self._mask_inhalo]
-        view.setflags(write=False)
-        return np.asarray(view)
+        return view._readonly()._raw
 
     @property
     @_allocate_memory
@@ -695,8 +695,7 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
         This accessor does *not* support global indexing.
         """
         view = self._data
-        view.setflags(write=False)
-        return np.asarray(view)
+        return view._readonly()._raw
 
     @cached_property
     def local_indices(self):
@@ -718,8 +717,8 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
 
     @property
     def initializer(self):
-        if isinstance(self._data, np.ndarray):
-            return self.data_with_halo.view(np.ndarray)
+        if self._data is not None:
+            return self.data_with_halo._raw
         else:
             return self._initializer
 
@@ -751,12 +750,12 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
         an Operator.
         """
         key = alias or self
-        data = args[key.name]
+        data = Data._from_array(args[key.name], allocator=self._allocator)
 
         dataobj = byref(self._C_ctype._type_())
-        dataobj._obj.data = data.ctypes.data_as(c_restrict_void_p)
+        dataobj._obj.data = data._C_data
         dataobj._obj.size = (c_int*self.ndim)(*data.shape)
-        dataobj._obj.nbytes = data.nbytes
+        dataobj._obj.nbytes = int(np.prod(data.shape))*data._numpy_dtype.itemsize
 
         # MPI-related fields
         dataobj._obj.npsize = (c_ulong*self.ndim)(*[
@@ -778,11 +777,8 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
         return dataobj
 
     def _C_as_ndarray(self, dataobj):
-        """Cast the data carried by a DiscreteFunction dataobj to an ndarray."""
-        shape = tuple(dataobj._obj.size[i] for i in range(self.ndim))
-        ctype_1d = dtype_to_ctype(self.dtype) * int(reduce(mul, shape))
-        buf = cast(dataobj._obj.data, POINTER(ctype_1d)).contents
-        return np.frombuffer(buf, dtype=self.dtype).reshape(shape)
+        """Return the array retained by a DiscreteFunction dataobj."""
+        return dataobj._obj.underlying_array
 
     @memoized_meth
     def _C_make_index(self, dim, side=None):
@@ -856,7 +852,7 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
 
                 # Gather send data
                 data = self._data_in_region(OWNED, d, i)
-                sendbuf = np.ascontiguousarray(data.view(comm_dtype))
+                sendbuf = np.ascontiguousarray(data._host_array().view(comm_dtype))
 
                 # Setup recv buffer
                 shape = self._data_in_region(HALO, d, i.flip()).shape
@@ -943,12 +939,21 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
         if self.name not in args:
             raise InvalidArgument(f"No runtime value for `{self.name}`")
 
-        data = args[self.name]
+        data = Data._from_array(args[self.name], allocator=self._allocator)
+        args[self.name] = data
+        data._arg_check(self.dtype)
+        if self._allocator.is_Device:
+            if not isinstance(args.platform, Device) or args.language != 'openacc':
+                raise InvalidArgument("Device-resident storage requires OpenACC")
+            deviceid = self._allocator.device.index
+            if args.get('deviceid', -1) not in (-1, deviceid):
+                raise InvalidArgument("OpenACC deviceid must match tensor storage")
+            args['deviceid'] = deviceid
 
         if len(data.shape) != self.ndim:
             raise InvalidArgument(f"Shape {data.shape} of runtime value `{self.name}` "
                                   f"does not match dimensions {self.dimensions}")
-        if data.dtype != self.dtype:
+        if data._numpy_dtype != self.dtype:
             warning(f"Data type {data.dtype} of runtime value `{self.name}` "
                     f"does not match the Function data type {self.dtype}")
 
@@ -959,6 +964,9 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
     def _arg_finalize(self, args, alias=None):
         key = alias or self
         return {key.name: self._C_make_dataobj(alias=key, **args)}
+
+    def _arg_apply(self, dataobj, alias=None, access_mode=None):
+        dataobj._obj.underlying_array._arg_apply(access_mode)
 
     # Pickling support
 
@@ -1350,8 +1358,9 @@ class Function(DiscreteFunction):
 
         if args.options['index-mode'] == 'int32' and \
            args.options['linearize'] and \
-           data.size - 1 >= np.iinfo(np.int32).max:
-            raise InvalidArgument(f"`{self.name}`, with its {data.size} elements, is too "
+           int(np.prod(data.shape)) - 1 >= np.iinfo(np.int32).max:
+            raise InvalidArgument(f"`{self.name}`, with its "
+                                  f"{int(np.prod(data.shape))} elements, is too "
                                   "big for int32 pointer arithmetic. Consider using the "
                                   "'index-mode=int64' option, the save=Buffer(..) "
                                   "API (TimeFunction only), or domain "

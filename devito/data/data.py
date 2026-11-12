@@ -1,21 +1,33 @@
+import ctypes
 import weakref
 from collections.abc import Iterable
 
 import numpy as np
 
-from devito.data.allocators import ALLOC_ALIGNED
+from devito.data.allocators import ALLOC_ALIGNED, TorchAllocator
 from devito.data.utils import *
+from devito.exceptions import InvalidArgument
 from devito.logger import warning
 from devito.parameters import configuration
-from devito.tools import as_list, as_tuple, is_integer
+from devito.tools import (
+    as_list, as_tuple, c_restrict_void_p, dtype_from_torch, is_integer
+)
 
-__all__ = ['Data']
+try:
+    import torch
+    from torch.utils._pytree import tree_leaves, tree_map
+except ImportError:
+    torch = None
+
+__all__ = ['Data', 'NumpyData', 'TorchData']
 
 
-class Data(np.ndarray):
+class Data:
 
     """
-    A numpy.ndarray supporting distributed Dimensions.
+    Backend-independent indexing, decomposition and MPI behavior.
+
+    Constructing Data directly selects the allocator backend (NumPy by default).
 
     Parameters
     ----------
@@ -26,69 +38,104 @@ class Data(np.ndarray):
     decomposition : tuple of Decomposition, optional
         The data decomposition, for each dimension.
     modulo : tuple of bool, optional
-        If the i-th entry is True, then the i-th array dimension uses modulo
-        indexing.
+        If the i-th entry is True, then the i-th array dimension uses modulo indexing.
     allocator : MemoryAllocator, optional
-        Used to allocate memory. Defaults to `ALLOC_ALIGNED`.
+        Used to allocate memory. Defaults to ``ALLOC_ALIGNED``.
     distributor : Distributor, optional
-        The distributor from which the original decomposition was produced.
-        Note that `decomposition` may differ from `distributor.decomposition`.
-    padding : int or 2-tuple of ints, optional
-        The number of points that are allocated before and after the data,
-        that is in addition to the requested shape. Defaults to 0.
+        The distributor from which the original decomposition was produced. Note that
+        the decomposition Parameter above may be different to distributor.decomposition.
 
     Notes
     -----
-    NumPy array subclassing is described at: ::
-
-        https://numpy.org/doc/stable/user/basics.subclassing.html
-
-    Any view or copy created from ``self``, for instance via a slice operation
-    or a universal function ("ufunc" in NumPy jargon), will still be of type
-    `Data`.
+    Construction, index translation, view metadata, distributed assignment
+    and gather are shared. Concrete views implement native indexing and
+    storage access. NumPy is used for decomposition and MPI index metadata.
     """
 
     def __new__(cls, shape, dtype, decomposition=None, modulo=None,
                 allocator=ALLOC_ALIGNED, distributor=None, padding=0):
-        assert len(shape) == len(modulo)
-        ndarray, memfree_args = allocator.alloc(shape, dtype, padding=padding)
-        obj = ndarray.view(cls)
-        obj._allocator = allocator
+        assert modulo is None or len(shape) == len(modulo)
+        storage, memfree_args = allocator.alloc(shape, dtype, padding=padding)
+        obj = cls._from_array(storage, allocator=allocator)
         obj._memfree_args = memfree_args
-        obj._decomposition = decomposition or (None,)*len(shape)
-        obj._modulo = modulo or (False,)*len(shape)
-        obj._distributor = distributor
+        obj._initialize_metadata(shape, decomposition, modulo, distributor)
+        if memfree_args is not None:
+            weakref.finalize(storage, allocator.free, *memfree_args)
+        return obj
+
+    @classmethod
+    def _from_array(cls, storage, allocator=ALLOC_ALIGNED):
+        """Create a non-owning Data view for allocated storage or an argument."""
+        if not isinstance(storage, allocator._array_type):
+            raise InvalidArgument(f"{type(allocator).__name__} requires "
+                                  f"{allocator._array_type.__name__} storage")
+        if isinstance(storage, Data):
+            type(storage)._check_layout(storage, allocator)
+            return storage
+        if cls is Data:
+            if isinstance(storage, np.ndarray):
+                backend = NumpyData
+            elif torch is not None and isinstance(storage, torch.Tensor):
+                backend = TorchData
+            else:
+                raise InvalidArgument(
+                    f"Unsupported native storage type {type(storage).__name__}")
+        else:
+            backend = cls
+        backend._check_layout(storage, allocator)
+        obj = backend._from_storage(storage)
+        obj._allocator = allocator
+        obj._memfree_args = None
+        obj._initialize_metadata(storage.shape)
+        return obj
+
+    @staticmethod
+    def _is_array(value):
+        return isinstance(value, np.ndarray) or (
+            torch is not None and isinstance(value, torch.Tensor))
+
+    @staticmethod
+    def _check_layout(data, allocator):
+        """Check the native storage constraints imposed by the allocator."""
+        return
+
+    def _arg_check(self, dtype):
+        """Check backend-specific requirements for an Operator argument."""
+        return
+
+    def _arg_apply(self, access_mode):
+        """Complete native storage writes after generated code returns."""
+        return
+
+    def __init__(self, *args, **kwargs):
+        pass
+
+    @classmethod
+    def _from_storage(cls, storage):
+        """Wrap native storage without allocating or initializing metadata."""
+        raise NotImplementedError("Data backends must provide native storage views")
+
+    def _initialize_metadata(self, shape, decomposition=None, modulo=None,
+                             distributor=None):
+        self._decomposition = decomposition or (None,)*len(shape)
+        self._modulo = modulo or (False,)*len(shape)
+        self._distributor = distributor
 
         # This cannot be a property, as Data objects constructed from this
         # object might not have any `decomposition`, but they would still be
         # distributed. Hence, in `__array_finalize__` we must copy this value
-        obj._is_distributed = any(i is not None for i in obj._decomposition)
+        self._is_distributed = any(i is not None for i in self._decomposition)
 
         # Saves the last index used in `__getitem__`. This allows `__array_finalize__`
         # to reconstruct information about the computed view (e.g., `decomposition`)
-        obj._index_stash = None
+        self._index_stash = None
 
         # Sanity check -- A Dimension can't be at the same time modulo-iterated
         # and MPI-distributed
-        assert all(i is None for i, j in zip(obj._decomposition, obj._modulo, strict=True)
-                   if j is True)
+        assert all(i is None for i, j in
+                   zip(self._decomposition, self._modulo, strict=True) if j is True)
 
-        if memfree_args is not None:
-            # Release the memory once `ndarray` is gone, and with it every view
-            # of it -- this Data, but also whatever was handed out by e.g.
-            # `Function.data` or `Function._data_allocated`, since NumPy anchors
-            # the `base` chain of all of them on `ndarray`. Releasing it when
-            # this Data dies instead would leave those views pointing at freed
-            # memory as soon as the owning Function went out of scope
-            weakref.finalize(ndarray, allocator.free, *memfree_args)
-
-        return obj
-
-    def __reduce__(self):
-        warning("Pickling of `Data` objects is not supported. Casting to `numpy.ndarray`")
-        return self.view(np.ndarray).__reduce__()
-
-    def __array_finalize__(self, obj):
+    def _finalize_metadata(self, obj):
         # `self` is the newly created object
         # `obj` is the object from which `self` was created
         if obj is None:
@@ -151,7 +198,7 @@ class Data(np.ndarray):
     @property
     def _local(self):
         """A view of ``self`` with global indexing disabled."""
-        ret = self.view()
+        ret = self._view()
         ret._is_distributed = False
         return ret
 
@@ -201,10 +248,10 @@ class Data(np.ndarray):
         return None
 
     def __repr__(self):
-        return super(Data, self._local).__repr__()
+        return repr(self._raw)
 
     def __str__(self):
-        return super(Data, self._local).__str__()
+        return str(self._raw)
 
     def transpose(self, *axes):
         """
@@ -227,7 +274,7 @@ class Data(np.ndarray):
             else tuple(ax % self.ndim for ax in axes)
         )
 
-        ret = super().transpose(*axes)
+        ret = self._transpose_local(new_order)
         ret._decomposition = tuple(self._decomposition[i] for i in new_order)
         ret._modulo = tuple(self._modulo[i] for i in new_order)
         ret._is_distributed = any(d is not None for d in ret._decomposition)
@@ -241,7 +288,7 @@ class Data(np.ndarray):
         """
         axis1 = axis1 % self.ndim
         axis2 = axis2 % self.ndim
-        ret = super().swapaxes(axis1, axis2)
+        ret = self._swapaxes_local(axis1, axis2)
         order = list(range(self.ndim))
         order[axis1], order[axis2] = order[axis2], order[axis1]
         ret._decomposition = tuple(self._decomposition[i] for i in order)
@@ -268,7 +315,7 @@ class Data(np.ndarray):
             return None
         else:
             self._index_stash = glb_idx
-            retval = super().__getitem__(loc_idx)
+            retval = self._getitem_local(loc_idx)
             self._index_stash = None
             return retval
 
@@ -283,13 +330,8 @@ class Data(np.ndarray):
         if loc_idx is NONLOCAL:
             # no-op
             return
-        elif np.isscalar(val):
-            if index_is_basic(loc_idx):
-                # Won't go through `__getitem__` as it's basic indexing mode,
-                # so we should just propagate `loc_idx`
-                super().__setitem__(loc_idx, val)
-            else:
-                super().__setitem__(glb_idx, val)
+        elif np.isscalar(val) or (self._is_array(val) and val.ndim == 0):
+            self._setitem_local(loc_idx, val)
         elif isinstance(val, Data) and val._is_decomposed:
             # Lazy import to avoid a circular dependency (see
             # `_scattered_exchange`).
@@ -312,7 +354,7 @@ class Data(np.ndarray):
             data_global = []
             idx_global = []
             for j in range(nprocs):
-                data_global.append(comm.bcast(np.array(val), root=j))
+                data_global.append(comm.bcast(val._host_array().copy(), root=j))
                 idx_global.append(comm.bcast(idx, root=j))
             # Set the data:
             for j in range(nprocs):
@@ -320,11 +362,12 @@ class Data(np.ndarray):
                     or data_global[j].size == 0
                 if not skip:
                     self.__setitem__(idx_global[j], data_global[j])
-        elif isinstance(val, np.ndarray) or is_windowed(val):
+        elif self._is_array(val) or is_windowed(val):
             if self._is_decomposed:
                 # `val` is replicated, `self` is decomposed -> `val` gets decomposed
                 glb_idx = self._normalize_index(glb_idx)
                 glb_idx, val = self._process_args(glb_idx, val)
+                loc_idx = self._index_glb_to_loc(glb_idx)
                 val_idx = [index_dist_to_repl(i, dec) for i, dec in
                            zip(glb_idx, self._decomposition, strict=True)]
                 if NONLOCAL in val_idx:
@@ -358,28 +401,31 @@ class Data(np.ndarray):
             else:
                 val_idx = None
 
-            super().__setitem__(glb_idx, val if val_idx is None else val[val_idx])
+            self._setitem_local(loc_idx, val if val_idx is None else val[val_idx])
         elif isinstance(val, Iterable):
             if self._is_decomposed:
                 raise NotImplementedError("With MPI, data can only be set "
                                           "via scalars, numpy arrays or "
                                           "other data ")
-            super().__setitem__(glb_idx, val)
+            self._setitem_local(loc_idx, val)
         else:
             raise ValueError(f"Cannot insert obj of type `{type(val)}` into a Data")
 
     def _normalize_index(self, idx):
+        idx = self._index_array(idx)
         if isinstance(idx, np.ndarray):
             # Advanced indexing mode
             return (idx,)
         else:
-            idx = as_tuple(idx)
+            idx = tuple(self._index_array(i) for i in as_tuple(idx))
+            axes = sum(index_axis_span(i) for i in idx if i is not Ellipsis)
+            missing = (slice(None),)*max(0, self.ndim - axes)
             if any(i is Ellipsis for i in idx):
                 # Explicitly replace the Ellipsis
-                items = (slice(None),)*(self.ndim - len(idx) + 1)
-                items = idx[:idx.index(Ellipsis)] + items + idx[idx.index(Ellipsis)+1:]
+                position = next(n for n, i in enumerate(idx) if i is Ellipsis)
+                items = idx[:position] + missing + idx[position+1:]
             else:
-                items = idx + (slice(None),)*(self.ndim - len(idx))
+                items = idx + missing
             # Normalize slice steps:
             processed = [slice(i.start, i.stop, 1) if
                          (isinstance(i, slice) and i.step is None)
@@ -418,9 +464,8 @@ class Data(np.ndarray):
                     val._distributor._rebuild(val.shape,
                                               self._distributor.dimensions,
                                               self._distributor.comm)
-                new_val = Data(val.shape, val.dtype.type,
-                               decomposition=val._decomposition, modulo=val._modulo,
-                               distributor=distributor)
+                new_val = val._new_data(val.shape, decomposition=val._decomposition,
+                                        modulo=val._modulo, distributor=distributor)
                 slc = as_tuple([slice(None, None, 1) for j in transform])
                 new_val[slc] = val[slc]
                 return as_tuple(processed), new_val[as_tuple(transform)]
@@ -441,10 +486,21 @@ class Data(np.ndarray):
                 return glb_idx
 
         loc_idx = []
-        for i, s, mod, dec in zip(
-            glb_idx, self.shape, self._modulo, self._decomposition, strict=False
-        ):
-            if mod is True:
+        axes = tuple(zip(self.shape, self._modulo, self._decomposition, strict=False))
+        axis = 0
+        for i in glb_idx:
+            if axis >= len(axes):
+                break
+            span = index_axis_span(i)
+            if span != 1:
+                # Boolean masks may cover several axes; new axes cover none
+                loc_idx.append(i)
+                axis += span
+                continue
+            s, mod, dec = axes[axis]
+            axis += 1
+            is_boolean = isinstance(i, np.ndarray) and i.dtype == np.bool_
+            if mod is True and not is_boolean:
                 # Need to wrap index based on modulo
                 v = index_apply_modulo(i, s)
             elif self._is_distributed is True and dec is not None:
@@ -545,10 +601,10 @@ class Data(np.ndarray):
                     in zip(start, stop, step, strict=True))
 
         if not (self._is_decomposed and self._distributor.nprocs > 1):
-            return np.array(self[idx])
+            return self._copy_native(self[idx])
 
         local = self[idx]
-        block = np.ascontiguousarray(np.asarray(local))
+        block = np.ascontiguousarray(local._host_array())
         # Result indices this rank owns, per axis (replicated axis -> full extent)
         owned = [
             np.arange(block.shape[ax], dtype=np.int64) if dec is None
@@ -565,12 +621,299 @@ class Data(np.ndarray):
             len(range(*sl.indices(d.size if d is not None else self.shape[ax])))
             for ax, (sl, d) in enumerate(zip(idx, self._decomposition, strict=True))
         )
-        out = np.empty(shape, dtype=self.dtype)
+        out = np.empty(shape, dtype=self._numpy_dtype)
         for blk, idxs in gathered:
             if blk.size:
                 out[np.ix_(*idxs)] = blk
-        return out
+        return self._from_mpi(out)
+
+    def _new_data(self, shape, **kwargs):
+        kwargs.setdefault('modulo', (False,)*len(shape))
+        return type(self)(shape, self._numpy_dtype.type, **kwargs)
+
+    @staticmethod
+    def _index_array(value):
+        return value
 
     def reset(self):
         """Set all Data entries to 0."""
         self[:] = 0.0
+
+
+class NumpyData(Data, np.ndarray):
+
+    """NumPy storage implementation of Data.
+
+    NumPy array operations supply local views and the native ctypes pointer.
+    """
+
+    @classmethod
+    def _from_storage(cls, storage):
+        return storage.view(cls)
+
+    def __reduce__(self):
+        warning("Pickling of `Data` objects is not supported. Casting to `numpy.ndarray`")
+        return np.array(self).__reduce__()
+
+    def __array_finalize__(self, obj):
+        self._finalize_metadata(obj)
+
+    def __repr__(self):
+        """Preserve the public Data representation using NumPy's array formatter."""
+        prefix = f'{Data.__name__}('
+        implied = self.dtype in (np.dtype(int), np.dtype(float), np.dtype(complex),
+                                 np.dtype(bool)) and self.size > 0
+        suffix = ')' if implied else ','
+        if self.size or self.shape == (0,):
+            values = np.array2string(self._raw, separator=', ', prefix=prefix,
+                                     suffix=suffix)
+        else:
+            values = f'[], shape={self.shape}'
+        result = f'{prefix}{values}{suffix}'
+        if implied:
+            return result
+        if self.dtype.names or not self.dtype.isnative or self.dtype.kind in 'SUV':
+            dtype = str(self.dtype)
+            if not self.dtype.names:
+                dtype = repr(dtype)
+        else:
+            dtype = self.dtype.name
+        dtype = f'dtype={dtype})'
+        width = np.get_printoptions()['linewidth']
+        last_line = len(result.rsplit('\n', 1)[-1])
+        separator = '\n' + ' '*len(prefix) if last_line + len(dtype) + 1 > width else ' '
+        return f'{result}{separator}{dtype}'
+
+    @property
+    def _raw(self):
+        return np.ndarray.view(self, np.ndarray)
+
+    @property
+    def _numpy_dtype(self):
+        return self.dtype
+
+    @property
+    def _C_data(self):
+        return self.ctypes.data_as(c_restrict_void_p)
+
+    def _readonly(self):
+        view = self.view()
+        view.setflags(write=False)
+        return view
+
+    def _host_array(self):
+        return np.asarray(self)
+
+    def _view(self):
+        return np.ndarray.view(self)
+
+    def _transpose_local(self, axes):
+        return np.ndarray.transpose(self, axes)
+
+    def _swapaxes_local(self, axis1, axis2):
+        return np.ndarray.swapaxes(self, axis1, axis2)
+
+    def _getitem_local(self, index):
+        return np.ndarray.__getitem__(self, index)
+
+    def _setitem_local(self, index, value):
+        self._raw[index] = value._raw if isinstance(value, Data) else value
+
+    @staticmethod
+    def _from_mpi(value):
+        return value
+
+    @staticmethod
+    def _copy_native(value):
+        return np.array(value)
+
+
+class TorchData(Data, torch.Tensor if torch is not None else object):
+    """A tensor inheriting Data's modulo, decomposition and MPI semantics.
+
+    Parameters
+    ----------
+    shape : tuple of int
+        Local allocation shape, including halo and padding.
+    dtype : numpy.dtype
+        Compiler dtype used to select the tensor element type.
+    decomposition : tuple of Decomposition, optional
+        Global-to-local decomposition for each axis.
+    modulo : tuple of bool, optional
+        Axes using circular indexing, such as buffered time levels.
+    allocator : TorchAllocator, optional
+        Storage allocator. Defaults to a CPU TorchAllocator.
+    distributor : Distributor, optional
+        MPI topology and communicator associated with this allocation.
+
+    Notes
+    -----
+    Views and tensor arithmetic preserve Data metadata. Negative-stride reads
+    materialize tensors because PyTorch cannot represent negative strides.
+    """
+
+    def __new__(cls, shape, dtype, decomposition=None, modulo=None, allocator=None,
+                distributor=None, padding=0):
+        if torch is None:
+            raise ImportError("TorchData requires PyTorch")
+        if allocator is None:
+            allocator = TorchAllocator()
+        return super().__new__(cls, shape, dtype,
+                               decomposition=decomposition,
+                               modulo=modulo, allocator=allocator,
+                               distributor=distributor, padding=padding)
+
+    @classmethod
+    def _from_storage(cls, tensor):
+        return tensor.as_subclass(cls)
+
+    @classmethod
+    def __torch_function__(cls, func, types, args=(), kwargs=None):
+        parent = next((i for i in tree_leaves((args, kwargs or {}))
+                       if isinstance(i, cls)), None)
+        result = super().__torch_function__(func, types, args, kwargs)
+
+        def finalize(value):
+            if isinstance(value, cls) and value is not parent:
+                value._finalize_metadata(parent)
+            return value
+
+        return tree_map(finalize, result)
+
+    @property
+    def _raw(self):
+        return self.as_subclass(torch.Tensor)
+
+    @property
+    def _numpy_dtype(self):
+        return dtype_from_torch(self.dtype)
+
+    def _wrap(self, tensor):
+        if tensor.ndim == 0:
+            return tensor
+        view = tensor.as_subclass(type(self))
+        view._finalize_metadata(self)
+        return view
+
+    def _view(self):
+        return self._wrap(self._raw.view(self.shape))
+
+    def _transpose_local(self, axes):
+        return self._wrap(self._raw.permute(axes))
+
+    def _swapaxes_local(self, axis1, axis2):
+        return self._wrap(self._raw.swapaxes(axis1, axis2))
+
+    @staticmethod
+    def _index_array(value):
+        # Index arrays are control metadata, not numerical field buffers.
+        if isinstance(value, torch.Tensor):
+            return value.detach().cpu().numpy()
+        return value
+
+    def _negative_indices(self, index):
+        index = index if isinstance(index, tuple) else (index,)
+        index = index + (slice(None),)*(self.ndim-len(index))
+        if not any(isinstance(i, slice) and i.step is not None and i.step < 0
+                   for i in index):
+            return None
+        if not all(is_integer(i) or isinstance(i, slice) for i in index):
+            raise NotImplementedError("Negative slices combined with "
+                                      "advanced indexing")
+        axes, shape = [], []
+        for i, size in zip(index, self.shape, strict=False):
+            if is_integer(i):
+                axes.append(torch.tensor([int(i)], device=self.device))
+            else:
+                positions = range(*i.indices(size))
+                # Normalize empty endpoints for either step sign
+                stop = positions.start + len(positions)*positions.step
+                axis = torch.arange(positions.start, stop, positions.step,
+                                    device=self.device)
+                axes.append(axis)
+                shape.append(len(positions))
+        return axes, tuple(shape)
+
+    def _getitem_local(self, index):
+        negative = self._negative_indices(index)
+        if negative is None:
+            result = self._raw[index]
+        else:
+            axes, shape = negative
+            result = self._raw[torch.meshgrid(*axes, indexing='ij')].reshape(shape)
+        return self._wrap(result)
+
+    def _setitem_local(self, index, value):
+        if isinstance(value, Data):
+            value = value._raw
+        if isinstance(value, np.ndarray) and any(i < 0 for i in value.strides):
+            value = value.copy()
+        value = torch.as_tensor(value, dtype=self.dtype, device=self.device)
+        negative = self._negative_indices(index)
+        if negative is None:
+            self._raw[index] = value
+        else:
+            axes, shape = negative
+            expanded = torch.broadcast_to(value, shape)
+            expanded = expanded.reshape(tuple(len(a) for a in axes))
+            self._raw[torch.meshgrid(*axes, indexing='ij')] = expanded
+
+    def _new_data(self, shape, **kwargs):
+        kwargs.setdefault('modulo', (False,)*len(shape))
+        return type(self)(shape, self._numpy_dtype,
+                          allocator=TorchAllocator(device=self.device), **kwargs)
+
+    def _from_mpi(self, value):
+        return torch.as_tensor(value, dtype=self.dtype, device=self.device)
+
+    @staticmethod
+    def _copy_native(value):
+        if isinstance(value, Data):
+            value = value._raw
+        return None if value is None else value.clone()
+
+    def fill(self, value):
+        self.fill_(value)
+
+    def copy(self):
+        """Copy storage and view metadata for the standard Data interface."""
+        return self.clone()
+
+    @staticmethod
+    def _check_layout(data, allocator):
+        if data.layout != torch.strided or not data.is_contiguous():
+            raise InvalidArgument("TorchAllocator requires contiguous "
+                                  "strided storage")
+        if data.device != allocator.device:
+            raise InvalidArgument("Tensor device must match allocator device")
+        if data.requires_grad or data.is_conj() or data.is_neg():
+            raise InvalidArgument("Autograd and lazy tensor views are "
+                                  "unsupported")
+        if data.data_ptr() % allocator.guaranteed_alignment:
+            raise InvalidArgument("Tensor storage does not satisfy "
+                                  "Function alignment")
+
+    def _arg_check(self, dtype):
+        if self._numpy_dtype != np.dtype(dtype):
+            raise InvalidArgument("Tensor dtype must match Function dtype")
+
+    @property
+    def _C_data(self):
+        if self.is_cuda:
+            torch.cuda.synchronize(self.device)
+        return ctypes.cast(self.data_ptr(), c_restrict_void_p)
+
+    def _arg_apply(self, access_mode):
+        if self.is_cuda:
+            torch.cuda.synchronize(self.device)
+        if access_mode is not None and access_mode.is_write:
+            torch.autograd.graph.increment_version(self)
+
+    def _readonly(self):
+        # PyTorch has no read-only views; snapshots protect the source storage.
+        return self.clone()
+
+    def _host_array(self):
+        if self.is_cuda:
+            torch.cuda.synchronize(self.device)
+        return self._raw.detach().cpu().numpy()

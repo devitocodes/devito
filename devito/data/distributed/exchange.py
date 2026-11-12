@@ -50,11 +50,15 @@ class Exchange:
 
     def get(self):
         """Return `data[idx]` as a NumPy array."""
-        return self._plan.get(np.asarray(self._data))
+        return self._data._from_mpi(self._plan.get(self._data._host_array()))
 
     def put(self, value):
         """Assign `data[idx] = value`."""
-        self._plan.put(np.asarray(self._data), value)
+        if hasattr(value, '_host_array'):
+            value = value._host_array()
+        local = self._data._host_array()
+        self._plan.put(local, value)
+        self._data._setitem_local(Ellipsis, local)
 
 
 class _ExchangeKey:
