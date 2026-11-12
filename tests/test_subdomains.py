@@ -2,7 +2,7 @@ from math import floor
 
 import numpy as np
 import pytest
-from sympy import sin, tan
+from sympy import And, sin, tan
 
 from conftest import assert_structure, opts_tiling
 from devito import (
@@ -12,7 +12,8 @@ from devito import (
 )
 from devito.exceptions import InvalidArgument
 from devito.ir import (
-    Expression, FindNodes, FindSymbols, Iteration, SymbolRegistry, retrieve_iteration_tree
+    Conditional, Expression, FindNodes, FindSymbols, Iteration, SymbolRegistry,
+    retrieve_iteration_tree
 )
 from devito.tools import timed_region
 
@@ -931,6 +932,30 @@ class TestMultiSubDomain:
         check = np.zeros((11, 11))
         check[0, 0] = 1
         assert np.all(np.isclose(f.data, check))
+
+    @pytest.mark.parametrize('language', ['openacc', 'openmp'])
+    def test_device_guard_empty_ispace(self, language):
+        """
+        The thicknesses of a SubDomainSet are runtime values, so its iteration
+        space may be empty, even with a negative size (e.g., in the MPI regions
+        outside of a subdomain). A device parallel loop must not be entered
+        in that case, as some compilers (e.g., nvc) may otherwise launch a huge
+        number of empty gangs. Generated code only, so it runs without a GPU.
+        """
+        grid = Grid(shape=(11, 11))
+        f = TimeFunction(name='f', grid=grid)
+
+        sds = SubDomainSet(N=1, bounds=(2, 2, 2, 2), grid=grid)
+
+        op = Operator(Eq(f.forward, f + 1, subdomain=sds),
+                      platform='nvidiaX', language=language)
+
+        iterations = [i for i in FindNodes(Iteration).visit(op) if i.dim.is_MultiSub]
+        assert len(iterations) == 2
+        conds = [c for c in FindNodes(Conditional).visit(op)
+                 if iterations[0] in FindNodes(Iteration).visit(c.then_body)]
+        assert len(conds) == 1
+        assert conds[0].condition == And(*[i.symbolic_size > 0 for i in iterations])
 
 
 class TestBorder:
