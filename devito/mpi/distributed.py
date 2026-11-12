@@ -12,10 +12,11 @@ from sympy import Interval, factorint
 from devito.data import CENTER, LEFT, RIGHT, Decomposition
 from devito.parameters import configuration
 from devito.tools import (
-    EnrichedTuple, as_tuple, ctypes_to_cstr, filter_ordered, frozendict
+    EnrichedTuple, as_tuple, ctypes_to_cstr, filter_ordered, frozendict, is_integer,
+    memoized_meth
 )
 from devito.types import CompositeObject, Constant, Object
-from devito.types.utils import DimensionTuple
+from devito.types.utils import DimensionTuple, GlobalLocal
 
 # Do not prematurely initialize MPI
 # This allows launching a Devito program from within another Python program
@@ -213,6 +214,25 @@ class AbstractDistributor(ABC):
         """This rank is empty"""
         return any(d.loc_empty for d in self.decomposition)
 
+    @memoized_meth
+    def subsample(self, dimensions):
+        """
+        The Distributor of the ConditionalDimensions in `dimensions` subsampling
+        those of `self`, or `self` if there are none.
+        """
+        subsampled = {d.parent: d for d in dimensions
+                      if d.is_Conditional and d.parent in self.dimensions
+                      and is_integer(d.factor)}
+        if not subsampled or not self.is_parallel:
+            return self
+
+        return SubGridDistributor(
+            self,
+            tuple(subsampled.get(d, d) for d in self.dimensions),
+            tuple(subsampled[d].factor if d in subsampled else 1
+                  for d in self.dimensions)
+        )
+
 
 class DenseDistributor(AbstractDistributor):
 
@@ -299,6 +319,13 @@ class DenseDistributor(AbstractDistributor):
                                        else range(0, 0) for j in i],
                                      getters=self.dimensions))
         return tuple(ret)
+
+    @cached_property
+    def size_map(self):
+        """Map between Dimensions and their global/local size."""
+        return {d: GlobalLocal(g, l)
+                for d, g, l in zip(self.dimensions, self.glb_shape, self.shape,
+                                   strict=True)}
 
     @cached_property
     def _obj_comm(self):
@@ -494,21 +521,33 @@ class Distributor(DenseDistributor):
 class SubGridDistributor(Distributor):
 
     """
-    Decompose a SubGrid over a set of MPI processes in a manner consistent with
-    the parent distributor: a rank owns the SubGrid points on its parent points.
+    Decompose a subsampling of a parent Distributor's domain, e.g. a SubGrid, over
+    the parent's MPI processes: a rank owns the subsampled points on its parent
+    points.
 
     Parameters
     ----------
-    subgrid : SubGrid
-        The SubGrid to be decomposed.
+    parent : Distributor
+        The Distributor of the subsampled domain.
+    dimensions : tuple of Dimensions
+        The decomposed Dimensions, one per parent Dimension.
+    factors : tuple of ints
+        The subsampling factor along each Dimension.
     """
 
-    def __init__(self, subgrid):
-        self._parent = subgrid.parent.distributor
-        self._factors = subgrid.factor
+    def __init__(self, parent, dimensions, factors):
+        shape = tuple((n + f - 1)//f
+                      for n, f in zip(parent.glb_shape, factors, strict=True))
+        AbstractDistributor.__init__(self, shape, dimensions)
 
-        super().__init__(subgrid.shape, subgrid.dimensions, self.parent.comm,
-                         tuple(self.parent.topology))
+        self._parent = parent
+        self._factors = tuple(factors)
+
+        # Same processes and topology as the parent, hence the same communicator
+        self._comm = parent.comm
+        self._topology = parent.topology
+
+        self.__decomposition_setup__()
 
     def __decomposition_setup__(self):
         """

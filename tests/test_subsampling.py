@@ -6,7 +6,7 @@ import pytest
 from sympy import Or
 
 from devito import (
-    CondEq, ConditionalDimension, Constant, Eq, Function, Grid, Inc, Operator,
+    Buffer, CondEq, ConditionalDimension, Constant, Eq, Function, Grid, Inc, Operator,
     SpaceDimension, SubDomain, SubGrid, TimeFunction, switchconfig
 )
 from devito.ir.iet import Conditional, Expression, FindNodes, Iteration
@@ -1186,11 +1186,19 @@ class TestMPI:
         assert new.factor == 3
         assert new.root.name == x.name
 
-    def test_serial_has_no_offset(self):
-        """Without a decomposition there's nothing to align."""
-        sub = SubGrid(Grid(shape=(21,)), factor=2)
+    def test_serial_offset(self):
+        """Without a decomposition the offset is zero."""
+        grid = Grid(shape=(21,))
+        x = grid.dimensions[0]
+        sub = SubGrid(grid, factor=2)
+        f = Function(name='f', grid=grid)
+        g = Function(name='g', grid=sub)
 
-        assert sub.dimensions[0].offset == 0
+        op = Operator([Eq(f, x), Eq(g, f)])
+
+        assert op.arguments()[sub.dimensions[0].offset.name] == 0
+        op.apply()
+        assert np.all(g.data == np.arange(0, 21, 2))
 
     @pytest.mark.parallel(mode=[2, 4])
     def test_strided_codegen(self, mode):
@@ -1287,6 +1295,87 @@ class TestMPI:
 
         for i in range((nt - 2)//factor + 1):
             assert np.allclose(vsave.data[i], i*factor)
+
+    @pytest.mark.parallel(mode=[2, 4])
+    def test_conditional_dimensions_function(self, mode):
+        """A Function over user ConditionalDimensions is decomposed like a SubGrid's."""
+        n, nt = 21, 10
+        grid = Grid(shape=(n, n, n), extent=(1., 1., 1.))
+        x, y, z = grid.dimensions
+        t = grid.time_dim
+        x_dec = ConditionalDimension(name="x_dec", parent=x, factor=2)
+        y_dec = ConditionalDimension(name="y_dec", parent=y, factor=2)
+        z_dec = ConditionalDimension(name="z_dec", parent=z, factor=2)
+
+        f = TimeFunction(name="f", grid=grid, time_order=0, space_order=8,
+                         save=Buffer(1))
+        g = TimeFunction(name="g", grid=grid, time_order=0, space_order=8,
+                         save=Buffer(1))
+        og = Function(name="og", grid=grid, space_order=8, shape=(11, 11, 11),
+                      dimensions=(x_dec, y_dec, z_dec))
+
+        op = Operator([Eq(f, x + y + t), Eq(g, x + y + t),
+                       Eq(og, og + f.subs({x: x+1, y: y+1})*g.subs({x: x-1, y: y-1}))])
+        op.apply(time_m=0, time_M=nt-1)
+
+        assert og.shape_global == (11, 11, 11)
+        sub = SubGrid(grid, factor=2)
+        assert og._decomposition == sub.distributor.decomposition
+
+        # Out-of-domain points read the zero halo
+        idx = np.arange(n)
+        padded = np.zeros((nt, n + 2, n + 2))
+        padded[:, 1:-1, 1:-1] = (idx[:, None] + idx[None, :] +
+                                 np.arange(nt)[:, None, None])
+        expected = (padded[:, 2:, 2:]*padded[:, :-2, :-2]).sum(axis=0)[::2, ::2]
+        expected = np.broadcast_to(expected[..., None], (11, 11, 11))
+
+        assert expected[8, 8, 8] == 13365
+        assert np.array_equal(np.asarray(og.data), expected[og.local_indices])
+
+    @pytest.mark.parallel(mode=[2])
+    def test_conditional_dimension_offset(self, mode):
+        """A factor ConditionalDimension of a space Dimension is anchored globally."""
+        grid = Grid(shape=(21,))
+        x = grid.dimensions[0]
+        xd = ConditionalDimension(name='xd', parent=x, factor=2)
+        td = ConditionalDimension(name='td', parent=grid.time_dim, factor=2)
+
+        assert isinstance(xd.offset, SubsamplingOffset)
+        assert td.offset == 0
+
+        expected = {0: 0, 1: 1}[grid.distributor.myrank]
+        assert xd.offset._arg_values(grid=grid) == {xd.offset.name: expected}
+
+    def test_serial_conditional_dimension_offset(self):
+        """Without a decomposition the offset is zero and the parent max unchanged."""
+        grid = Grid(shape=(10,))
+        x = grid.dimensions[0]
+        xd = ConditionalDimension(name='xd', parent=x, factor=2)
+        g = Function(name='g', grid=grid, dimensions=(xd,), shape=(5,))
+
+        op = Operator(Eq(g, x))
+
+        args = op.arguments()
+        assert args[xd.offset.name] == 0
+        assert args['x_M'] == 9
+        assert g._distributor is grid.distributor
+        op.apply()
+        assert np.all(g.data == np.arange(0, 10, 2))
+
+    @pytest.mark.parallel(mode=[2])
+    def test_conditional_dimension_built_without_mpi(self, mode):
+        """The offset is used if MPI is on at Operator build, not at creation."""
+        grid = Grid(shape=(21,))
+        x = grid.dimensions[0]
+        with switchconfig(mpi=False):
+            xd = ConditionalDimension(name='xd', parent=x, factor=2)
+        f = Function(name='f', grid=grid)
+        g = Function(name='g', grid=grid, dimensions=(xd,), shape=(11,))
+
+        Operator([Eq(f, x), Eq(g, f)]).apply()
+
+        assert np.all(g.data == np.arange(0, 21, 2)[g.local_indices])
 
 
 class TestIncReduction:

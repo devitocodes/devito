@@ -1245,15 +1245,18 @@ class TestGlobalIndex:
         check[-1] = 7
         assert np.all(g.data[:] == check[g.local_indices])
 
-    def test_serial_code_unchanged(self):
-        """No index offset is generated without MPI."""
+    def test_serial_index_offsets(self):
+        """Without a decomposition the index offsets are zero."""
         grid = Grid(shape=(4, 4))
         x, y = grid.dimensions
         f = Function(name='f', grid=grid)
 
         op = Operator(Eq(f, x + y))
 
-        assert not any(p.name.startswith('io_') for p in op.parameters)
+        args = op.arguments()
+        assert args['io_x'] == args['io_y'] == 0
+        op.apply()
+        assert np.all(f.data == np.arange(4)[:, None] + np.arange(4))
 
     @pytest.mark.parallel(mode=[1])
     def test_single_rank_codegen(self, mode):

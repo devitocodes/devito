@@ -5,9 +5,8 @@ from devito.data.allocators import DataReference
 from devito.finite_differences.differentiable import diff2sympy
 from devito.ir.support import GuardFactor, bounded
 from devito.logger import warning
-from devito.parameters import configuration
 from devito.symbolics import (
-    IntDiv, retrieve_dimensions, retrieve_functions, retrieve_indexed, uxreplace
+    IntDiv, q_leaf, retrieve_dimensions, retrieve_functions, retrieve_indexed, uxreplace
 )
 from devito.tools import (
     Ordering, as_tuple, filter_ordered, filter_sorted, flatten, frozendict
@@ -157,12 +156,15 @@ def _lower_exprs(expressions, subs):
         # Add dimensions map to the mapper in case dimensions are used
         # as an expression, i.e. Eq(u, x, subdomain=xleft)
         mapper.update(dimension_map)
-        # Dimensions used as an expression are global indices, unlike loop indices
-        mapper.update(_make_global_index_map(expr, dimension_map))
-        # Add the user-supplied substitutions
-        mapper.update(subs)
-        # Apply mapper to expression
-        processed.append(uxreplace(expr, mapper))
+        # Apply mapper and the user-supplied substitutions to expression
+        lowered = uxreplace(expr, {**mapper, **subs})
+        # Dimensions used as an expression are global indices, unlike loop indices.
+        # Only the operands are affected, not metadata such as the implicit_dims
+        global_map = _make_global_index_map(expr, dimension_map)
+        if global_map:
+            mapper = {**mapper, **global_map, **subs}
+            lowered = lowered._rebuild(*[uxreplace(i, mapper) for i in expr.args])
+        processed.append(lowered)
 
     if isinstance(expressions, Iterable):
         return processed
@@ -214,15 +216,24 @@ def _make_global_index_map(expr, dimension_map):
     if not isinstance(expr, Eq):
         return {}
 
-    # Keyed on MPI codegen rather than on the rank count: the code may be
-    # generated on a single rank and run on many (e.g., the DevitoPRO decoupler)
-    if not configuration['mpi']:
-        return {}
-
     grids = {f.grid.root for f in retrieve_functions(expr) if f.grid is not None}
+    values = _value_dimensions(expr)
     return {d: dimension_map.get(d, d) + o
             for grid in grids
-            for d, o in zip(grid.dimensions, grid.origin_isymbols, strict=True)}
+            for d, o in zip(grid.dimensions, grid.origin_isymbols, strict=True)
+            if d in values}
+
+
+def _value_dimensions(expr):
+    """
+    The Dimensions used as values in `expr`, that is neither as the indices of a
+    Function nor as the metadata of an object, e.g. the axes of a transform.
+    """
+    if isinstance(expr, Dimension):
+        return {expr}
+    if q_leaf(expr) or isinstance(expr, AbstractFunction):
+        return set()
+    return set().union(*[_value_dimensions(a) for a in expr.args])
 
 
 def concretize_subdims(exprs, **kwargs):
