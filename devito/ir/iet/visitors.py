@@ -12,6 +12,7 @@ from itertools import chain, groupby
 from typing import Any, Generic, TypeVar
 
 import cgen as c
+import numpy as np
 from sympy import IndexedBase
 from sympy.core.function import Application
 
@@ -24,12 +25,12 @@ from devito.ir.iet.nodes import (
 from devito.ir.support.space import Backward
 from devito.ir.support.utils import IMask
 from devito.symbolics import (
-    FieldFromComposite, FieldFromPointer, ListInitializer, uxreplace
+    FieldFromComposite, FieldFromPointer, ListInitializer, sympy_dtype, uxreplace
 )
 from devito.symbolics.extended_dtypes import NoDeclStruct
 from devito.tools import (
-    GenericVisitor, as_tuple, c_restrict_void_p, filter_ordered, filter_sorted, flatten,
-    is_external_ctype, natural_sort_key
+    GenericVisitor, as_tuple, c_restrict_void_p, dtypes_vector_mapper, filter_ordered,
+    filter_sorted, flatten, is_external_ctype, natural_sort_key
 )
 from devito.types import (
     ArrayObject, CompositeObject, DeviceMap, Dimension, IndexedData, Pointer
@@ -261,8 +262,16 @@ class CGen(Visitor):
     def ccode(self, expr, dtype=None, exact_prec=None):
         defaults = self.printer._default_settings
         dtype = defaults['dtype'] if dtype is None else dtype
+
         if exact_prec is None:
             exact_prec = defaults['exact_prec']
+
+        base = dtypes_vector_mapper.get_base_dtype(dtype, dtype)
+        if exact_prec and base == np.float16:
+            # E.g., `half_out = 0.9998*half_in + float_in` needs FP32
+            # literals despite its FP16 destination
+            dtype = sympy_dtype(expr, base=base)
+
         return get_printer(self.printer, dtype, exact_prec).doprint(expr, None)
 
     @property

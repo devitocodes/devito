@@ -1,4 +1,4 @@
-from ctypes import POINTER, c_void_p
+from ctypes import POINTER, c_float, c_void_p
 
 import cgen
 import numpy as np
@@ -706,7 +706,7 @@ def test_list_inline():
 
 
 def test_dereference_base_plus_off():
-    ptr = Pointer(name='p', dtype=np.float32)
+    ptr = Pointer(name='p', dtype_base=c_float)
     off = Symbol(name='offs', dtype=np.int32)
 
     dim0 = CustomDimension(name='d0', symbolic_size=2)

@@ -25,10 +25,10 @@ from devito.symbolics import (
     as_long, indexify, pow_to_mul
 )
 from devito.symbolics.unevaluation import Mod
-from devito.tools import EnrichedTuple
+from devito.tools import CustomDtype, EnrichedTuple, ctypes_to_cstr
 from devito.types import (
     Array, ComponentAccess, CustomDimension, DefaultDimension, DeviceID, FIndexed,
-    Indirection, Lock, NPThreads, PointerArray, PThreadArray, Scalar, SharedData
+    Indirection, Lock, NPThreads, Pointer, PointerArray, PThreadArray, Scalar, SharedData
 )
 from devito.types import Symbol as dSymbol
 from devito.types import TempFunction, ThreadID, Timer
@@ -74,6 +74,35 @@ class TestBasic:
 
         assert s0 == new_s0
         assert s1 == new_s1
+
+    def test_indexed_cached_ctype(self, pickle):
+        grid = Grid(shape=(4, 4))
+        f = Function(name='f', grid=grid)
+        indexed = f.indexed
+        ctype = indexed._C_ctype
+
+        restored = pickle.loads(pickle.dumps(indexed))
+        assert restored.function.name == f.name
+        assert restored.function.dtype == f.dtype
+        assert restored._C_ctype == ctype
+
+    @pytest.mark.parametrize('dtype_base,stars,expected', [
+        (None, '*', 'void *'),
+        (ctypes.c_float, '*', 'float *'),
+        (ctypes.c_float, '**', 'float **'),
+        (ctypes.c_float, '***', 'float ***'),
+        ('cufftHandle', '', 'cufftHandle'),
+        (CustomDtype('float'), '*', 'float*'),
+    ])
+    def test_typed_pointer(self, pickle, dtype_base, stars, expected):
+        p = Pointer(name='p', dtype_base=dtype_base, stars=stars,
+                    liveness='eager', scope='shared')
+
+        restored = pickle.loads(pickle.dumps(p))
+        assert restored.name == p.name
+        assert restored.dtype_base == dtype_base and restored.stars == stars
+        assert ctypes_to_cstr(restored._C_ctype) == expected
+        assert restored.liveness == p.liveness and restored.scope == p.scope
 
     def test_constant(self, pickle):
         c = Constant(name='c')
