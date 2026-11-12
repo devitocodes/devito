@@ -1888,6 +1888,59 @@ class TestHaloZero:
         assert np.linalg.norm(ref.data) > 0
         assert np.allclose(out.data, ref.data, rtol=1e-12, atol=1e-12)
 
+    @pytest.mark.parametrize('region, inside', [
+        (('left', 6), slice(None, 6)), (('right', 6), slice(18, None)),
+        (('middle', 0, 6), slice(None, 18)), (('middle', 6, 0), slice(6, None)),
+        (('left', 24), slice(None)), (('right', 24), slice(None))
+    ])
+    @pytest.mark.parametrize('transpose', [False, True])
+    def test_grid_edge(self, region, inside, transpose):
+        """
+        The halo past an edge of the Grid is read as without `halo=0`, e.g. as
+        written by a mirror, while the argument is still zero past the other bound.
+        """
+        grid = Grid(shape=(24,), extent=(23.,), dtype=np.float64)
+        subdomain = Region('s', {'x': region}, grid=grid)
+        kwargs = {'grid': grid, 'space_order': 4, 'dtype': np.float64}
+        g = Function(name='g', **kwargs)
+        g_zero = Function(name='g_zero', **kwargs)
+        out = Function(name='out', **kwargs)
+        ref = Function(name='ref', **kwargs)
+
+        # Non-zero everywhere, halo included. The reference keeps only S and the
+        # halo past the Grid edge it touches
+        g.data_with_halo[:] = np.random.default_rng(2).normal(size=g.shape_with_halo)
+        h = g._size_halo[grid.dimensions[0]].left
+        kept = slice(None if inside.start is None else inside.start + h,
+                     None if inside.stop is None else inside.stop + h)
+        g_zero.data_with_halo[kept] = g.data_with_halo[kept]
+
+        deriv, deriv_ref = g.dx(halo=0), g_zero.dx
+        if transpose:
+            deriv, deriv_ref = deriv.T, deriv_ref.T
+        # The reference everywhere, as the `halo=0` derivative extends past S
+        Operator([Eq(out, deriv, subdomain=subdomain), Eq(ref, deriv_ref)]).apply()
+
+        assert np.linalg.norm(ref.data) > 0
+        assert np.allclose(out.data, ref.data, rtol=1e-12, atol=1e-12)
+
+    @pytest.mark.parametrize('region', [('left', 0), ('right', 0), ('middle', 0, 24),
+                                        ('middle', 24, 0)])
+    @pytest.mark.parametrize('transpose', [False, True])
+    def test_empty_subdomain(self, region, transpose):
+        """An empty SubDomain does not read the halo past the Grid edges"""
+        grid = Grid(shape=(24,), extent=(23.,), dtype=np.float64)
+        subdomain = Region('s', {'x': region}, grid=grid)
+        kwargs = {'grid': grid, 'space_order': 4, 'dtype': np.float64}
+        g = Function(name='g', **kwargs)
+        out = Function(name='out', **kwargs)
+        g.data_with_halo[:] = np.random.default_rng(2).normal(size=g.shape_with_halo)
+
+        deriv = g.dx(halo=0).T if transpose else g.dx(halo=0)
+        Operator(Eq(out, deriv, subdomain=subdomain)).apply()
+
+        assert np.all(out.data == 0)
+
     def test_default_unchanged(self):
         """
         Without `halo=0`, `.T` in a SubDomain equation is the full-grid transpose

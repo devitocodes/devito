@@ -3508,12 +3508,14 @@ class TestOperatorAdvanced:
     @pytest.mark.parametrize('expand', [True, False])
     @pytest.mark.parametrize('region', [('middle', 6, 6), ('middle', 16, 16),
                                         ('middle', 15, 17), ('left', 17),
-                                        ('right', 18)])
+                                        ('right', 18), ('middle', 0, 17),
+                                        ('middle', 18, 0)])
     def test_halo_zero_subdomain(self, region, expand, mode):
         """
         Derivatives with `halo=0` treat their argument as zero outside the global
-        SubDomain, not outside its part on each rank. The rank edges lie at 16,
-        32 and 48, within the stencil radius of some of the SubDomain edges.
+        SubDomain, not outside its part on each rank, and read the halo past the
+        Grid edges. The rank edges lie at 16, 32 and 48, within the stencil radius
+        of some of the SubDomain edges.
         """
         class Region(SubDomain):
             name = 'region'
@@ -3532,7 +3534,15 @@ class TestOperatorAdvanced:
 
         f0, o0, g0 = functions(serial)
         f1, o1, g1 = functions(grid)
-        f0.data[:] = f1.data[:] = np.random.default_rng(0).normal(size=grid.shape)
+        rng = np.random.default_rng(0)
+        f0.data[:] = f1.data[:] = rng.normal(size=grid.shape)
+
+        # Non-zero halos past the Grid edges, read where the SubDomain touches them
+        h = f0._size_halo[grid.dimensions[0]].left
+        left, right = rng.normal(size=h), rng.normal(size=h)
+        for f in (f0, f1):
+            # Globally indexed, so on the edge ranks only
+            f.data_with_halo[:h], f.data_with_halo[-h:] = left, right
 
         # Compiled for the serial Grid, applied to both
         op = Operator([Eq(o0, f0.dx(halo=0), subdomain=subdomain),
