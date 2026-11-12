@@ -1,5 +1,4 @@
 import math
-from collections import namedtuple
 from functools import cached_property
 from itertools import product
 
@@ -18,14 +17,11 @@ from devito.types.basic import Scalar
 from devito.types.dense import Function
 from devito.types.dimension import (
     ConditionalDimension, DefaultDimension, Dimension, MultiSubDimension, SpaceDimension,
-    Spacing, SteppingDimension, SubDimension, SubsamplingOffset, TimeDimension
+    Spacing, SteppingDimension, SubDimension, TimeDimension
 )
-from devito.types.utils import DimensionTuple
+from devito.types.utils import DimensionTuple, GlobalLocal
 
 __all__ = ['Border', 'Grid', 'SubDomain', 'SubDomainSet', 'SubGrid']
-
-
-GlobalLocal = namedtuple('GlobalLocal', 'glb loc')
 
 
 class CartesianDiscretization:
@@ -537,10 +533,7 @@ class SubGrid(Grid):
             )
 
         dimensions = tuple(
-            d if f == 1 else ConditionalDimension(
-                f'{d.name}{name}', parent=d, factor=f,
-                offset=self.__offset_setup__(parent, d, f, name)
-            )
+            d if f == 1 else ConditionalDimension(f'{d.name}{name}', parent=d, factor=f)
             for d, f in zip(parent.dimensions, factors, strict=True)
         )
 
@@ -568,15 +561,7 @@ class SubGrid(Grid):
         self._stepping_dim = parent.stepping_dim
 
     def __distributor_setup__(self, shape, dimensions, comm):
-        return SubGridDistributor(self)
-
-    @classmethod
-    def __offset_setup__(cls, parent, d, factor, name):
-        # Keyed on MPI codegen rather than on the rank count, as for the global
-        # index map: the code may be generated on one rank and run on many
-        if not configuration['mpi']:
-            return 0
-        return SubsamplingOffset(name=f'{d.name}{name}o', root=d, factor=factor)
+        return SubGridDistributor(self.parent.distributor, dimensions, self._factors)
 
     @classmethod
     def __factors_setup__(cls, parent, factor):
@@ -949,10 +934,11 @@ class SubDomain(AbstractSubDomain):
         """
         1 if the point `offset` points away from the current one along `dim` lies
         in this SubDomain, 0 otherwise, computed without branching. Always 1 if
-        this SubDomain spans all of `dim`. With domain decomposition, the test
-        is against the global bounds, which may lie beyond this rank. A bound on
-        an edge of the Grid is not tested, so that the halo past it is read as
-        it would be without this SubDomain, e.g. as written by a mirror.
+        this SubDomain spans all of `dim`. As `dim` used as a value is a global
+        index, the test is against the global bounds, which may lie beyond this
+        rank. A bound on an edge of the Grid is not tested, so that the halo past
+        it is read as it would be without this SubDomain, e.g. as written by a
+        mirror.
 
         Parameters
         ----------
@@ -965,7 +951,6 @@ class SubDomain(AbstractSubDomain):
         if not maybe_subdim.is_Sub:
             return sympy.S.One
         point = dim + offset
-        lower, upper = maybe_subdim._glb_interval
 
         # The points between this SubDomain and each Grid edge
         n = self.grid.shape[self.grid.dimensions.index(dim)]
@@ -979,9 +964,9 @@ class SubDomain(AbstractSubDomain):
 
         indicator = sympy.S.One
         if lgap > 0 or empty:
-            indicator *= Max(0, Min(1, point - lower + 1))
+            indicator *= Max(0, Min(1, point - lgap + 1))
         if rgap > 0 or empty:
-            indicator *= Max(0, Min(1, upper - point + 1))
+            indicator *= Max(0, Min(1, n - rgap - point))
         return indicator
 
     def _restrict(self, expr, exclude=()):

@@ -5,7 +5,6 @@ from devito.data.allocators import DataReference
 from devito.finite_differences.differentiable import diff2sympy
 from devito.ir.support import GuardFactor, bounded
 from devito.logger import warning
-from devito.parameters import configuration
 from devito.symbolics import (
     IntDiv, retrieve_dimensions, retrieve_functions, retrieve_indexed, uxreplace
 )
@@ -157,12 +156,17 @@ def _lower_exprs(expressions, subs):
         # Add dimensions map to the mapper in case dimensions are used
         # as an expression, i.e. Eq(u, x, subdomain=xleft)
         mapper.update(dimension_map)
-        # Dimensions used as an expression are global indices, unlike loop indices
-        mapper.update(_make_global_index_map(expr, dimension_map))
-        # Add the user-supplied substitutions
-        mapper.update(subs)
-        # Apply mapper to expression
-        processed.append(uxreplace(expr, mapper))
+        # Apply mapper and the user-supplied substitutions to expression
+        lowered = uxreplace(expr, {**mapper, **subs})
+
+        # Dimensions used as an expression are global indices, unlike loop indices.
+        # They only apply to the operands, not to metadata such as the implicit_dims
+        global_map = _make_global_index_map(lowered, dimension_map)
+        if global_map:
+            mapper = {**mapper, **global_map, **subs}
+            lowered = lowered._rebuild(*[uxreplace(i, mapper) for i in expr.args])
+
+        processed.append(lowered)
 
     if isinstance(expressions, Iterable):
         return processed
@@ -207,22 +211,20 @@ def _make_dimension_map(expr):
 
 def _make_global_index_map(expr, dimension_map):
     """
-    Map the Dimensions of a distributed Grid to the global indices they stand for
-    when used as an expression, i.e. Eq(u, x + y) -> Eq(u[x, y], x + io_x + y + io_y).
-    Dimensions indexing an Indexed are unaffected as the Indexed is replaced as a whole.
+    Map the Dimensions of a Grid to the global indices they stand for when used
+    as an expression in the lowered `expr`, i.e. Eq(u[x, y], x + y) maps `x` to
+    `x + io_x` and `y` to `y + io_y`. As Indexeds are leaves, their indices are
+    not expressions, and neither is the metadata, e.g. the axes of a transform.
     """
     if not isinstance(expr, Eq):
         return {}
 
-    # Keyed on MPI codegen rather than on the rank count: the code may be
-    # generated on a single rank and run on many (e.g., the DevitoPRO decoupler)
-    if not configuration['mpi']:
-        return {}
-
+    values = set(retrieve_dimensions(expr))
     grids = {f.grid.root for f in retrieve_functions(expr) if f.grid is not None}
     return {d: dimension_map.get(d, d) + o
             for grid in grids
-            for d, o in zip(grid.dimensions, grid.origin_isymbols, strict=True)}
+            for d, o in zip(grid.dimensions, grid.origin_isymbols, strict=True)
+            if dimension_map.get(d, d) in values}
 
 
 def concretize_subdims(exprs, **kwargs):

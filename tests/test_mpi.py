@@ -1,4 +1,3 @@
-import pickle
 from functools import cached_property
 
 import numpy as np
@@ -28,7 +27,7 @@ from devito.mpi.routines import (
 )
 from devito.tools import Bunch
 from devito.types import Bundle
-from devito.types.dimension import ModuloDimension, RankOffset
+from devito.types.dimension import ModuloDimension
 from examples.seismic.acoustic import acoustic_setup
 
 
@@ -1248,15 +1247,18 @@ class TestGlobalIndex:
         check[-1] = 7
         assert np.all(g.data[:] == check[g.local_indices])
 
-    def test_serial_code_unchanged(self):
-        """No index offset is generated without MPI."""
+    def test_serial_index_offsets(self):
+        """Without a decomposition the index offsets are zero."""
         grid = Grid(shape=(4, 4))
         x, y = grid.dimensions
         f = Function(name='f', grid=grid)
 
         op = Operator(Eq(f, x + y))
 
-        assert not any(p.name.startswith('io_') for p in op.parameters)
+        args = op.arguments()
+        assert args['io_x'] == args['io_y'] == 0
+        op.apply()
+        assert np.all(f.data == np.arange(4)[:, None] + np.arange(4))
 
     @pytest.mark.parallel(mode=[1])
     def test_single_rank_codegen(self, mode):
@@ -3712,23 +3714,6 @@ class TestOperatorAdvanced:
         glb = grid.distributor.glb_slices[grid.dimensions[0]]
         assert np.allclose(o1.data, o0.data[glb], rtol=1e-12)
         assert np.allclose(g1.data, g0.data[glb], rtol=1e-12)
-
-    @pytest.mark.parallel(mode=4)
-    def test_rank_offset_empty(self, mode):
-        """
-        The offsets of a rank from the Grid edges, including an empty rank, also
-        once unpickled.
-        """
-        grid = Grid(shape=(3,))
-        x = grid.dimensions[0]
-
-        lofs = pickle.loads(pickle.dumps(RankOffset(name='x_lofs', side=LEFT, root=x)))
-        rofs = pickle.loads(pickle.dumps(RankOffset(name='x_rofs', side=RIGHT, root=x)))
-        values = (lofs._arg_values(grid=grid)['x_lofs'],
-                  rofs._arg_values(grid=grid)['x_rofs'])
-
-        # Rank 3 is empty
-        assert values == [(0, 2), (1, 1), (2, 0), (0, 0)][grid.distributor.myrank]
 
     @pytest.mark.parallel(mode=[(4, 'full')])
     def test_custom_subdomain(self, mode):
