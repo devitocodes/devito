@@ -784,9 +784,9 @@ class InlineIf(sympy.Expr, Pickable):
 
     __rargs__ = ('cond', 'true_expr', 'false_expr')
 
-    def __new__(cls, cond, true_expr, false_expr):
-        if not isinstance(cond, sympy.core.relational.Relational):
-            raise ValueError("`cond` must be of type sympy.relational.Relational")
+    def __new__(cls, cond, true_expr, false_expr, **kwargs):
+        if not isinstance(cond, sympy.logic.boolalg.Boolean):
+            raise ValueError("`cond` must be a symbolic boolean")
         if not isinstance(true_expr, sympy.Expr):
             raise ValueError("`true_expr` must be of type sympy.Expr")
         if not isinstance(false_expr, sympy.Expr):

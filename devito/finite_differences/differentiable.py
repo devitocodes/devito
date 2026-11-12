@@ -38,6 +38,7 @@ __all__ = [
     'LocalSum',
     'Real',
     'Weights',
+    'WeightsExpr',
 ]
 
 
@@ -1030,6 +1031,9 @@ class LocalSum(IndexSum, Pickable):
     Masked points contribute zero. The sum remains symbolic until Cluster lowering
     chooses its implementation.
 
+    The producer may mark the coefficient group with a WeightsExpr. `weights`
+    finds that expression without duplicating its operands as metadata.
+
     Examples
     --------
     For bilinear interpolation, `posx` and `posy` are the grid indices of sparse
@@ -1041,10 +1045,8 @@ class LocalSum(IndexSum, Pickable):
             condition=And(posx + i >= x_m, posx + i <= x_M))
         cj = ConditionalDimension('j', j, indirect=True,
             condition=And(posy + j >= y_m, posy + j <= y_M))
-        value = LocalSum(
-            wx[p, ci]*wy[p, cj]*f[posx + ci, posy + cj],
-            cdims=(ci, cj)
-        )
+        weights = WeightsExpr(wx[p, ci]*wy[p, cj])
+        value = LocalSum(weights*f[posx + ci, posy + cj], cdims=(ci, cj))
         Eq(rcv[p], value)
 
     The scalar lowering has the following semantics (pseudocode)::
@@ -1094,6 +1096,10 @@ class LocalSum(IndexSum, Pickable):
     def conditionals(self):
         return frozendict({d: d.condition for d in self.cdims})
 
+    @cached_property
+    def weights(self):
+        return next(iter(self.expr.find(WeightsExpr)), None)
+
     @property
     def bound_symbols(self):
         return super().bound_symbols | set(self.cdims)
@@ -1106,7 +1112,48 @@ class LocalSum(IndexSum, Pickable):
     def _evaluate(self, **kwargs):
         return self._rebuild(*self._evaluate_args(**kwargs))
 
+    def _xreplace(self, rule):
+        from devito.symbolics.manipulation import _uxreplace
+        return _uxreplace(self, rule)
+
     __reduce_ex__ = Pickable.__reduce_ex__
+
+
+class WeightsExpr(sympy.Expr):
+
+    """
+    A coefficient expression marked by its producer for local-sum lowering.
+
+    Its scalar value is `base`. Reads stay visible through the sole argument,
+    and printing adds no operation. Each coefficient access depends on at most
+    one local tap axis and outer indices, and covers the full tap range
+    independently of field guards. Lowering may therefore reuse these reads
+    outside the guards, within the original sum evaluation.
+
+    E.g., `WeightsExpr(wx[p, i]*wy[p, j])` retains the coefficient group in
+    `LocalSum(weights*field[posx + i, posy + j], cdims=(i, j))`.
+    """
+
+    is_commutative = True
+
+    def __new__(cls, base, **kwargs):
+        return sympy.Expr.__new__(cls, sympy.sympify(base))
+
+    @property
+    def base(self):
+        return self.args[0]
+
+    @cached_property
+    def dtype(self):
+        return extract_dtype(self.base)
+
+    def _eval_derivative(self, symbol):
+        return self.base.diff(symbol)
+
+    def _ccode(self, printer):
+        return f'({printer._print(self.base)})'
+
+    _cxxcode = _ccode
 
 
 class WeightsIndexed(Indexed):
