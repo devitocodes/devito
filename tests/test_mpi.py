@@ -29,6 +29,16 @@ from devito.types.dimension import ModuloDimension
 from examples.seismic.acoustic import acoustic_setup
 
 
+class FirstRow(SubDomain):
+    """The first row along `y`, without the last node along `x`."""
+
+    name = 'first_row'
+
+    def define(self, dimensions):
+        x, y = dimensions
+        return {x: ('middle', 0, 1), y: ('left', 1)}
+
+
 class TestMPIUtils:
 
     @pytest.mark.parametrize('comm', [None, MPI.COMM_NULL], ids=['none', 'null'])
@@ -2116,6 +2126,25 @@ class TestCodeGeneration:
         # More specifically, we ensure HaloSpot(v2) is on the last loop nest
         assert calls[0].arguments[0] is v1
         assert calls[1].arguments[0] is v2
+
+    @pytest.mark.parallel(mode=2)
+    def test_haloupdate_if_increment_reads_elsewhere(self, mode):
+        """An increment reading its Function at other points exchanges its halo."""
+        grid = Grid(shape=(11, 11))
+        x, y = grid.dimensions
+        first_row = FirstRow(grid=grid)
+
+        g = Function(name='g', grid=grid, space_order=2)
+
+        op = Operator([Eq(g, 1),
+                       Inc(g, g.subs({x: x + x.spacing, y: y + y.spacing}),
+                           subdomain=first_row)])
+        op.apply()
+
+        assert len(FindNodes(HaloUpdateCall).visit(op)) == 1
+        data = g.data_gather(rank=0)
+        if grid.distributor.myrank == 0:
+            assert np.all(data[:-1, 0] == 2)
 
     @pytest.mark.parallel(mode=1)
     def test_hoist_haloupdate_if_in_the_middle(self, mode):
