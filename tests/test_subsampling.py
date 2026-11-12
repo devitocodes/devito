@@ -623,6 +623,25 @@ class TestSubGrid:
         assert np.allclose(sub.extent, grid.extent)
         assert np.allclose(sub.origin, grid.origin)
 
+    def test_rebuild_onto_subgrid(self):
+        """Rebuilding a Function onto another Grid moves it onto its Dimensions."""
+        grid = Grid(shape=(9, 9))
+        sub = SubGrid(grid, factor=2)
+
+        f = Function(name='f', grid=grid, space_order=2)
+        g = f._rebuild(grid=sub)
+        assert g.dimensions == sub.dimensions
+        assert g.shape == (5, 5)
+
+        h = g._rebuild(grid=grid)
+        assert h.dimensions == grid.dimensions
+        assert h.shape == (9, 9)
+
+        u = TimeFunction(name='u', grid=grid, save=3)
+        v = u._rebuild(grid=sub)
+        assert v.dimensions == (grid.time_dim, *sub.dimensions)
+        assert v.shape == (3, 5, 5)
+
     def test_function_needs_no_shape(self):
         """`Function(grid=sub)` derives both dimensions and shape."""
         grid = Grid(shape=(9, 9))

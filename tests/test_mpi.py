@@ -7,9 +7,9 @@ from conftest import _R, assert_blocking, assert_structure, body0
 from devito import (
     NODE, Buffer, ConditionalDimension, Constant, CustomDimension, DefaultDimension,
     Dimension, Eq, Function, Grid, Inc, Ne, Operator, PrecomputedSparseFunction,
-    SparseFunction, SparseTimeFunction, SubDimension, SubDomain, TensorTimeFunction,
-    TimeFunction, VectorTimeFunction, configuration, diag, div, generic_derivative, grad,
-    inner, norm, solve, switchconfig
+    SparseFunction, SparseTimeFunction, SubDimension, SubDomain, SubGrid,
+    TensorTimeFunction, TimeFunction, VectorTimeFunction, configuration, diag, div,
+    generic_derivative, grad, inner, norm, solve, switchconfig
 )
 from devito.arch.compiler import OneapiCompiler
 from devito.data import LEFT, RIGHT
@@ -1254,6 +1254,28 @@ class TestGlobalIndex:
         op = Operator(Eq(f, x + y))
 
         assert not any(p.name.startswith('io_') for p in op.parameters)
+
+    @pytest.mark.parallel(mode=[1])
+    def test_single_rank_codegen(self, mode):
+        """
+        The global index offsets are generated with MPI on a single rank, as
+        code generated there may run on many (e.g., the DevitoPRO decoupler).
+        """
+        grid = Grid(shape=(9, 9))
+        x, y = grid.dimensions
+        sub = SubGrid(grid, factor=2)
+        f = Function(name='f', grid=grid, space_order=1)
+        g = Function(name='g', grid=sub)
+
+        op = Operator([Eq(f, x + y), Eq(g, f)])
+
+        names = {p.name for p in op.parameters}
+        assert {'io_x', 'io_y', 'xso', 'yso'} <= names
+
+        op.apply()
+
+        check = np.arange(9)[::2, None] + np.arange(9)[::2]
+        assert np.all(g.data[:] == check[g.local_indices])
 
 
 class TestHaloWrites:
