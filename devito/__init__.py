@@ -15,6 +15,7 @@ from devito.types.dimension import *  # noqa
 from devito.types.dense import *  # noqa
 from devito.types.equation import *  # noqa
 from devito.types.grid import *  # noqa
+from devito.types.curvilinear import *  # noqa
 from devito.types.relational import *  # noqa
 from devito.types.sparse import *  # noqa
 from devito.types.tensor import *  # noqa

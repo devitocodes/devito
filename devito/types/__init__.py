@@ -19,6 +19,7 @@ from .parallel import *  # noqa
 # Needed only outside Devito
 from .grid import *  # noqa
 from .dense import * # noqa
+from .curvilinear import *  # noqa
 from .relational import *  # noqa
 from .sparse import *  # noqa
 from .tensor import *  # noqa
