@@ -1831,6 +1831,32 @@ class TestSubDomainFunctionsParallel:
                 f.data_with_halo.size - f.data.size)
         assert np.all(gx.data[1:-1] == 0)
 
+    @pytest.mark.parallel(mode=[(2, 'basic'), (2, 'diag'), (2, 'diag2'), (2, 'full')])
+    def test_halo_empty_neighbor_timeloop_mpi(self, mode):
+        """
+        As `test_halo_empty_neighbor_mpi`, but with the halo exchange within the
+        time loop, hence overlappable, such that the diag2 and full modes are
+        used rather than falling back to basic.
+        """
+        grid = Grid(shape=(11, 11), extent=(10., 10.), topology=(2, 1))
+        # Only held by rank 0
+        reduced_domain = ReducedDomain(('middle', 0, 7), None, grid=grid)
+
+        u = TimeFunction(name='u', grid=reduced_domain, space_order=2)
+        v = TimeFunction(name='v', grid=grid, space_order=2)
+
+        # Sentinel, as nothing should be exchanged into the halo of `u`
+        u.data_with_halo[:] = -1
+
+        Operator([Eq(u.forward, u.dx + 1, subdomain=reduced_domain),
+                  Eq(v.forward, v.dx + 1)]).apply(time_M=1)
+
+        # Rank-local view, as distributed Data rejects boolean masks
+        data = np.asarray(u.data_with_halo)
+        halo = np.ones(data.shape, dtype=bool)
+        halo[u._mask_domain] = False
+        assert np.all(data[halo] == -1)
+
     def set_indices(data):
         """
         Set up individual indices for indexing/slicing check.
