@@ -513,13 +513,27 @@ def default_allocator(name=None):
                             Falls back to DRAM if there isn't enough space.
         * ALLOC_KNL_DRAM: On a Knights Landing platform, allocate memory in DRAM.
 
-    Custom allocators may be added with `register_allocator`.
+    Custom allocators may be added with `register_allocator`. A matching explicit
+    name takes precedence over ``configuration['allocator']`` (DEVITO_ALLOCATOR).
+    The configuration accepts a registered name or ``'torch'`` for CPU PyTorch
+    storage. 'auto' retains automatic architecture/develop-mode selection.
     """
     if name is not None:
         try:
             return custom_allocators[name]
         except KeyError:
             pass
+        if name == 'torch':
+            return TorchAllocator()
+
+    selected = configuration['allocator']
+    if selected == 'torch':
+        return TorchAllocator()
+    elif selected != 'auto':
+        try:
+            return custom_allocators[selected]
+        except KeyError:
+            raise ValueError(f"Unknown allocator `{selected}`") from None
 
     if configuration['develop-mode']:
         return ALLOC_GUARD

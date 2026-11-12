@@ -19,7 +19,7 @@ try:
 except ImportError:
     torch = None
 
-__all__ = ['Data', 'NumpyData']
+__all__ = ['Data', 'NumpyData', 'TorchData']
 
 
 class Data:
@@ -728,194 +728,192 @@ class NumpyData(Data, np.ndarray):
         return np.array(value)
 
 
-if torch is not None:
+class TorchData(Data, torch.Tensor if torch is not None else object):
+    """A tensor inheriting Data's modulo, decomposition and MPI semantics.
 
-    class TorchData(Data, torch.Tensor):
-        """A tensor inheriting Data's modulo, decomposition and MPI semantics.
+    Parameters
+    ----------
+    shape : tuple of int
+        Local allocation shape, including halo and padding.
+    dtype : numpy.dtype
+        Compiler dtype used to select the tensor element type.
+    decomposition : tuple of Decomposition, optional
+        Global-to-local decomposition for each axis.
+    modulo : tuple of bool, optional
+        Axes using circular indexing, such as buffered time levels.
+    allocator : TorchAllocator, optional
+        Storage allocator. Defaults to a CPU TorchAllocator.
+    distributor : Distributor, optional
+        MPI topology and communicator associated with this allocation.
 
-        Parameters
-        ----------
-        shape : tuple of int
-            Local allocation shape, including halo and padding.
-        dtype : numpy.dtype
-            Compiler dtype used to select the tensor element type.
-        decomposition : tuple of Decomposition, optional
-            Global-to-local decomposition for each axis.
-        modulo : tuple of bool, optional
-            Axes using circular indexing, such as buffered time levels.
-        allocator : TorchAllocator, optional
-            Storage allocator. Defaults to a CPU TorchAllocator.
-        distributor : Distributor, optional
-            MPI topology and communicator associated with this allocation.
+    Notes
+    -----
+    Views and tensor arithmetic preserve Data metadata. Negative-stride reads
+    materialize tensors because PyTorch cannot represent negative strides.
+    """
 
-        Notes
-        -----
-        Views and tensor arithmetic preserve Data metadata. Negative-stride reads
-        materialize tensors because PyTorch cannot represent negative strides.
-        """
+    def __new__(cls, shape, dtype, decomposition=None, modulo=None, allocator=None,
+                distributor=None, padding=0):
+        if torch is None:
+            raise ImportError("TorchData requires PyTorch")
+        if allocator is None:
+            allocator = TorchAllocator()
+        return super().__new__(cls, shape, dtype,
+                               decomposition=decomposition,
+                               modulo=modulo, allocator=allocator,
+                               distributor=distributor, padding=padding)
 
-        def __new__(cls, shape, dtype, decomposition=None, modulo=None, allocator=None,
-                    distributor=None):
-            if allocator is None:
-                allocator = TorchAllocator()
-            return super().__new__(cls, shape, dtype,
-                                   decomposition=decomposition,
-                                   modulo=modulo, allocator=allocator,
-                                   distributor=distributor)
+    @classmethod
+    def _from_storage(cls, tensor):
+        return tensor.as_subclass(cls)
 
-        @classmethod
-        def _from_storage(cls, tensor):
-            return tensor.as_subclass(cls)
+    @classmethod
+    def __torch_function__(cls, func, types, args=(), kwargs=None):
+        parent = next((i for i in tree_leaves((args, kwargs or {}))
+                       if isinstance(i, cls)), None)
+        result = super().__torch_function__(func, types, args, kwargs)
 
-        @classmethod
-        def __torch_function__(cls, func, types, args=(), kwargs=None):
-            parent = next((i for i in tree_leaves((args, kwargs or {}))
-                           if isinstance(i, cls)), None)
-            result = super().__torch_function__(func, types, args, kwargs)
-
-            def finalize(value):
-                if isinstance(value, cls) and value is not parent:
-                    value._finalize_metadata(parent)
-                return value
-
-            return tree_map(finalize, result)
-
-        @property
-        def _raw(self):
-            return self.as_subclass(torch.Tensor)
-
-        @property
-        def _numpy_dtype(self):
-            return dtype_from_torch(self.dtype)
-
-        def _wrap(self, tensor):
-            if tensor.ndim == 0:
-                return tensor
-            view = tensor.as_subclass(type(self))
-            view._finalize_metadata(self)
-            return view
-
-        def _view(self):
-            return self._wrap(self._raw.view(self.shape))
-
-        def _transpose_local(self, axes):
-            return self._wrap(self._raw.permute(axes))
-
-        def _swapaxes_local(self, axis1, axis2):
-            return self._wrap(self._raw.swapaxes(axis1, axis2))
-
-        @staticmethod
-        def _index_array(value):
-            # Index arrays are control metadata, not numerical field buffers.
-            if isinstance(value, torch.Tensor):
-                return value.detach().cpu().numpy()
+        def finalize(value):
+            if isinstance(value, cls) and value is not parent:
+                value._finalize_metadata(parent)
             return value
 
-        def _negative_indices(self, index):
-            index = index if isinstance(index, tuple) else (index,)
-            index = index + (slice(None),)*(self.ndim-len(index))
-            if not any(isinstance(i, slice) and i.step is not None and i.step < 0
-                       for i in index):
-                return None
-            if not all(is_integer(i) or isinstance(i, slice) for i in index):
-                raise NotImplementedError("Negative slices combined with "
-                                          "advanced indexing")
-            axes, shape = [], []
-            for i, size in zip(index, self.shape, strict=False):
-                if is_integer(i):
-                    axes.append(torch.tensor([int(i)], device=self.device))
-                else:
-                    positions = range(*i.indices(size))
-                    # Normalize empty endpoints for either step sign
-                    stop = positions.start + len(positions)*positions.step
-                    axis = torch.arange(positions.start, stop, positions.step,
-                                        device=self.device)
-                    axes.append(axis)
-                    shape.append(len(positions))
-            return axes, tuple(shape)
+        return tree_map(finalize, result)
 
-        def _getitem_local(self, index):
-            negative = self._negative_indices(index)
-            if negative is None:
-                result = self._raw[index]
+    @property
+    def _raw(self):
+        return self.as_subclass(torch.Tensor)
+
+    @property
+    def _numpy_dtype(self):
+        return dtype_from_torch(self.dtype)
+
+    def _wrap(self, tensor):
+        if tensor.ndim == 0:
+            return tensor
+        view = tensor.as_subclass(type(self))
+        view._finalize_metadata(self)
+        return view
+
+    def _view(self):
+        return self._wrap(self._raw.view(self.shape))
+
+    def _transpose_local(self, axes):
+        return self._wrap(self._raw.permute(axes))
+
+    def _swapaxes_local(self, axis1, axis2):
+        return self._wrap(self._raw.swapaxes(axis1, axis2))
+
+    @staticmethod
+    def _index_array(value):
+        # Index arrays are control metadata, not numerical field buffers.
+        if isinstance(value, torch.Tensor):
+            return value.detach().cpu().numpy()
+        return value
+
+    def _negative_indices(self, index):
+        index = index if isinstance(index, tuple) else (index,)
+        index = index + (slice(None),)*(self.ndim-len(index))
+        if not any(isinstance(i, slice) and i.step is not None and i.step < 0
+                   for i in index):
+            return None
+        if not all(is_integer(i) or isinstance(i, slice) for i in index):
+            raise NotImplementedError("Negative slices combined with "
+                                      "advanced indexing")
+        axes, shape = [], []
+        for i, size in zip(index, self.shape, strict=False):
+            if is_integer(i):
+                axes.append(torch.tensor([int(i)], device=self.device))
             else:
-                axes, shape = negative
-                result = self._raw[torch.meshgrid(*axes, indexing='ij')].reshape(shape)
-            return self._wrap(result)
+                positions = range(*i.indices(size))
+                # Normalize empty endpoints for either step sign
+                stop = positions.start + len(positions)*positions.step
+                axis = torch.arange(positions.start, stop, positions.step,
+                                    device=self.device)
+                axes.append(axis)
+                shape.append(len(positions))
+        return axes, tuple(shape)
 
-        def _setitem_local(self, index, value):
-            if isinstance(value, Data):
-                value = value._raw
-            if isinstance(value, np.ndarray) and any(i < 0 for i in value.strides):
-                value = value.copy()
-            value = torch.as_tensor(value, dtype=self.dtype, device=self.device)
-            negative = self._negative_indices(index)
-            if negative is None:
-                self._raw[index] = value
-            else:
-                axes, shape = negative
-                expanded = torch.broadcast_to(value, shape)
-                expanded = expanded.reshape(tuple(len(a) for a in axes))
-                self._raw[torch.meshgrid(*axes, indexing='ij')] = expanded
+    def _getitem_local(self, index):
+        negative = self._negative_indices(index)
+        if negative is None:
+            result = self._raw[index]
+        else:
+            axes, shape = negative
+            result = self._raw[torch.meshgrid(*axes, indexing='ij')].reshape(shape)
+        return self._wrap(result)
 
-        def _new_data(self, shape, **kwargs):
-            kwargs.setdefault('modulo', (False,)*len(shape))
-            return type(self)(shape, self._numpy_dtype,
-                              allocator=TorchAllocator(device=self.device), **kwargs)
+    def _setitem_local(self, index, value):
+        if isinstance(value, Data):
+            value = value._raw
+        if isinstance(value, np.ndarray) and any(i < 0 for i in value.strides):
+            value = value.copy()
+        value = torch.as_tensor(value, dtype=self.dtype, device=self.device)
+        negative = self._negative_indices(index)
+        if negative is None:
+            self._raw[index] = value
+        else:
+            axes, shape = negative
+            expanded = torch.broadcast_to(value, shape)
+            expanded = expanded.reshape(tuple(len(a) for a in axes))
+            self._raw[torch.meshgrid(*axes, indexing='ij')] = expanded
 
-        def _from_mpi(self, value):
-            return torch.as_tensor(value, dtype=self.dtype, device=self.device)
+    def _new_data(self, shape, **kwargs):
+        kwargs.setdefault('modulo', (False,)*len(shape))
+        return type(self)(shape, self._numpy_dtype,
+                          allocator=TorchAllocator(device=self.device), **kwargs)
 
-        @staticmethod
-        def _copy_native(value):
-            if isinstance(value, Data):
-                value = value._raw
-            return None if value is None else value.clone()
+    def _from_mpi(self, value):
+        return torch.as_tensor(value, dtype=self.dtype, device=self.device)
 
-        def fill(self, value):
-            self.fill_(value)
+    @staticmethod
+    def _copy_native(value):
+        if isinstance(value, Data):
+            value = value._raw
+        return None if value is None else value.clone()
 
-        def copy(self):
-            """Copy storage and view metadata for the standard Data interface."""
-            return self.clone()
+    def fill(self, value):
+        self.fill_(value)
 
-        @staticmethod
-        def _check_layout(data, allocator):
-            if data.layout != torch.strided or not data.is_contiguous():
-                raise InvalidArgument("TorchAllocator requires contiguous "
-                                      "strided storage")
-            if data.device != allocator.device:
-                raise InvalidArgument("Tensor device must match allocator device")
-            if data.requires_grad or data.is_conj() or data.is_neg():
-                raise InvalidArgument("Autograd and lazy tensor views are "
-                                      "unsupported")
-            if data.data_ptr() % allocator.guaranteed_alignment:
-                raise InvalidArgument("Tensor storage does not satisfy "
-                                      "Function alignment")
+    def copy(self):
+        """Copy storage and view metadata for the standard Data interface."""
+        return self.clone()
 
-        def _arg_check(self, dtype):
-            if self._numpy_dtype != np.dtype(dtype):
-                raise InvalidArgument("Tensor dtype must match Function dtype")
+    @staticmethod
+    def _check_layout(data, allocator):
+        if data.layout != torch.strided or not data.is_contiguous():
+            raise InvalidArgument("TorchAllocator requires contiguous "
+                                  "strided storage")
+        if data.device != allocator.device:
+            raise InvalidArgument("Tensor device must match allocator device")
+        if data.requires_grad or data.is_conj() or data.is_neg():
+            raise InvalidArgument("Autograd and lazy tensor views are "
+                                  "unsupported")
+        if data.data_ptr() % allocator.guaranteed_alignment:
+            raise InvalidArgument("Tensor storage does not satisfy "
+                                  "Function alignment")
 
-        @property
-        def _C_data(self):
-            if self.is_cuda:
-                torch.cuda.synchronize(self.device)
-            return ctypes.cast(self.data_ptr(), c_restrict_void_p)
+    def _arg_check(self, dtype):
+        if self._numpy_dtype != np.dtype(dtype):
+            raise InvalidArgument("Tensor dtype must match Function dtype")
 
-        def _arg_apply(self, access_mode):
-            if self.is_cuda:
-                torch.cuda.synchronize(self.device)
-            if access_mode is not None and access_mode.is_write:
-                torch.autograd.graph.increment_version(self)
+    @property
+    def _C_data(self):
+        if self.is_cuda:
+            torch.cuda.synchronize(self.device)
+        return ctypes.cast(self.data_ptr(), c_restrict_void_p)
 
-        def _readonly(self):
-            # PyTorch has no read-only views; snapshots protect the source storage.
-            return self.clone()
+    def _arg_apply(self, access_mode):
+        if self.is_cuda:
+            torch.cuda.synchronize(self.device)
+        if access_mode is not None and access_mode.is_write:
+            torch.autograd.graph.increment_version(self)
 
-        def _host_array(self):
-            if self.is_cuda:
-                torch.cuda.synchronize(self.device)
-            return self._raw.detach().cpu().numpy()
+    def _readonly(self):
+        # PyTorch has no read-only views; snapshots protect the source storage.
+        return self.clone()
 
-    __all__.append('TorchData')
+    def _host_array(self):
+        if self.is_cuda:
+            torch.cuda.synchronize(self.device)
+        return self._raw.detach().cpu().numpy()

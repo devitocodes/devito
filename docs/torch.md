@@ -18,6 +18,19 @@ operator registry. The allocator chooses PyTorch-owned storage; `.data` and
 NumPy remains a dependency for
 compiler metadata, not numerical tensor storage.
 
+To make CPU tensors the default storage, set `configuration['allocator'] = 'torch'`
+or start Python with `DEVITO_ALLOCATOR=torch`. The existing `default_allocator`
+factory also accepts registered allocator names. A matching explicit factory name
+or a Function's `allocator=` takes precedence over the configured default.
+Set `configuration['allocator'] = 'auto'` (the default) to restore automatic
+architecture and develop-mode selection; assigning `None` also selects `'auto'`.
+Unknown configured names raise `ValueError` when selected.
+This storage setting does not select the Operator language; use `language='torch'`
+for tensor-aware C++ code generation.
+
+`TorchData` is always importable. Without PyTorch, constructing it or a
+`TorchAllocator` raises `ImportError`; NumPy storage remains available.
+
 The torch language uses the existing CPU optimization pipeline and a `CGen`
 subclass. It emits non-owning `at::Tensor` views over the argument storage and
 obtains typed pointers with `data_ptr<T>()`. Derivative expansion, blocking,
@@ -134,7 +147,7 @@ does not make arbitrary Operators or physical coefficients differentiable.
 
 ```sh
 OMP_NUM_THREADS=2 python -m pytest -q \
-  tests/test_torch_allocators.py tests/test_torch_codegen.py
+  tests/torch/test_allocators.py tests/torch/test_codegen.py
 OMP_NUM_THREADS=2 python -m pytest -q tests/test_data_backends.py
 ```
 
@@ -169,9 +182,9 @@ There is no separate storage runtime or backend package. The public API remains
 `from devito import TorchAllocator`, tensor `.data`, and
 `Operator(..., language='torch')`.
 
-Tests cover allocation in `test_torch_allocators.py`, C++ generation in
-`test_torch_codegen.py`, shared indexing/MPI in `test_data_backends.py`, OpenACC
-in `test_torch_openacc.py`, and the example layer in `test_torch_layer.py`.
+Tests cover allocation in `tests/torch/test_allocators.py`, C++ generation in
+`tests/torch/test_codegen.py`, shared indexing/MPI in `test_data_backends.py`, OpenACC
+in `tests/torch/test_openacc.py`, and the example layer in `tests/torch/test_layer.py`.
 
 ## Contribution validation
 
@@ -190,12 +203,12 @@ MPIR_CVAR_CH4_CMA_ENABLE=0 UCX_TLS=self,tcp MPIEXEC_TIMEOUT=900 \
   OMP_NUM_THREADS=1 pytest -q -m parallel --maxfail=0 tests/
 
 # Actual GCC OpenACC compilation and host execution, without a GPU
-OMP_NUM_THREADS=2 pytest -q tests/test_torch_openacc.py -k host
+OMP_NUM_THREADS=2 pytest -q tests/torch/test_openacc.py -k host
 
 # NVIDIA OpenACC interoperability; requires CUDA PyTorch, GPU and nvc++
 python -c 'import torch; assert torch.cuda.is_available()'
 nvc++ --version
-pytest -q tests/test_torch_openacc.py -k cuda
+pytest -q tests/torch/test_openacc.py -k cuda
 ```
 
 The OpenACC host cases execute generated code on GCC's `acc_device_host` target
