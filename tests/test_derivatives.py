@@ -1861,7 +1861,7 @@ class TestHaloZero:
 
         assert self.dot_test(grid, subdomain, 'dy', 8, opt=opt) < 1e-12
 
-    @pytest.mark.parametrize('deriv', ['dx', 'dy'])
+    @pytest.mark.parametrize('deriv', ['dx', 'dy', 'dxdy'])
     def test_adjoint_2d(self, deriv):
         grid = Grid(shape=(20, 22), extent=(19., 21.), dtype=np.float64)
         subdomain = Region('s', {'x': ('left', 6), 'y': ('middle', 4, 5)}, grid=grid)

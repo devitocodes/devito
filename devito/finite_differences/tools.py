@@ -299,6 +299,10 @@ def generate_indices(expr, dim, order, side=None, matvec=None, x0=None, nweights
         iexpr = x0 + d * dim.spacing
         return IndexSet(dim, expr=iexpr), x0
 
+    # Normalize x0 `Dimension` to match index if the latter is a `SubDimension` of
+    # the former
+    x0 = x0.subs({d.root: d for d in expr.dimensions if d.root is dim and d.is_Sub})
+
     # Evaluation point relative to the expression's grid
     mid = (x0 - expr.indices_ref[dim]).subs({dim: 0, dim.spacing: 1})
 
