@@ -1082,6 +1082,19 @@ class Function(DiscreteFunction):
         # Attach additional metadata to self's cache entry
         return {'nbytes': self.size}
 
+    def _rebuild(self, *args, **kwargs):
+        if kwargs.get('grid') is not None and self._is_on_grid:
+            # Let the new Grid, e.g. a SubGrid, provide the Dimensions and shape
+            kwargs.setdefault('dimensions', None)
+            kwargs.setdefault('shape_global', None)
+        return super()._rebuild(*args, **kwargs)
+
+    @property
+    def _is_on_grid(self):
+        """Whether the space Dimensions of `self` are those of its Grid."""
+        return (self.grid is not None and self.space_dimensions == self.grid.dimensions
+                and self.ndim == self.grid.dim + self.is_TimeDependent)
+
     def __init_finalize__(self, *args, **kwargs):
         super().__init_finalize__(*args, **kwargs)
 

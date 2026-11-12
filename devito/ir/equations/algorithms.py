@@ -5,6 +5,7 @@ from devito.data.allocators import DataReference
 from devito.finite_differences.differentiable import diff2sympy
 from devito.ir.support import GuardFactor, bounded
 from devito.logger import warning
+from devito.parameters import configuration
 from devito.symbolics import (
     IntDiv, retrieve_dimensions, retrieve_functions, retrieve_indexed, uxreplace
 )
@@ -213,9 +214,14 @@ def _make_global_index_map(expr, dimension_map):
     if not isinstance(expr, Eq):
         return {}
 
+    # Keyed on MPI codegen rather than on the rank count: the code may be
+    # generated on a single rank and run on many (e.g., the DevitoPRO decoupler)
+    if not configuration['mpi']:
+        return {}
+
     grids = {f.grid.root for f in retrieve_functions(expr) if f.grid is not None}
     return {d: dimension_map.get(d, d) + o
-            for grid in grids if grid.distributor.is_parallel
+            for grid in grids
             for d, o in zip(grid.dimensions, grid.origin_isymbols, strict=True)}
 
 

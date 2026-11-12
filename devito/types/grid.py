@@ -572,7 +572,9 @@ class SubGrid(Grid):
 
     @classmethod
     def __offset_setup__(cls, parent, d, factor, name):
-        if not parent.distributor.is_parallel:
+        # Keyed on MPI codegen rather than on the rank count, as for the global
+        # index map: the code may be generated on one rank and run on many
+        if not configuration['mpi']:
             return 0
         return SubsamplingOffset(name=f'{d.name}{name}o', root=d, factor=factor)
 
