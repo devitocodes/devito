@@ -2128,6 +2128,29 @@ class TestCodeGeneration:
         assert calls[1].arguments[0] is v2
 
     @pytest.mark.parallel(mode=2)
+    def test_avoid_hoisting_if_written_before(self, mode):
+        """A HaloSpot is not hoisted out of the time loop past a write it reads."""
+        grid = Grid(shape=(11, 11))
+        x, y = grid.dimensions
+        first_row = FirstRow(grid=grid)
+
+        u = TimeFunction(name='u', grid=grid, space_order=2)
+        f = Function(name='f', grid=grid, space_order=2)
+
+        eqns = [Eq(u.forward, u + 1),
+                Eq(u.forward, u.forward.subs({x: x + x.spacing, y: y + y.spacing}),
+                   subdomain=first_row),
+                Eq(f, u.forward.laplace)]
+
+        op = Operator(eqns)
+        op.apply(time_M=0)
+
+        check_halo_exchanges(op, 2, 2)
+        data = u.data_gather(rank=0)
+        if grid.distributor.myrank == 0:
+            assert np.all(data[1, :-1, 0] == 1)
+
+    @pytest.mark.parallel(mode=2)
     def test_haloupdate_if_increment_reads_elsewhere(self, mode):
         """An increment reading its Function at other points exchanges its halo."""
         grid = Grid(shape=(11, 11))

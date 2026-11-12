@@ -198,6 +198,8 @@ def _hoist_invariant(iet):
                 continue
 
             scope = _derive_scope(it, hs0, hs1)
+            # The expressions of the iteration that come before `hs0`
+            scope0 = _derive_scope(it, it, hs0)
 
             for f in hs1.fmapper:
                 hsf0 = hs0.halo_scheme.project(f)
@@ -210,8 +212,10 @@ def _hoist_invariant(iet):
                 # data dependences
                 if hsf1.issubset(hsf0) and _is_iter_carried(hsf1, scope):
                     hs, hsf = hs1, hsf1
-                elif hsf0.issubset(hsf1) and hs0 is halo_spots[0]:
-                    # Special case
+                elif hsf0.issubset(hsf1) and hs0 is halo_spots[0] and \
+                        _is_iter_carried(hsf0, scope0):
+                    # Special case: hoist the first HaloSpot if no write before
+                    # it in the iteration feeds its reads
                     hs, hsf = hs0, hsf0
                 else:
                     # No hoisting possible, skip
