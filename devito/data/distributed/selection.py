@@ -88,9 +88,13 @@ def _is_legacy_multidim_basic(idx, ndim):
     Devito historically accepts a top-level `data[[0, 1, 2]]` on a 3D object as
     shorthand for `data[0, 1, 2]` (basic), rather than NumPy advanced indexing
     on axis 0. Preserve that for a bare list whose length matches the rank.
+
+    A list of *slices* reads the same way, and must: `_data_in_region` builds
+    its index as one `list` of per-axis slices, and NumPy has no other meaning
+    to give it -- it rejects the form outright.
     """
     return (ndim > 1 and isinstance(idx, list) and len(idx) == ndim and
-            all(is_integer(i) for i in idx))
+            all(is_integer(i) or isinstance(i, slice) for i in idx))
 
 
 def _axis_span(item):
