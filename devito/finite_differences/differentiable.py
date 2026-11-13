@@ -7,7 +7,7 @@ import sympy
 from sympy.core.add import _addsort
 from sympy.core.decorators import call_highest_priority
 from sympy.core.evalf import evalf_table
-from sympy.core.mul import _keep_coeff, _mulsort
+from sympy.core.mul import _mulsort
 
 try:
     from sympy.core.core import ordering_of_classes
@@ -728,14 +728,8 @@ class Mul(DifferentiableOp, sympy.Mul):
             if a.is_Rational:
                 r, b = b.as_coeff_Mul()
                 if r is sympy.S.One and type(b) is Add:
-                    terms = []
-                    for bi in b.args:
-                        term = _keep_coeff(a, bi)
-                        # `_keep_coeff` rebuilds products as plain SymPy `Mul`s
-                        if isinstance(bi, Differentiable) and type(term) is sympy.Mul:
-                            term = Mul._from_args(term.args)
-                        terms.append(term)
-                    return Add(*terms, evaluate=False)
+                    return Add(*[cls(a, bi, evaluate=False) for bi in b.args],
+                               evaluate=False)
         except (AttributeError, ValueError):
             pass
 
