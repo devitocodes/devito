@@ -1,5 +1,4 @@
 import math
-from collections import namedtuple
 from functools import cached_property
 from itertools import product
 
@@ -18,14 +17,11 @@ from devito.types.basic import Scalar
 from devito.types.dense import Function
 from devito.types.dimension import (
     ConditionalDimension, DefaultDimension, Dimension, MultiSubDimension, SpaceDimension,
-    Spacing, SteppingDimension, SubDimension, SubsamplingOffset, TimeDimension
+    Spacing, SteppingDimension, SubDimension, TimeDimension
 )
-from devito.types.utils import DimensionTuple
+from devito.types.utils import DimensionTuple, GlobalLocal
 
 __all__ = ['Border', 'Grid', 'SubDomain', 'SubDomainSet', 'SubGrid']
-
-
-GlobalLocal = namedtuple('GlobalLocal', 'glb loc')
 
 
 class CartesianDiscretization:
@@ -537,10 +533,7 @@ class SubGrid(Grid):
             )
 
         dimensions = tuple(
-            d if f == 1 else ConditionalDimension(
-                f'{d.name}{name}', parent=d, factor=f,
-                offset=self.__offset_setup__(parent, d, f, name)
-            )
+            d if f == 1 else ConditionalDimension(f'{d.name}{name}', parent=d, factor=f)
             for d, f in zip(parent.dimensions, factors, strict=True)
         )
 
@@ -568,13 +561,7 @@ class SubGrid(Grid):
         self._stepping_dim = parent.stepping_dim
 
     def __distributor_setup__(self, shape, dimensions, comm):
-        return SubGridDistributor(self)
-
-    @classmethod
-    def __offset_setup__(cls, parent, d, factor, name):
-        if not parent.distributor.is_parallel:
-            return 0
-        return SubsamplingOffset(name=f'{d.name}{name}o', root=d, factor=factor)
+        return SubGridDistributor(self.parent.distributor, dimensions, self._factors)
 
     @classmethod
     def __factors_setup__(cls, parent, factor):

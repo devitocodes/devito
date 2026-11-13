@@ -313,9 +313,14 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
             return self.shape
         retval = []
         for d, s in zip(self.dimensions, self.shape, strict=True):
-            size = self.grid.size_map.get(d)
+            size = self._size_map.get(d)
             retval.append(size.glb if size is not None else s)
         return tuple(retval)
+
+    @property
+    def _size_map(self):
+        """Map between the decomposed Dimensions and their global/local size."""
+        return self.grid.size_map
 
     @property
     def symbolic_shape(self):
@@ -894,7 +899,7 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
 
         # Collect default dimension arguments from all indices
         for a, i, s in zip(key.dimensions, self.dimensions, self.shape, strict=True):
-            args.update(i._arg_defaults(_min=0, size=s, alias=a))
+            args.update(i._arg_defaults(_min=0, size=s, alias=a, grid=self.grid))
 
         return args
 
@@ -923,7 +928,7 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
                 # Add value overrides for all associated dimensions
                 for i, s in zip(self.dimensions, new.shape, strict=True):
                     size = s - sum(self._size_nodomain[i])
-                    values.update(i._arg_defaults(size=size))
+                    values.update(i._arg_defaults(size=size, grid=self.grid))
         else:
             values = self._arg_defaults(alias=self, metadata=metadata,
                                         estimate_memory=estimate_memory)
@@ -1082,6 +1087,29 @@ class Function(DiscreteFunction):
         # Attach additional metadata to self's cache entry
         return {'nbytes': self.size}
 
+    def _rebuild(self, *args, **kwargs):
+        if kwargs.get('grid') is not None and self._is_on_grid:
+            # Let the new Grid, e.g. a SubGrid, provide the Dimensions and shape
+            kwargs.setdefault('dimensions', None)
+            kwargs.setdefault('shape_global', None)
+        return super()._rebuild(*args, **kwargs)
+
+    @property
+    def _is_on_grid(self):
+        """Whether the space Dimensions of `self` are those of its Grid."""
+        return (self.grid is not None and self.space_dimensions == self.grid.dimensions
+                and self.ndim == self.grid.dim + self.is_TimeDependent)
+
+    def __distributor_setup__(self, **kwargs):
+        distributor = super().__distributor_setup__(**kwargs)
+        if distributor is None:
+            return None
+        return distributor.subsample(self.dimensions)
+
+    @property
+    def _size_map(self):
+        return self._distributor.size_map
+
     def __init_finalize__(self, *args, **kwargs):
         super().__init_finalize__(*args, **kwargs)
 
@@ -1229,10 +1257,11 @@ class Function(DiscreteFunction):
             if len(shape) != len(dimensions):
                 raise ValueError("`shape` and `dimensions` must have the "
                                  "same number of entries")
+            size_map = grid.distributor.subsample(tuple(dimensions)).size_map
             loc_shape = []
             for d, s in zip(dimensions, shape, strict=True):
-                if d in grid.dimensions:
-                    size = grid.size_map[d]
+                if d in size_map:
+                    size = size_map[d]
                     if size.glb != s and s is not None:
                         raise ValueError(f"Dimension `{d}` is given size `{s}`, "
                                          f"while `grid` says `{d}` has size `{size.glb}`")

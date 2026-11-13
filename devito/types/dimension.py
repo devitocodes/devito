@@ -258,7 +258,7 @@ class Dimension(ArgProvider):
         """Tuple of argument names introduced by the Dimension."""
         return (self.name, self.size_name, self.max_name, self.min_name)
 
-    def _arg_defaults(self, _min=None, size=None, alias=None):
+    def _arg_defaults(self, _min=None, size=None, alias=None, **kwargs):
         """
         A map of default argument values defined by the Dimension.
 
@@ -271,6 +271,8 @@ class Dimension(ArgProvider):
         alias : Dimension, optional
             To get the min/max/size names under which to store values. Use
             self's if None.
+        grid : Grid, optional
+            The Grid of the data-carrying object, if any.
         """
         dim = alias or self
         return {dim.min_name: _min or 0,
@@ -436,7 +438,7 @@ class DefaultDimension(Dimension, DataSymbol):
     def symbolic_size(self):
         return sympy.Number(self._default_value)
 
-    def _arg_defaults(self, _min=None, size=None, alias=None):
+    def _arg_defaults(self, _min=None, size=None, alias=None, **kwargs):
         dim = alias or self
         size = size or dim._default_value
         return {dim.min_name: _min or 0, dim.size_name: size,
@@ -987,7 +989,10 @@ class SubsamplingOffset(DataSymbol):
 
         # Runtime arguments bind by name, even when different spacing dtypes
         # make the compiled and runtime Grid Dimensions distinct symbols
-        root = next(d for d in grid.dimensions if d.name == self.root.name)
+        grid = grid.root
+        root = next((d for d in grid.dimensions if d.name == self.root.name), None)
+        if root is None:
+            return {self.name: 0}
 
         return {self.name: -grid.origin_ioffset[root] % self.factor}
 
@@ -1021,9 +1026,10 @@ class ConditionalDimension(DerivedDimension):
         lowering for example combining Function's ConditionalDimension with
         an Equation's implicit_dim. All Dimensions within an equation
         must have `Or` relation for the final combined condition to be Or.
-    offset : SubsamplingOffset, optional, default=0
+    offset : SubsamplingOffset, optional
         The intercept of the map onto the parent Dimension, that is
-        ``parent = factor*self + offset``.
+        ``parent = factor*self + offset``. Defaults to a SubsamplingOffset when
+        subsampling a space Dimension, and to 0 otherwise.
 
     Examples
     --------
@@ -1121,7 +1127,7 @@ class ConditionalDimension(DerivedDimension):
         ('factor', 'condition', 'indirect', 'relation', 'offset')
 
     def __init_finalize__(self, name, parent=None, factor=None, condition=None,
-                          indirect=False, relation=sympy.And, offset=0, **kwargs):
+                          indirect=False, relation=sympy.And, offset=None, **kwargs):
         # `parent=None` degenerates to a ConditionalDimension outside of
         # any iteration space
         if parent is None:
@@ -1140,10 +1146,19 @@ class ConditionalDimension(DerivedDimension):
         else:
             raise ValueError("factor must be an integer")
 
-        self._offset = offset
+        self._offset = self.__offset_setup__(offset)
         self._condition = condition
         self._indirect = indirect
         self._relation = relation
+
+    def __offset_setup__(self, offset=None):
+        if offset is not None:
+            return offset
+        # A space Dimension is subsampled on its global indices
+        if not self.is_Space or not is_integer(self._factor):
+            return 0
+        return SubsamplingOffset(name=f'{self.name}o', root=self.root,
+                                 factor=self._factor)
 
     @property
     def is_Injective(self):
@@ -1253,7 +1268,7 @@ class ConditionalDimension(DerivedDimension):
 
         return vals
 
-    def _arg_defaults(self, _min=None, size=None, alias=None):
+    def _arg_defaults(self, _min=None, size=None, alias=None, grid=None, **kwargs):
         defaults = super()._arg_defaults(_min=_min, size=size, alias=alias)
 
         # We can also add the parent's default endpoint. Note that exactly
@@ -1275,10 +1290,10 @@ class ConditionalDimension(DerivedDimension):
                     raise ValueError(f"Incompatible size for ConditionalDimension "
                                      f"{self.name}: {size} < {size0}")
             else:
-                # Given a factor the last time index is factor*(size - 1)
-                # The maximum allowed value is then factor*size - 1, plus at
-                # most factor - 1 for an offset
-                stop = d0 + factor*size + (factor - 1 if dim.offset else 0)
+                # Given a factor the last index is factor*(size - 1) + offset
+                # The maximum allowed value is then factor*size - 1 + offset
+                offset = dim.offset and dim.offset._arg_values(grid=grid)[dim.offset.name]
+                stop = d0 + factor*size + offset
                 defaults[dim.parent.max_name] = range(d0, stop)
 
         return defaults
