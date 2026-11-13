@@ -116,17 +116,19 @@ class AffinePlan:
             out[place] = buf.reshape(_extent(place, out.shape))
         return out
 
-    def put(self, local, value):
+    def put(self, local, value, root=None):
         """
         Assign `data[idx] = value`, each peer receiving only its own box.
 
-        Collective, and `value` must agree on every rank that holds one.
+        Collective. With `root` given, only that rank holds `value` and the
+        others ignore theirs; otherwise every rank pushes its own, which must
+        agree.
         """
-        rank = self.comm.Get_rank()
-        mine = self.peers.get(rank)
+        pushing = root is None or self.comm.Get_rank() == int(root)
+        mine = self.peers.get(self.comm.Get_rank())
 
         sendbufs = {}
-        if value is not None:
+        if pushing:
             value = np.broadcast_to(np.asarray(value, dtype=local.dtype),
                                     self.selection.result_shape)
             sendbufs = {r: np.ascontiguousarray(value[place]).reshape(-1)
@@ -134,8 +136,7 @@ class AffinePlan:
 
         recvd = sparse_exchange(self.comm, sendbufs, local.dtype, tag=46)
         if mine is not None and recvd:
-            # Whoever holds `value` sends every peer the same bytes, so the
-            # first answer is as good as any
+            # Every pusher sends the same bytes, so the first answer will do
             buf = next(iter(recvd.values()))
             local[mine[1]] = buf.reshape(_extent(mine[0],
                                                  self.selection.result_shape))
