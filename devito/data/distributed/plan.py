@@ -162,10 +162,19 @@ class ExchangePlan:
         A single 1-bit `Allreduce` gates the (rare) error path so that every
         rank raises together, avoiding a deadlock where one rank raises while the
         others enter the exchange. This is log-depth, not an all-to-all.
+
+        It is the buffer form rather than mpi4py's pickling one: the latter is a
+        point-to-point exchange of pickled objects underneath, which deadlocks
+        over a dynamically spawned communicator whose peers are still being
+        handed their task, and pickling a bool per rank buys nothing anyway.
         """
         error = self._oob_error or (self._dup_error if check_dup else None)
         if self.nprocs > 1:
-            if self.comm.allreduce(error is not None, op=MPI.LOR):
+            flag = np.array([error is not None], dtype=np.int8)
+            anyerr = np.zeros(1, dtype=np.int8)
+            self.comm.Allreduce([flag, MPI.INT8_T], [anyerr, MPI.INT8_T],
+                                op=MPI.MAX)
+            if anyerr[0]:
                 messages = self.comm.allgather(error)
                 joined = "; ".join(f"rank {r}: {m}"
                                    for r, m in enumerate(messages) if m)
@@ -185,7 +194,7 @@ class ExchangePlan:
 
     # ------------------------------------------------------------------- get
 
-    def get(self, local):
+    def get(self, local, root=None):
         """
         Return `data[idx]` as a NumPy array by pulling from the owner ranks.
 
@@ -193,19 +202,25 @@ class ExchangePlan:
         ----------
         local : numpy.ndarray
             The caller's rank-local array.
+        root : int, optional
+            The one rank that wants the result. The others take part in the
+            exchange -- they must, they are the owners -- but ask for nothing
+            and return `None`. Omit it and every rank gets the full result.
 
         Returns
         -------
         numpy.ndarray
-            The indexed result, in `selection.result_shape`.
+            The indexed result, in `selection.result_shape`, or `None` off
+            `root`.
         """
         self._raise_on_error(check_dup=False)
         comm, ps = self.comm, self.payload_size
         dtype = local.dtype
+        asking = root is None or comm.Get_rank() == int(root)
 
         # Send each owner the offsets of the elements we want from it...
         headers = {r: _encode(ps, self._block_offsets, dist_lin)
-                   for r, (_, dist_lin) in self._peers.items()}
+                   for r, (_, dist_lin) in self._peers.items()} if asking else {}
         requests = sparse_exchange(comm, headers, np.int64, tag=41)
 
         # ...and reply to whoever asked us with the requested values
@@ -216,6 +231,8 @@ class ExchangePlan:
             midx = self._owner_apply(moved, dist_lin, block_offsets)
             replies[src] = np.ascontiguousarray(moved[midx]).reshape(-1)
         payloads = sparse_exchange(comm, replies, dtype, tag=42)
+        if not asking:
+            return None
 
         # Scatter the received values back into result-row order
         rows_flat = np.zeros((self._nrows(), ps), dtype=dtype)
@@ -226,7 +243,7 @@ class ExchangePlan:
 
     # ------------------------------------------------------------------- put
 
-    def put(self, local, value):
+    def put(self, local, value, root=None):
         """
         Assign `data[idx] = value` by pushing to the owner ranks.
 
@@ -236,12 +253,19 @@ class ExchangePlan:
             The caller's rank-local array (written in place).
         value : array_like
             The value to assign, broadcast to `selection.result_shape`.
+        root : int, optional
+            The one rank that holds `value`. The others take part in the
+            exchange -- they must, they are the owners -- but push nothing, and
+            `value` is ignored there. Omit it and every rank pushes its own,
+            which must agree.
         """
         self._raise_on_error(check_dup=True)
-        rows_flat = self._value_to_rows(value, local.dtype)
+        pushing = root is None or self.comm.Get_rank() == int(root)
+        rows_flat = (self._value_to_rows(value, local.dtype) if pushing else
+                     np.zeros((0, self.payload_size), dtype=local.dtype))
         sparse_push(self.comm, self.layout.distributed_axes, self._repl_total,
-                    self._peers, self._block_offsets, self.payload_size,
-                    rows_flat, local)
+                    self._peers if pushing else {}, self._block_offsets,
+                    self.payload_size, rows_flat, local)
 
     # ------------------------------------------------------- result <-> rows
 
