@@ -728,7 +728,14 @@ class Mul(DifferentiableOp, sympy.Mul):
             if a.is_Rational:
                 r, b = b.as_coeff_Mul()
                 if r is sympy.S.One and type(b) is Add:
-                    return Add(*[_keep_coeff(a, bi) for bi in b.args], evaluate=False)
+                    terms = []
+                    for bi in b.args:
+                        term = _keep_coeff(a, bi)
+                        # `_keep_coeff` rebuilds products as plain SymPy `Mul`s
+                        if isinstance(bi, Differentiable) and type(term) is sympy.Mul:
+                            term = Mul._from_args(term.args)
+                        terms.append(term)
+                    return Add(*terms, evaluate=False)
         except (AttributeError, ValueError):
             pass
 

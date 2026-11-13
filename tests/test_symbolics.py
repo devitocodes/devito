@@ -4,6 +4,7 @@ import numpy as np
 import pytest
 import sympy
 from sympy import And, Expr, Number, Symbol, true
+from sympy.core.mul import _keep_coeff
 
 from devito import (  # noqa
     Abs, Conj, Constant, Dimension, Eq, Function, Ge, Grid, Gt, Imag, Le, Lt, Max, Min,
@@ -337,6 +338,25 @@ def test_extended_sympy_arithmetic():
     o = Object(name='o', dtype=c_void_p)
     bar = FieldFromPointer('bar', o)
     assert ccode(-1 + bar) == '-1 + o->bar'
+
+
+@pytest.mark.parametrize('term', ['f*g', 'Mul(f, s, 1/s, evaluate=False)',
+                                  'f.dx.evaluate'])
+def test_distributed_mul(term):
+    """
+    A Rational distributed over an Add keeps the Differentiable type of each
+    resulting product, and its arguments as they are
+    """
+    grid = Grid(shape=(4,))
+    f = Function(name='f', grid=grid, space_order=2)
+    g = Function(name='g', grid=grid)  # noqa
+    s = Symbol('s')  # noqa
+    term = eval(term)
+
+    expr = (term + 1)/2
+    distributed, = [i for i in expr.args if i.has(f)]
+    assert isinstance(distributed, Mul)
+    assert distributed.args == _keep_coeff(sympy.S.Half, term).args
 
 
 @pytest.mark.parametrize('cls, regular, separator', [
