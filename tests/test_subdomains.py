@@ -1793,29 +1793,79 @@ class TestSubDomainFunctionsParallel:
         assert np.all(i.data == i_check)
 
     @pytest.mark.parallel(mode=[(2, 'basic'), (2, 'diag'), (2, 'diag2')])
-    def test_halo_empty_neighbor_mpi(self, mode):
+    @pytest.mark.parametrize('time_dependent', [False, True])
+    def test_halo_empty_neighbor_mpi(self, mode, time_dependent):
         """
         Check that halo exchanges of Functions on SubDomains skip neighboring
         ranks holding none of the SubDomain, also alongside Grid Functions.
+        The time-dependent case exercises the halo exchanges built within the
+        time loop.
         """
         grid = Grid(shape=(11, 11), extent=(10., 10.), topology=(2, 1))
         # Only held by rank 0
         reduced_domain = ReducedDomain(('middle', 0, 7), None, grid=grid)
 
-        f = Function(name='f', grid=reduced_domain, space_order=2)
-        g = Function(name='g', grid=grid, space_order=2)
+        if time_dependent:
+            f = TimeFunction(name='f', grid=reduced_domain, space_order=2)
+            g = TimeFunction(name='g', grid=grid, space_order=2)
+        else:
+            f = Function(name='f', grid=reduced_domain, space_order=2)
+            g = Function(name='g', grid=grid, space_order=2)
         fx = Function(name='fx', grid=grid)
         gx = Function(name='gx', grid=grid)
 
         # Sentinel, as nothing should be exchanged into the halo of `f`
         f.data_with_halo[:] = -1
 
-        Operator([Eq(f, 1), Eq(g, 1),
-                  Eq(fx, f.dx, subdomain=reduced_domain), Eq(gx, g.dx)]).apply()
+        if time_dependent:
+            eqns = [Eq(f.forward, 1), Eq(g.forward, 1),
+                    Eq(fx, f.forward.dx, subdomain=reduced_domain),
+                    Eq(gx, g.forward.dx)]
+            # Two timesteps, so that both time buffers are written
+            Operator(eqns).apply(time_M=1)
+        else:
+            Operator([Eq(f, 1), Eq(g, 1),
+                      Eq(fx, f.dx, subdomain=reduced_domain), Eq(gx, g.dx)]).apply()
 
         assert (np.count_nonzero(f.data_with_halo == -1) ==
                 f.data_with_halo.size - f.data.size)
         assert np.all(gx.data[1:-1] == 0)
+
+    @pytest.mark.parallel(mode=[
+        (2, 'basic'), (2, 'diag'), (2, 'diag2'),
+        # The overlap builders (overlap, overlap2, full) key the CORE/OWNED
+        # regions on the user-level SubDimensions of `u` rather than the
+        # concretized ones in the IET, and override the SubDomain thickness
+        # symbols, which double as index offsets into `u`. Compilation fails
+        # with `ValueError: x_m + x_ltkn is not in list`; fixed separately
+        pytest.param((2, 'full'), marks=pytest.mark.xfail(
+            reason="comp/comm overlap broken for Functions on SubDomains"
+        ))
+    ])
+    def test_halo_empty_neighbor_timeloop_mpi(self, mode):
+        """
+        As `test_halo_empty_neighbor_mpi`, but with the halo exchange within the
+        time loop, hence overlappable, such that the diag2 and full modes are
+        used rather than falling back to basic.
+        """
+        grid = Grid(shape=(11, 11), extent=(10., 10.), topology=(2, 1))
+        # Only held by rank 0
+        reduced_domain = ReducedDomain(('middle', 0, 7), None, grid=grid)
+
+        u = TimeFunction(name='u', grid=reduced_domain, space_order=2)
+        v = TimeFunction(name='v', grid=grid, space_order=2)
+
+        # Sentinel, as nothing should be exchanged into the halo of `u`
+        u.data_with_halo[:] = -1
+
+        Operator([Eq(u.forward, u.dx + 1, subdomain=reduced_domain),
+                  Eq(v.forward, v.dx + 1)]).apply(time_M=1)
+
+        # Rank-local view, as distributed Data rejects boolean masks
+        data = np.asarray(u.data_with_halo)
+        halo = np.ones(data.shape, dtype=bool)
+        halo[u._mask_domain] = False
+        assert np.all(data[halo] == -1)
 
     def set_indices(data):
         """

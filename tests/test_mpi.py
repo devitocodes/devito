@@ -3392,6 +3392,48 @@ class TestOperatorAdvanced:
 
         assert abs(norm(u) - norm(u2)) < 1.e-3
 
+    @pytest.mark.parallel(mode=[(2, 'diag2'), (2, 'overlap2'), (2, 'full')])
+    def test_op_new_dist_buffered(self, mode):
+        """
+        Like `test_op_new_dist`, but the halo exchange is performed on a
+        compiler-generated buffer. Unlike user Functions, the buffer cannot be
+        overridden at apply time, so it remains attached to the Grid the Operator
+        was built with; the halo exchange must nonetheless use the neighbors
+        of the Grid provided at apply time.
+        """
+        nt = 10
+        grid0 = Grid(shape=(10, 10), comm=MPI.COMM_SELF)
+        grid1 = Grid(shape=(10, 10), comm=MPI.COMM_WORLD)
+        x, y = grid0.dimensions
+        time = grid0.time_dim
+
+        usave0 = TimeFunction(name='usave', grid=grid0, save=nt, space_order=1,
+                              dtype=np.int32)
+        g0 = Function(name='g', grid=grid0, dtype=np.int32)
+
+        usave1 = TimeFunction(name='usave', grid=grid1, save=nt, space_order=1,
+                              dtype=np.int32)
+        g1 = Function(name='g', grid=grid1, dtype=np.int32)
+
+        # `usave` is written by the Operator itself, so the halo of the buffer
+        # can only be populated by the halo exchange
+        eqns = [Eq(usave0, time),
+                Eq(g0, g0 + usave0[time, x-1, y] + usave0 + usave0[time, x+1, y])]
+        op = Operator(eqns, opt='buffering')
+
+        # The exchanged `usave` reads are on a buffer, not on `usave` itself
+        buffers = [i for i in FindSymbols().visit(op) if i.is_Array and i._mem_mapped]
+        assert len(buffers) == 1
+
+        op.apply(usave=usave1, g=g1, time_m=1, time_M=nt-2)
+
+        # Interior rows read 3*t at each t=1..8, i.e. 3*36; the outermost rows
+        # read the zero halo on one side, i.e. 2*36. A skipped exchange at the
+        # rank boundary would make the rows next to it 2*36 as well
+        assert np.all(g1.data[1:-1] == 108)
+        assert np.all(g1.data[0] == 72)
+        assert np.all(g1.data[-1] == 72)
+
     @pytest.mark.parallel(mode=[(4, 'full')])
     def test_misc_subdims(self, mode):
         """
