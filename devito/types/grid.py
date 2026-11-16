@@ -947,7 +947,10 @@ class SubDomain(AbstractSubDomain):
         """
         1 if the point `offset` points away from the current one along `dim` lies
         in this SubDomain, 0 otherwise, computed without branching. Always 1 if
-        this SubDomain spans all of `dim`.
+        this SubDomain spans all of `dim`. With domain decomposition, the test
+        is against the global bounds, which may lie beyond this rank. A bound on
+        an edge of the Grid is not tested, so that the halo past it is read as
+        it would be without this SubDomain, e.g. as written by a mirror.
 
         Parameters
         ----------
@@ -960,8 +963,24 @@ class SubDomain(AbstractSubDomain):
         if not maybe_subdim.is_Sub:
             return sympy.S.One
         point = dim + offset
-        return (Max(0, Min(1, point - maybe_subdim.symbolic_min + 1)) *
-                Max(0, Min(1, maybe_subdim.symbolic_max - point + 1)))
+        lower, upper = maybe_subdim._glb_interval
+
+        # The points between this SubDomain and each Grid edge
+        n = self.grid.shape[self.grid.dimensions.index(dim)]
+        lgap, rgap = (i.value for i in maybe_subdim.thickness)
+        if maybe_subdim.is_left:
+            lgap, rgap = 0, n - lgap
+        elif maybe_subdim.is_right:
+            lgap, rgap = n - rgap, 0
+        # Both bounds of an empty SubDomain are tested, so no point is in it
+        empty = lgap + rgap >= n
+
+        indicator = sympy.S.One
+        if lgap > 0 or empty:
+            indicator *= Max(0, Min(1, point - lower + 1))
+        if rgap > 0 or empty:
+            indicator *= Max(0, Min(1, upper - point + 1))
+        return indicator
 
     def _restrict(self, expr, exclude=()):
         """
