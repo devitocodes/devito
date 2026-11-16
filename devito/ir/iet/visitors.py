@@ -18,7 +18,7 @@ from sympy.core.function import Application
 from devito.exceptions import CompilationError
 from devito.ir.cgen.printer import get_printer
 from devito.ir.iet.nodes import (
-    BlankLine, Call, Definition, Expression, ExpressionBundle, Iteration, Lambda,
+    BlankLine, Call, Definition, DoIf, Expression, ExpressionBundle, Iteration, Lambda,
     ListMajor, Node, Section, _same_as_before
 )
 from devito.ir.support.space import Backward
@@ -1252,6 +1252,11 @@ class FindApplications(LazyVisitor[ApplicationType, set[ApplicationType], None])
 
     def visit_Expression(self, o: Expression, **kwargs) -> Iterator[ApplicationType]:
         yield from o.expr.find(self.match)
+
+    def visit_DoIf(self, o: DoIf, **kwargs) -> Iterator[ApplicationType]:
+        yield from self._visit(o.children)
+        with suppress(AttributeError):
+            yield from o.condition.find(self.match)
 
     def visit_Iteration(self, o: Iteration, **kwargs) -> Iterator[ApplicationType]:
         yield from self._visit(o.children)

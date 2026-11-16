@@ -1,4 +1,5 @@
 from ctypes import c_uint64, c_void_p
+import pickle
 
 import numpy as np
 import pytest
@@ -31,6 +32,28 @@ from devito.types import (
 from devito.types import Symbol as dSymbol
 from devito.types import Temp
 from devito.types.basic import AbstractSymbol
+
+
+def test_guard_expr_dependencies():
+    y = Dimension(name='y')
+    thickness = dSymbol(name='thickness')
+    predicate = And(y >= y.symbolic_min + thickness, y <= y.symbolic_max)
+    flag = GuardExpr('is_writer', initvalue=predicate)
+
+    assert flag.free_symbols == {y, y.symbolic_min, y.symbolic_max, thickness}
+    assert flag.func(*flag.args) == flag
+    restored = pickle.loads(pickle.dumps(flag))
+    assert restored.name == flag.name
+    assert str(restored.initvalue) == str(predicate)
+    assert {str(i) for i in restored.free_symbols} == {'y', 'y_m', 'y_M', 'thickness'}
+
+    mapper = {y: y + 1, thickness: 0}
+    expected = predicate.xreplace(mapper)
+    for rebuilt in (flag.xreplace(mapper), flag.subs(mapper), uxreplace(flag, mapper)):
+        assert rebuilt.name == flag.name
+        assert rebuilt.initvalue == expected
+        assert thickness not in rebuilt.free_symbols
+    assert flag.initvalue == predicate
 
 
 def test_float_indices():
