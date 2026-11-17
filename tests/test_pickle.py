@@ -170,9 +170,11 @@ class TestBasic:
     @pytest.mark.parametrize('interp,r', [('linear', 1), ('sinc', 3), ('sinc', 4)])
     def test_sparse_function(self, pickle, interp, r):
         grid = Grid(shape=(3,))
+
         sf = SparseFunction(name='sf', grid=grid, npoint=3, space_order=2,
                             coordinates=[(0.,), (1.,), (2.,)],
                             interpolation=interp, r=r)
+
         sf.data[0] = 1.
 
         pkl_sf = pickle.dumps(sf)

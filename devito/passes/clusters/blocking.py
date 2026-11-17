@@ -182,9 +182,11 @@ class AnalyzeDeviceAwareBlocking(AnalyzeBlocking):
         else:
             ispace = cluster.ispace
             dims = set(cluster.ispace.itdims) - {d}
+
         large = {i for i in dims if cluster.properties.is_parallel_relaxed(i)
                  and not self._has_short_trip_count(i)}
         blocked = {i for i in dims if cluster.properties.is_blockable(i)}
+
         return len(large | blocked) >= 3
 
     def callback(self, clusters, prefix):

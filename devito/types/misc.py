@@ -215,10 +215,12 @@ class Pointer(LocalObject, sympy.Expr):
         args, kwargs = self.__getnewargs_ex__()
         dtype = kwargs.pop('dtype')
         depth = 0
+
         # ctypes generates pointer classes dynamically; pickle their base type
         while isinstance(dtype, type) and issubclass(dtype, _Pointer):
             dtype = dtype._type_
             depth += 1
+
         return (self._unpickle, (type(self), args, kwargs, dtype, depth))
 
     @staticmethod

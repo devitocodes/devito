@@ -1113,7 +1113,9 @@ class LocalSum(IndexSum, Pickable):
         return self._rebuild(*self._evaluate_args(**kwargs))
 
     def _xreplace(self, rule):
+        # Avoid the differentiable/symbolics import cycle
         from devito.symbolics.manipulation import _uxreplace
+
         return _uxreplace(self, rule)
 
     __reduce_ex__ = Pickable.__reduce_ex__

@@ -397,6 +397,7 @@ class TestBlockingParTile:
 
         iters = FindNodes(Iteration).visit(op1)
         steps = tuple(i.step for i in iters if i.dim.is_Block and i.dim._depth == 1)
+
         assert steps == tuple(reversed(tile))
 
         src.coordinates.data[:] = (12.25, 12.5, 12.75)

@@ -35,9 +35,11 @@ class TestLocalSum:
     @pytest.mark.parametrize('interpolation,r', [('linear', 1), ('sinc', 4)])
     def test_symbolic(self, interpolation, r):
         grid = Grid(shape=(17, 19))
+
         f = Function(name='f', grid=grid, space_order=8)
         rcv = SparseFunction(name='rcv', grid=grid, npoint=3,
                              interpolation=interpolation, r=r)
+
         expr = rcv.interpolate(f).evaluate[-1]
         reduction = expr.rhs
 
