@@ -2667,6 +2667,39 @@ class TestCodeGeneration:
 
         op.apply(time_M=3)
 
+    @pytest.mark.parametrize('overwrite', [False, True])
+    @pytest.mark.parallel(mode=[(2, 'basic'), (2, 'overlap2')])
+    def test_hoisting_after_overwrite(self, overwrite, mode):
+        """A late overwrite invalidates an earlier exchange for the next step."""
+        class Boundary(SubDomain):
+            name = 'boundary'
+
+            def define(self, dimensions):
+                x, y = dimensions
+                return {x: x, y: ('left', 1)}
+
+        grid = Grid(shape=(16, 16), extent=(15., 15.), topology=(2, 1))
+        boundary = Boundary(grid=grid)
+
+        u = TimeFunction(name='u', grid=grid, space_order=2)
+        rec = SparseTimeFunction(name='rec', grid=grid, nt=4, npoint=1)
+
+        np.asarray(rec.coordinates.data)[:] = (7.5, 0.)
+
+        eqs = [Eq(u.forward, u + u.dx + 1), rec.interpolate(expr=u.forward)]
+        if overwrite:
+            eqs.append(Eq(u.forward, 0, subdomain=boundary))
+
+        op = Operator(eqs, name='BoundaryOverwrite')
+
+        op.apply(time_M=3)
+
+        expected = np.ones((4, 1)) if overwrite else np.arange(1, 5)[:, None]
+        assert np.allclose(np.asarray(rec.data), expected)
+
+        calls = FindNodes(HaloUpdateCall).visit(get_time_loop(op))
+        assert len(calls) == (2 if overwrite else 1)
+
 
 class TestOperatorAdvanced:
 
