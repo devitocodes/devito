@@ -8,7 +8,7 @@ from conftest import assert_structure, opts_tiling
 from devito import (
     Border, Buffer, ConditionalDimension, Constant, Derivative, Eq, Function, Grid, Lt,
     Operator, SparseFunction, SparseTimeFunction, SubDimension, SubDomain, SubDomainSet,
-    TensorFunction, TimeFunction, VectorFunction, solve
+    TensorFunction, TimeFunction, VectorFunction, solve, switchconfig
 )
 from devito.exceptions import InvalidArgument
 from devito.ir import (
@@ -2437,3 +2437,44 @@ class TestSubDomainArguments:
                 assert np.all(g.data[:8] == 1)
                 assert np.all(g.data[8:-8] == 0)
                 assert np.all(g.data[-8:] == 2)
+
+    @pytest.mark.parallel(mode=[(2, 'overlap2')])
+    def test_region_arguments(self, mode):
+        """Packed regions preserve localized thicknesses and their validation."""
+        class CoreY(SubDomain):
+            name = 'core_y'
+
+            def define(self, dimensions):
+                x, y = dimensions
+                return {x: x, y: ('middle', 2, 3)}
+
+        grid = Grid(shape=(32, 64), extent=(31., 63.), topology=(1, 2))
+        region = CoreY(grid=grid)
+
+        u = TimeFunction(name='u', grid=grid, space_order=4)
+        v = TimeFunction(name='v', grid=grid, space_order=4)
+
+        eq0 = Eq(v.forward, v + .01*v.laplace + .125, subdomain=region)
+        eq1 = Eq(u.forward, u + .01*u.laplace + .125, subdomain=region)
+
+        with switchconfig(mpi='basic'):
+            reference = Operator(eq0, name='SubDomainRegionReference')
+        op = Operator(eq1, name='SubDomainRegionArguments',
+                      opt=('advanced', {'blockinner': True}))
+
+        compute = op._func_table['compute0'].root
+        assert compute.region.fields == ['y_m', 'y_M', 'y_ltkn0', 'y_rtkn0']
+
+        for bounds in ({}, {'x_m': 2, 'x_M': 29}):
+            for f in (u, v):
+                f.data_with_halo.fill(0)
+
+            reference.apply(time_M=3, **bounds)
+            op.apply(time_M=3, **bounds)
+
+            np.testing.assert_allclose(np.asarray(u.data), np.asarray(v.data),
+                                       rtol=1.e-6, atol=1.e-7)
+
+        for candidate in (reference, op):
+            with pytest.raises(InvalidArgument, match='Cannot override SubDimension'):
+                candidate.arguments(y_ltkn0=4)

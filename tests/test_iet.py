@@ -39,7 +39,7 @@ def test_guard_expr_parameters():
     flag = GuardExpr('is_writer', initvalue=y >= y.symbolic_min + thickness)
     body = Iteration(Conditional(flag, List()), y, (y.symbolic_min, y.symbolic_max, 1))
 
-    efunc = make_efunc('compute', body, dynamic_parameters=(y, thickness))
+    efunc = make_efunc('compute', body)
     assert set(efunc.parameters) == {y.symbolic_min, y.symbolic_max, thickness}
     assert FindApplications(GuardExpr).visit(efunc) == {flag}
     assert FindApplications(GuardExpr).visit(Conditional(True, body)) == {flag}

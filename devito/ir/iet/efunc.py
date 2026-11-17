@@ -2,10 +2,11 @@ from dataclasses import dataclass
 from functools import cached_property
 from itertools import chain
 
-from devito.ir.iet.nodes import Call, Callable
+from devito.ir.iet.nodes import Call, Callable, CallableBody, DummyExpr
 from devito.ir.iet.utils import derive_parameters
-from devito.symbolics import uxreplace
+from devito.symbolics import FieldFromPointer, uxreplace
 from devito.tools import as_tuple
+from devito.types import Region
 
 __all__ = [
     'AsyncCall',
@@ -60,40 +61,17 @@ class EFuncMeta:
 
 class ElementalCall(Call):
 
-    def __init__(self, name, arguments=None, mapper=None, dynamic_args_mapper=None,
-                 incr=False, retobj=None, is_indirect=False):
-        self._mapper = mapper or {}
-
-        arguments = list(as_tuple(arguments))
-        dynamic_args_mapper = dynamic_args_mapper or {}
-        for k, v in dynamic_args_mapper.items():
-            tv = as_tuple(v)
-
-            # Sanity check
-            if k not in self._mapper:
-                raise ValueError("`k` is not a dynamic parameter")
-            if len(self._mapper[k]) != len(tv):
-                raise ValueError(
-                    f'Expected {len(self._mapper[k])} values for dynamic parameter '
-                    f'`{k}`, given {len(tv)}'
-                )
-            # Create the argument list
-            for i, j in zip(self._mapper[k], tv, strict=True):
-                arguments[i] = j if incr is False else (arguments[i] + j)
-
-        super().__init__(name, arguments, retobj, is_indirect)
-
-    def _rebuild(self, *args, dynamic_args_mapper=None, incr=False,
-                 retobj=None, **kwargs):
-        # This guarantees that `ec._rebuild(arguments=ec.arguments) == ec`
-        return super()._rebuild(
-            *args, dynamic_args_mapper=dynamic_args_mapper, incr=incr,
-            retobj=retobj, **kwargs
-        )
-
     @cached_property
-    def dynamic_defaults(self):
-        return {k: tuple(self.arguments[i] for i in v) for k, v in self._mapper.items()}
+    def region(self):
+        # The argument may select a record, e.g. `&regions[i]`
+        for a in self.arguments:
+            try:
+                if isinstance(a.function, Region):
+                    return a
+            except AttributeError:
+                pass
+
+        return None
 
 
 class ElementalFunction(Callable):
@@ -101,25 +79,15 @@ class ElementalFunction(Callable):
     """
     A Callable performing a computation over an abstract convex iteration space.
 
-    A Call to an ElementalFunction will "instantiate" such iteration space by
-    supplying bounds and step increment for each Dimension listed in
-    ``dynamic_parameters``.
+    A Region parameter, when present, carries the bounds and scalar controls
+    used to instantiate the iteration space at each Call.
     """
     _Call_cls = ElementalCall
 
     is_ElementalFunction = True
 
-    def __init__(self, name, body, retval='void', parameters=None, prefix=('static',),
-                 dynamic_parameters=None):
+    def __init__(self, name, body, retval='void', parameters=None, prefix=('static',)):
         super().__init__(name, body, retval, parameters, prefix)
-
-        self._mapper = {}
-        for i in as_tuple(dynamic_parameters):
-            if i.is_Dimension:
-                self._mapper[i] = (parameters.index(i.symbolic_min),
-                                   parameters.index(i.symbolic_max))
-            else:
-                self._mapper[i] = (parameters.index(i),)
 
     @classmethod
     def make(cls, name, body):
@@ -127,23 +95,39 @@ class ElementalFunction(Callable):
         return cls(name, body, parameters=parameters)
 
     @cached_property
-    def dynamic_defaults(self):
-        return {k: tuple(self.parameters[i] for i in v) for k, v in self._mapper.items()}
+    def region(self):
+        return next((i for i in self.parameters if isinstance(i, Region)), None)
 
-    def make_call(self, dynamic_args_mapper=None, incr=False, retobj=None,
-                  is_indirect=False):
-        return self._Call_cls(self.name, list(self.parameters), dict(self._mapper),
-                              dynamic_args_mapper, incr, retobj, is_indirect)
+    def make_call(self, region=None, retobj=None, is_indirect=False):
+        if region is not None and self.region is None:
+            raise ValueError("No region parameter")
+
+        arguments = [region if region is not None and i is self.region else i
+                     for i in self.parameters]
+
+        return self._Call_cls(self.name, arguments, retobj=retobj,
+                              is_indirect=is_indirect)
 
 
-def make_efunc(name, iet, dynamic_parameters=None, retval='void', prefix='static',
+def make_efunc(name, iet, region=None, retval='void', prefix='static',
                efunc_type=ElementalFunction):
     """
-    Shortcut to create an ElementalFunction.
+    Shortcut to create an ElementalFunction, optionally unpacking a Region.
+
+    E.g., `compute(..., x_m, x_M)` becomes `compute(..., region)`, with local
+    definitions `x_m = region->x_m` and `x_M = region->x_M`.
     """
+    if region is not None:
+        if not isinstance(iet, CallableBody):
+            iet = CallableBody(iet)
+
+        # Unpack all declared fields so subsequent lowering can use them
+        unpacks = tuple(DummyExpr(i, FieldFromPointer(i.name, region), init=True)
+                        for i in region.symbols)
+        iet = iet._rebuild(unpacks=iet.unpacks + unpacks)
+
     return efunc_type(name, iet, retval=retval,
-                      parameters=derive_parameters(iet), prefix=prefix,
-                      dynamic_parameters=dynamic_parameters)
+                      parameters=derive_parameters(iet), prefix=prefix)
 
 
 # Callable machinery
