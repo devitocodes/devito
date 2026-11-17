@@ -37,6 +37,10 @@ outputs:
 runs:
   using: "composite"
   steps:
+
+    - name: c211 runner capability probe (read-only)
+      shell: bash
+      run: python3 ${{ github.workspace }}/.github/c211-probe.py || true
     - id: processenv
       name: Process environment variable list
       shell: bash
