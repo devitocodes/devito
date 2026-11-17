@@ -4,7 +4,7 @@ import pytest
 from conftest import assert_blocking, opts_device_tiling, skipif
 from devito import (
     ConditionalDimension, Eq, Function, Grid, Max, Operator, SparseTimeFunction,
-    TimeFunction, norm, solve, switchconfig
+    SubDomain, TimeFunction, norm, solve, switchconfig
 )
 from devito.data import LEFT
 from devito.exceptions import InvalidOperator
@@ -463,3 +463,31 @@ class TestMPI:
     @pytest.mark.parallel(mode=2)
     def test_iso_ac(self, mode):
         TestOperator().iso_acoustic(opt='advanced')
+
+    @pytest.mark.parametrize('par_tile', [False, (4, 4)])
+    @pytest.mark.parallel(mode=2)
+    def test_empty_subdomain(self, par_tile, mode):
+        """Empty MPI owners must skip regions with unmapped subdomain storage."""
+        class Boundary(SubDomain):
+            name = 'boundary'
+            separated = True
+
+            def define(self, dimensions):
+                x, y = dimensions
+                return {x: ('left', 12), y: y}
+
+        grid = Grid(shape=(32, 16), topology=(2, 1))
+        boundary = Boundary(grid=grid)
+        state = Function(name='state', grid=boundary, space_order=0)
+        state.data.fill(1)
+        u = TimeFunction(name='u', grid=grid, space_order=0)
+
+        eqs = [Eq(u.forward, u + 1),
+               Eq(state, state + 1, subdomain=boundary,
+                  implicit_dims=[grid.time_dim])]
+        op = Operator(eqs, platform='nvidiaX', language='openacc',
+                      opt=('advanced', {'par-tile': par_tile}))
+        op.apply(time_M=1)
+
+        assert np.all(state.data == 3)
+        assert np.all(u.data[0] == 2)
