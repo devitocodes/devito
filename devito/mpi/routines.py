@@ -1,5 +1,6 @@
 import abc
 from collections import OrderedDict
+from contextlib import suppress
 from ctypes import POINTER, c_int, c_void_p, sizeof
 from functools import reduce
 from itertools import product
@@ -1381,10 +1382,8 @@ class MPIRegion(Region):
         for entry, mapper in zip(self.value, self.regions, strict=True):
             data = flatten(mapper[a] for a in self.arguments)
             for symbol, value in zip(self.symbols, data, strict=True):
-                try:
+                with suppress(AttributeError):
                     value = subs_op_args(value, args)
-                except AttributeError:
-                    pass
                 setattr(entry, symbol.name, value)
 
         return values

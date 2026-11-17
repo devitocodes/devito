@@ -1039,7 +1039,7 @@ class TestOperator:
         obj = Region('region', 'region_t', (x, scale))
         new_obj = pickle.loads(pickle.dumps(obj))
         assert new_obj.pfields == (('scale', ctypes.c_double),
-                                  ('x_m', ctypes.c_int), ('x_M', ctypes.c_int))
+                                   ('x_m', ctypes.c_int), ('x_M', ctypes.c_int))
         assert new_obj.arguments[1].symbolic_min is new_obj.symbols[1]
         assert new_obj.arguments[1].symbolic_max is new_obj.symbols[2]
 

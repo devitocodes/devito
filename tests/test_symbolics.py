@@ -1,5 +1,5 @@
-from ctypes import c_uint64, c_void_p
 import pickle
+from ctypes import c_uint64, c_void_p
 
 import numpy as np
 import pytest

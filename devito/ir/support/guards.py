@@ -459,6 +459,7 @@ class GuardExpr(BooleanFunction, Pickable):
         GuardExpr._handle_boolean(self.initvalue, mapper)
         return frozendict(mapper)
 
+
 # *** Utils
 
 op_mapper = {
