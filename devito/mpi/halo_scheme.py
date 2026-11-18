@@ -92,6 +92,14 @@ Halo = namedtuple('Halo', 'dim side')
 OMapper = namedtuple('OMapper', 'core owned')
 
 
+class HasNeighbor(sympy.Function):
+    """One if the rank can receive across this Grid bound, zero otherwise."""
+
+    nargs = 1
+    is_integer = True
+    is_nonnegative = True
+
+
 class HaloScheme:
 
     """
@@ -280,7 +288,7 @@ class HaloScheme:
         In this example, the "cumulative" OWNED size is (left=4, right=4), that is
         the max on each DataSide across all Functions, namely ``u`` and ``v``.
 
-        The ``omapper`` will contain the following entries:
+        For a rank with neighbors on both sides, the bounds are:
 
             [(((d, CORE, CENTER),), {d: (d_m + 4, d_M - 4)}),
              (((d, OWNED, LEFT),), {d: (d_m, min(d_m + 3, d_M))}),
@@ -365,9 +373,9 @@ class HaloScheme:
 
         Notes
         -----
-        For each Function, the '^' and 'o' are exactly the same on *all MPI
-        ranks*, so the output of this method is guaranteed to be consistent
-        across *all MPI ranks*.
+        Every rank uses the same region expressions. A face with a receive
+        neighbor reserves its OWNED strip. At a physical boundary the CORE
+        extends to the edge of the local domain.
         """
         items = [((d, CENTER), (d, LEFT), (d, RIGHT))
                  for d in filter_sorted(self.dimensions)]
@@ -378,6 +386,8 @@ class HaloScheme:
             mapper = {}
             for d, s in item:
                 osl, osr = self.owned_size[d]
+                osl *= HasNeighbor(d.root.symbolic_min)
+                osr *= HasNeighbor(d.root.symbolic_max)
 
                 # Handle SubDomain/SubDimensions to-honor offsets
                 nl = Max(0, *[i for i, _ in self.honored.get(d, [])])
@@ -437,7 +447,10 @@ class HaloScheme:
                 except KeyError:
                     continue
 
-                aligned_m = IntDiv(m, self._alignment) * self._alignment
+                # Preserve empty regions when rounding down a start index
+                aligned_m = sympy.Piecewise(
+                    (IntDiv(m, self._alignment) * self._alignment, m <= M), (m, True)
+                )
 
                 processed[i] = (where, frozendict({**mapper, fvd: (aligned_m, M)}))
 

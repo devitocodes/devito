@@ -16,6 +16,7 @@ from devito.ir.iet import (
     Return, Transformer, Uxreplace, make_efunc
 )
 from devito.mpi import MPI
+from devito.mpi.halo_scheme import HasNeighbor
 from devito.symbolics import (
     Byref, CondNe, FieldFromComposite, FieldFromPointer, IndexedPointer, Macro, cast,
     subs_op_args
@@ -1342,7 +1343,7 @@ class MPIMsgEnriched(MPIMsg):
 class MPIRegion(Region):
 
     """
-    Runtime records for the CORE, followed by the OWNED regions.
+    Runtime records for the CORE, followed by nonempty then empty OWNED regions.
     """
 
     __rargs__ = ('name', 'pname', 'arguments', 'regions')
@@ -1358,8 +1359,29 @@ class MPIRegion(Region):
     def nregions(self):
         return len(self.regions)
 
+    @staticmethod
+    def _resolve_peers(args):
+        """
+        Bind HasNeighbor to the neighbors of the runtime Grid.
+        """
+        grid = getattr(args, 'grid', None)
+        if grid is None:
+            return {}
+
+        distributor = grid.distributor
+        neighborhood = distributor._obj_neighborhood.neighborhood
+
+        peers = {}
+        for d in distributor.dimensions:
+            left, right = neighborhood[d][LEFT], neighborhood[d][RIGHT]
+            peers[HasNeighbor(d.root.symbolic_min)] = int(left != MPI.PROC_NULL)
+            peers[HasNeighbor(d.root.symbolic_max)] = int(right != MPI.PROC_NULL)
+
+        return peers
+
     def _arg_values(self, args=None, **kwargs):
         values = self._arg_defaults()
+        peers = self._resolve_peers(args)
 
         # Scalar controls still need runtime localization, e.g. SubDomain thicknesses
         for a in self.arguments:
@@ -1367,13 +1389,25 @@ class MPIRegion(Region):
                 values.update(a._arg_values(args=args, **kwargs))
         args = {**args, **values}
 
-        for entry, mapper in zip(self.value, self.regions, strict=True):
+        dimensions = [a for a in self.arguments if a.is_Dimension]
+        records, empty_owned = [], []
+        for mapper in self.regions:
+            fields = {}
             data = flatten(mapper[a] for a in self.arguments)
             for symbol, value in zip(self.symbols, data, strict=True):
                 with suppress(AttributeError):
-                    value = subs_op_args(value, args)
-                setattr(entry, symbol.name, value)
+                    value = subs_op_args(value.xreplace(peers), args)
+                fields[symbol] = value
 
+            # Keep the first record (CORE) in place even when its bounds are empty
+            row = tuple(fields.values())
+            if records and any(fields[d.symbolic_min] > fields[d.symbolic_max]
+                               for d in dimensions):
+                empty_owned.append(row)
+            else:
+                records.append(row)
+
+        self.value[:] = records + empty_owned
         return values
 
     def _arg_check(self, args, *_args, **kwargs):
