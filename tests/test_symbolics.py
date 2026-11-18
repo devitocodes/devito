@@ -4,7 +4,7 @@ from ctypes import c_uint64, c_void_p
 import numpy as np
 import pytest
 import sympy
-from sympy import And, Expr, Number, Symbol, true
+from sympy import And, Expr, Implies, Number, Symbol, true
 from sympy.core.mul import _keep_coeff
 
 from devito import (  # noqa
@@ -16,6 +16,9 @@ from devito.finite_differences.differentiable import Mul, SafeInv, Weights
 from devito.ir import Expression, FindNodes, ccode
 from devito.ir.support.guards import GuardExpr, pairwise_or, simplify_and
 from devito.mpi.halo_scheme import HaloTouch
+from devito.passes.iet.languages.C import CPrinter
+from devito.passes.iet.languages.CXX import CXXPrinter
+from devito.passes.iet.languages.openacc import AccPrinter
 from devito.symbolics import (  # noqa
     INT, BaseCast, CallFromComposite, CallFromPointer, Cast, DefFunction,
     FieldFromComposite, FieldFromPointer, IntDiv, ListInitializer, Namespace,
@@ -54,6 +57,16 @@ def test_guard_expr_dependencies():
         assert rebuilt.initvalue == expected
         assert thickness not in rebuilt.free_symbols
     assert flag.initvalue == predicate
+
+
+@pytest.mark.parametrize('printer', [CPrinter, CXXPrinter, AccPrinter])
+@pytest.mark.parametrize('cls,expected', [(And, 'value > 0 && value < 10'),
+                                          (Implies, 'value <= 0 || value < 10')])
+def test_guard_expr_printing(printer, cls, expected):
+    value = dSymbol(name='value')
+    flag = GuardExpr('is_writer', initvalue=cls(value > 0, value < 10))
+
+    assert ccode(flag, printer=printer) == f'is_writer({expected})'
 
 
 def test_float_indices():

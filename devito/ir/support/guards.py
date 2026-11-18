@@ -429,9 +429,6 @@ class GuardExpr(BooleanFunction, Pickable):
     def _sympystr(self, printer):
         return f'{self.name}({printer.doprint(self.initvalue)})'
 
-    _ccode = _sympystr
-    _cxxcode = _sympystr
-
     func = Pickable._rebuild
     __reduce_ex__ = Pickable.__reduce_ex__
 
