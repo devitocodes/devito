@@ -806,6 +806,12 @@ def _normalize_reductions_dense(cluster, mapper, sregistry, platform):
         if e.is_Reduction:
             lhs, rhs = e.args
 
+            # The destination must be scalar across parallel iterations
+            if any(d._defines & lhs.free_symbols for d in cluster.ispace.itdims
+                   if cluster.properties.is_parallel_relaxed(d)):
+                processed.append(e)
+                continue
+
             wf = lhs.function
             try:
                 rf = rhs.function
