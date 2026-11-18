@@ -1217,12 +1217,12 @@ class MPIMsg(CompositeObject):
             assert args is not None
             return int(subs_op_args(v, args))
 
-    def _arg_defaults(self, alias, args=None):
+    def _arg_defaults(self, payload, args=None):
         # `allocator` is lazily initialized as it is not known until an Operator
         # is constructed
         self._allocator = allocator = args.allocator
 
-        f = alias or self.target.c0
+        f = payload or self.target.c0
         for i, halo in enumerate(self.halos):
             entry = self.value[i]
 
@@ -1248,7 +1248,7 @@ class MPIMsg(CompositeObject):
 
         return {self.name: self.value}
 
-    def _arg_alias(self, **kwargs):
+    def _arg_payload(self, **kwargs):
         # Since the components are by construction homogeneous, any will do
         v = self.target
         if isinstance(v, BundleView):
@@ -1260,17 +1260,17 @@ class MPIMsg(CompositeObject):
             v = v.parent
         for f in v.components:
             try:
-                alias = kwargs[f.name]
+                payload = kwargs[f.name]
                 break
             except KeyError:
                 pass
         else:
-            alias = f
+            payload = f
 
-        return alias
+        return payload
 
     def _arg_values(self, args=None, **kwargs):
-        return self._arg_defaults(alias=self._arg_alias(**kwargs), args=args)
+        return self._arg_defaults(payload=self._arg_payload(**kwargs), args=args)
 
     def _arg_apply(self, *args, **kwargs):
         self._C_memfree()
@@ -1292,10 +1292,10 @@ class MPIMsgEnriched(MPIMsg):
         (_C_field_components, POINTER(c_int)),
     ]
 
-    def _arg_defaults(self, alias=None, args=None, neighborhood=None):
-        super()._arg_defaults(alias, args=args)
+    def _arg_defaults(self, payload=None, args=None, neighborhood=None):
+        super()._arg_defaults(payload, args=args)
 
-        f = alias or self.target.c0
+        f = payload or self.target.c0
         neighborhood = neighborhood or f.grid.distributor.neighborhood
 
         for i, halo in enumerate(self.halos):
@@ -1342,18 +1342,18 @@ class MPIMsgEnriched(MPIMsg):
         return {self.name: self.value}
 
     def _arg_values(self, args=None, **kwargs):
-        alias = self._arg_alias(**kwargs)
+        payload = self._arg_payload(**kwargs)
 
         # Neighbors as per the Grid or SubDomain provided at apply time, as
-        # `alias` may be a compiler-generated Array with no override
-        name = alias.grid.distributor._obj_neighborhood.name
+        # `payload` may be a compiler-generated Array with no override
+        name = payload.grid.distributor._obj_neighborhood.name
         neighborhood = None
-        for i in getattr(args, 'discretizations', ()):
+        for i in args.discretizations:
             if i.distributor.comm and i.distributor._obj_neighborhood.name == name:
                 neighborhood = i.distributor.neighborhood
                 break
 
-        return self._arg_defaults(alias=alias, args=args, neighborhood=neighborhood)
+        return self._arg_defaults(payload=payload, args=args, neighborhood=neighborhood)
 
 
 class MPIRegion(Region):
