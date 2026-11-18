@@ -4,7 +4,7 @@ import pytest
 from conftest import assert_blocking, opts_device_tiling, skipif
 from devito import (
     ConditionalDimension, Eq, Function, Grid, Max, Operator, SparseTimeFunction,
-    SubDomain, TimeFunction, configuration, norm, solve, switchconfig
+    SubDomain, TimeFunction, norm, solve, switchconfig
 )
 from devito.data import LEFT
 from devito.exceptions import InvalidOperator
@@ -464,7 +464,7 @@ class TestMPI:
     def test_iso_ac(self, mode):
         TestOperator().iso_acoustic(opt='advanced')
 
-    @pytest.mark.skipif(configuration['language'] != 'openacc', reason='requires OpenACC')
+    @skipif('noacc')
     @pytest.mark.parametrize('par_tile', [False, (4, 4)])
     @pytest.mark.parallel(mode=2)
     def test_empty_subdomain(self, par_tile, mode):
