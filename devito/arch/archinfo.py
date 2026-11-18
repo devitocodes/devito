@@ -16,6 +16,7 @@ import psutil
 from packaging.version import InvalidVersion, parse
 
 from devito import configuration
+from devito.exceptions import DevitoError
 from devito.logger import warning
 from devito.tools import all_equal, as_tuple, memoized_func
 
@@ -573,10 +574,14 @@ def get_cuda_version():
     cuda_version = None
     try:
         out = run(nvc_version_command, capture_output=True, text=True)
-    except (FileNotFoundError, CalledProcessError):
-        pass
+    except (FileNotFoundError, CalledProcessError) as e:
+        out = None
+        raise DevitoError(
+            'Could not find or execute `nvcc` ensure that it is on the PATH or '
+            'that CUDA_HOME or CUDA_ROOT environment variables are set correctly'
+        ) from e
     finally:
-        if out.returncode == 0:
+        if out is not None and out.returncode == 0:
             start = out.stdout.find('release')
             start = out.stdout.find(',', start) + 1
             stop = out.stdout.find('\n', start)
