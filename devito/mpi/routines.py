@@ -21,7 +21,8 @@ from devito.symbolics import (
     subs_op_args
 )
 from devito.tools import (
-    as_mapper, dtype_len, dtype_to_mpitype, flatten, generator, infer_datasize, is_integer
+    as_mapper, dtype_len, dtype_to_mpitype, flatten, frozendict, generator,
+    infer_datasize, is_integer
 )
 from devito.types import (
     Array, Bag, BundleView, CompositeObject, CustomDimension, Dimension, Eq, LocalObject,
@@ -632,19 +633,14 @@ class OverlapHaloExchangeBuilder(DiagHaloExchangeBuilder):
             region = hs.body.region.function
             arguments, pname = region.arguments, region.pname
         else:
-            arguments, pname = hs.arguments, f'region{key}'
+            arguments = hs.arguments
+            # Reuse the first C type registered for each layout to share compute helpers
+            mapper = frozendict({r.pfields: r.pname for r in reversed(self.regions)})
+            pname = mapper.get(Region.__pfields_setup__(arguments), f'region{key}')
 
         # Record zero is the CORE, followed by one record per OWNED region
         regions = (hs.omapper.core,) + tuple(i for _, i in hs.omapper.owned)
-        region = MPIRegion(f'reg{key}', pname, arguments, regions)
-
-        if not hs.body.is_Call:
-            # Matching layouts must share a C type to permit compute helper reuse
-            for existing in self.regions:
-                if existing.pfields == region.pfields:
-                    return region._rebuild(pname=existing.pname)
-
-        return region
+        return MPIRegion(f'reg{key}', pname, arguments, regions)
 
     def _make_msg(self, f, hse, key):
         # Only retain the halos required by the Diag scheme
@@ -709,12 +705,8 @@ class OverlapHaloExchangeBuilder(DiagHaloExchangeBuilder):
         if hs.body.is_Call:
             return None
         else:
-            return make_efunc(
-                f'compute{key}',
-                hs.body,
-                Region(region.name, region.pname, region.arguments),
-                efunc_type=ComputeFunction
-            )
+            return make_efunc(f'compute{key}', hs.body, region,
+                              efunc_type=ComputeFunction)
 
     def _call_compute(self, hs, compute, region, *args):
         if compute is None:
@@ -996,12 +988,8 @@ class FullHaloExchangeBuilder(Overlap2HaloExchangeBuilder):
             mapper = {i: List(body=[callpoke, i]) for i in
                       FindNodes(ExpressionBundle).visit(hs.body)}
             iet = Transformer(mapper).visit(hs.body)
-            return make_efunc(
-                f'compute{key}',
-                iet,
-                Region(region.name, region.pname, region.arguments),
-                efunc_type=ComputeFunction
-            )
+            return make_efunc(f'compute{key}', iet, region,
+                              efunc_type=ComputeFunction)
 
     def _make_poke(self, hs, key, msgs):
         lflag = Symbol(name='lflag')

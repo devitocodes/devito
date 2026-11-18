@@ -170,19 +170,26 @@ class Region(CompositeObject):
         # Sorting for deterministic code generation
         self.arguments = tuple(sorted(arguments, key=lambda i: i.name))
 
-        fields = [(i.name, i._C_ctype) for i in self.symbols]
-        super().__init__(name, pname, fields)
+        super().__init__(name, pname, self.__pfields_setup__(self.arguments))
 
-    @cached_property
-    def symbols(self):
+    @classmethod
+    def __pfields_setup__(cls, arguments):
+        return tuple((i.name, i._C_ctype) for i in cls.__symbols_setup__(arguments))
+
+    @classmethod
+    def __symbols_setup__(cls, arguments):
         symbols = []
-        for i in self.arguments:
+        for i in sorted(arguments, key=lambda i: i.name):
             if i.is_Dimension:
                 symbols.extend((i.symbolic_min, i.symbolic_max))
             else:
                 symbols.append(i)
 
         return tuple(symbols)
+
+    @cached_property
+    def symbols(self):
+        return self.__symbols_setup__(self.arguments)
 
 
 class LocalObject(AbstractObject, LocalType):

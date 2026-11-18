@@ -1,3 +1,4 @@
+from contextlib import suppress
 from dataclasses import dataclass
 from functools import cached_property
 from itertools import chain
@@ -65,11 +66,9 @@ class ElementalCall(Call):
     def region(self):
         # The argument may select a record, e.g. `&regions[i]`
         for a in self.arguments:
-            try:
+            with suppress(AttributeError):
                 if isinstance(a.function, Region):
                     return a
-            except AttributeError:
-                pass
 
         return None
 
@@ -100,7 +99,7 @@ class ElementalFunction(Callable):
 
     def make_call(self, region=None, retobj=None, is_indirect=False):
         if region is not None and self.region is None:
-            raise ValueError("No region parameter")
+            raise ValueError(f"No region parameter in `{self!r}`")
 
         arguments = [region if region is not None and i is self.region else i
                      for i in self.parameters]
@@ -118,7 +117,11 @@ def make_efunc(name, iet, region=None, retval='void', prefix='static',
     definitions `x_m = region->x_m` and `x_M = region->x_M`.
     """
     if region is not None:
+        # A helper takes one record, without a runtime subclass's storage metadata
+        region = Region(region.name, region.pname, region.arguments)
+
         if not isinstance(iet, CallableBody):
+            # A bare Iteration or List needs a prologue for the field declarations
             iet = CallableBody(iet)
 
         # Unpack all declared fields so subsequent lowering can use them
