@@ -2618,8 +2618,8 @@ class TestCodeGeneration:
 
         eq = Eq(u.forward, u + .01*u.laplace + .125)
 
-        op = Operator(eq, name='RegionParameters',
-                      opt=('advanced', {'blockinner': True, 'blocklevels': blocklevels}))
+        op = Operator(eq, opt=('advanced', {'blockinner': True,
+                                            'blocklevels': blocklevels}))
 
         compute = op._func_table['compute0'].root
         assert [str(i) for i in compute.body.unpacks] == [
