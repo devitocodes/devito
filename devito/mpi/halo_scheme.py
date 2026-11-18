@@ -142,7 +142,7 @@ class HaloScheme:
         self._honored = {}
         dims = set().union(*[d._defines for d in ispace.dimensions
                              if d._defines & self.dimensions])
-        subdims = [d for d in dims if d.is_Sub and not d.local]
+        subdims = [d for d in dims if d.is_AbstractSub and not d.local]
         for i in subdims:
             ltk, rtk = i.tkns
             self._honored[i.root] = frozenset([(ltk, rtk)])

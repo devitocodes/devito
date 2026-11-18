@@ -932,6 +932,36 @@ class TestMultiSubDomain:
         check[0, 0] = 1
         assert np.all(np.isclose(f.data, check))
 
+    @pytest.mark.parallel(mode=[(4, 'basic'), (4, 'diag2'), (4, 'overlap'),
+                                (4, 'overlap2'), (4, 'full')])
+    def test_subdomainset_stencil_mpi(self, mode):
+        """
+        A stencil update restricted to a set of boxes straddling the rank
+        boundaries, as DevitoPRO's ABox does around the sources and receivers
+        (devitopro/subdomains/abox.py). Under comp/comm overlap, the CORE and
+        OWNED regions must be intersected with each box.
+        """
+        class Boxes(SubDomainSet):
+            name = 'boxes'
+
+        grid = Grid(shape=(12, 12))
+        bounds = tuple(np.array(i, dtype=np.int32)
+                       for i in ([2, 7], [3, 1], [1, 6], [4, 1]))
+        boxes = Boxes(N=2, bounds=bounds, grid=grid)
+
+        u = TimeFunction(name='u', grid=grid, space_order=2)
+
+        op = Operator(Eq(u.forward, u.laplace + 1, subdomain=boxes))
+        op.apply(time_M=0)
+
+        check = np.zeros((12, 12))
+        check[2:9, 1:8] = 1
+        check[7:11, 6:11] = 1
+
+        data = u.data_gather()
+        if grid.distributor.myrank == 0:
+            assert np.all(data[1] == check)
+
 
 class TestBorder:
     # Note: This class is partially covered by doctests
