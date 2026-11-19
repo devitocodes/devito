@@ -482,7 +482,7 @@ class Expression(ExprStmt, Node):
     @property
     def is_tensor(self):
         """True if the LHS is an array entry, False otherwise."""
-        return self.output.is_Indexed
+        return self.output.is_Indexed or isinstance(self.output, IndexedPointer)
 
     @property
     def is_reduction(self):
