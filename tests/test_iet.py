@@ -616,7 +616,7 @@ def test_const_pointer_parameter():
 @pytest.mark.parametrize('collision', [False, True])
 def test_graph_parameters(local, collision):
     x, y, a, b, c, d, p = [Symbol(name=n) for n in ('x', 'y', 'a', 'b',
-                                                 'c', 'd', 'p')]
+                                                    'c', 'd', 'p')]
     inner = Callable('inner', Call('external', (x, y)), 'void', parameters=(x, y))
     calls = [Call('inner', (a + 1, b)),
              Call('inner', (p if collision else b, a + 2))]
