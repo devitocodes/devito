@@ -7,6 +7,8 @@ ARG arch="nvc"
 ########################################################################
 # Build base image with apt setup and common env
 ########################################################################
+FROM devitocodes/bases:cpu-gcc AS cpu-tools
+
 FROM ubuntu:22.04 AS sdk-base
 
 SHELL ["/bin/bash", "-c"]
@@ -145,7 +147,7 @@ RUN python3 -m venv /venv && \
     /venv/bin/pip install --no-cache-dir --upgrade pip && \
     /venv/bin/pip install --no-cache-dir -r https://raw.githubusercontent.com/devitocodes/devito/main/requirements-nvidia.txt && \
     # Install jupyter and setup nvidia configs.
-    /venv/bin/pip install --no-cache-dir jupyter && \
+    /venv/bin/pip install --no-cache-dir jupyter ncu-report && \
     /venv/bin/jupyter server extension enable dask_labextension && \
     rm -rf ~/.cache/pip
 
@@ -183,6 +185,12 @@ ENV DEVITO_LANGUAGE="cuda"
 # NVC for CPUs config
 ########################################################################
 FROM nvc AS nvc-host
+
+# Reuse the LIKWID installation built by Dockerfile.cpu
+COPY --from=cpu-tools /opt/likwid /opt/likwid
+COPY --from=cpu-tools /etc/ld.so.conf.d/likwid.conf /etc/ld.so.conf.d/likwid.conf
+RUN ldconfig
+ENV PATH=/opt/likwid/bin:${PATH}
 
 ENV DEVITO_ARCH="nvc"
 ENV DEVITO_PLATFORM="cpu64"

@@ -181,7 +181,12 @@ jobs:
   ################### Nvidia nvhpc ######################
   #######################################################
   deploy-nvidia-bases:
-    if: ${{ github.event_name != 'workflow_dispatch' || inputs.nvidia }}
+    needs: deploy-cpu-bases-manifest
+    if: >-
+      ${{ !cancelled() &&
+          (needs.deploy-cpu-bases-manifest.result == 'success' ||
+           needs.deploy-cpu-bases-manifest.result == 'skipped') &&
+          (github.event_name != 'workflow_dispatch' || inputs.nvidia) }}
     name: "nvidia-bases-${{ matrix.arch }}"
     runs-on: ${{ matrix.runner }}
     env:
