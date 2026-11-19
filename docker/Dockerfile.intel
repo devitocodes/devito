@@ -4,8 +4,6 @@
 ##############################################################
 
 # Base image
-FROM devitocodes/bases:cpu-gcc AS cpu-tools
-
 FROM ubuntu:22.04 as base
 
 ENV DEBIAN_FRONTEND noninteractive
@@ -17,12 +15,6 @@ RUN apt-get update && \
 # Install for basic base not containing it
 RUN apt-get install -y wget flex libnuma-dev hwloc curl cmake \
         autoconf libtool build-essential procps git
-
-# Reuse the LIKWID installation built by Dockerfile.cpu
-COPY --from=cpu-tools /opt/likwid /opt/likwid
-COPY --from=cpu-tools /etc/ld.so.conf.d/likwid.conf /etc/ld.so.conf.d/likwid.conf
-RUN ldconfig
-ENV PATH=/opt/likwid/bin:${PATH}
 
 EXPOSE 8888
 CMD ["/bin/bash"]

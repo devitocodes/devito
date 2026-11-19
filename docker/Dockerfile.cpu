@@ -24,15 +24,12 @@ RUN apt-get install -y wget flex libnuma-dev hwloc curl cmake git \
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 RUN curl -fsSL https://github.com/RRZE-HPC/likwid/archive/refs/tags/v5.5.2.tar.gz \
         | tar -xz -C /tmp && cd /tmp/likwid-5.5.2 && \
-    printf '\nPREFIX=/opt/likwid\nACCESSMODE=perf_event\nBUILDAPPDAEMON=false\n' >> config.mk && \
+    printf '\nACCESSMODE=perf_event\nBUILDAPPDAEMON=false\n' >> config.mk && \
     if [ "$(uname -m)" = aarch64 ]; then \
         echo 'COMPILER=GCCARMv8' >> config.mk; fi && \
     make -j "$(nproc)" && make install && \
-    install -Dm644 COPYING /opt/likwid/share/doc/likwid/COPYING && \
-    echo /opt/likwid/lib > /etc/ld.so.conf.d/likwid.conf && \
+    install -Dm644 COPYING /usr/local/share/doc/likwid/COPYING && \
     ldconfig && rm -rf /tmp/likwid-5.5.2
-
-ENV PATH=/opt/likwid/bin:${PATH}
 
 # Install gcc
 RUN if [ -n "$gcc" ]; then \
