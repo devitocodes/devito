@@ -9,15 +9,15 @@ from functools import cached_property, singledispatch
 from operator import ge, gt, le, lt
 
 import numpy as np
-from sympy import And, Expr, Ge, Gt, Le, Lt, Mul, true
+from sympy import And, Expr, Ge, Gt, Le, Lt, Mul, sympify, true
 from sympy.logic.boolalg import BooleanFunction
 
 from devito.ir.support.space import Forward, IterationDirection
 from devito.ir.support.utils import pull_dims
-from devito.symbolics import CondEq, CondNe, IntDiv, search
+from devito.symbolics import CondEq, CondNe, IntDiv, Keyword, search
 from devito.symbolics.manipulation import _uxreplace_handle, _uxreplace_registry
 from devito.tools import Pickable, as_tuple, frozendict, split
-from devito.types import Dimension, LocalObject
+from devito.types import Dimension
 
 __all__ = [
     'BaseGuardBound',
@@ -399,21 +399,38 @@ class Guards(frozendict):
         return m
 
 
-class GuardExpr(LocalObject, BooleanFunction):
+class GuardExpr(BooleanFunction, Pickable):
 
     """
-    A boolean symbol that can be used as a guard. As such, it can be chained
+    A named boolean expression that can be used as a guard. It can be chained
     with other relations using the standard boolean operators (&, |, ...).
 
-    Being a LocalObject, a GuardExpr may carry an `initvalue`, which is
-    the value that the guard assumes at the beginning of the scope where
-    it is defined.
+    The predicate is a symbolic argument, so its dependencies participate in
+    analysis and substitution. Lowering may evaluate it once into a boolean
+    local, replacing the GuardExpr with that local's symbol.
     """
 
     dtype = np.bool_
 
-    def __init__(self, name, liveness='eager', **kwargs):
-        super().__init__(name, liveness=liveness, **kwargs)
+    __rargs__ = ('name', 'initvalue')
+
+    def __new__(cls, name, initvalue, **kwargs):
+        return super().__new__(cls, Keyword(str(name)), sympify(initvalue),
+                               evaluate=False)
+
+    @property
+    def name(self):
+        return str(self.args[0])
+
+    @property
+    def initvalue(self):
+        return self.args[1]
+
+    def _sympystr(self, printer):
+        return f'{self.name}({printer.doprint(self.initvalue)})'
+
+    func = Pickable._rebuild
+    __reduce_ex__ = Pickable.__reduce_ex__
 
     @singledispatch
     def _handle_boolean(obj, mapper):
@@ -438,12 +455,6 @@ class GuardExpr(LocalObject, BooleanFunction):
         mapper = {}
         GuardExpr._handle_boolean(self.initvalue, mapper)
         return frozendict(mapper)
-
-    def sort_key(self, order=None):
-        # Use the overarching LocalObject name for arguments ordering
-        class_key, args, exp, coeff = super().sort_key(order=order)
-        args = (len(args[1]) + 1, (self.name,) + args[1])
-        return class_key, args, exp, coeff
 
 
 # *** Utils

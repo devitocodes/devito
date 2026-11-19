@@ -12,11 +12,12 @@ from devito.data import FULL
 from devito.ir import IMask, SymbolRegistry
 from devito.ir.iet import (
     Call, Callable, CGen, Conditional, Definition, Dereference, DeviceCall, DummyExpr,
-    ElementalFunction, FindNodes, FindSymbols, Iteration, KernelLaunch, Lambda, List,
-    Switch, Transformer, Uxreplace, filter_iterations, make_callable, make_efunc,
-    retrieve_iteration_tree
+    ElementalFunction, FindApplications, FindNodes, FindSymbols, Iteration, KernelLaunch,
+    Lambda, List, Switch, Transformer, Uxreplace, filter_iterations, make_callable,
+    make_efunc, retrieve_iteration_tree
 )
 from devito.ir.iet.visitors import sorted_efuncs
+from devito.ir.support import GuardExpr
 from devito.passes.iet.engine import Graph, reuse_efuncs
 from devito.passes.iet.languages.C import CDataManager
 from devito.passes.iet.parpragma import PragmaTransfer
@@ -30,6 +31,24 @@ from devito.types import (
     Array, Bundle, CustomDimension, LocalObject, Pointer, Symbol, Temp
 )
 from devito.types.misc import FunctionMap
+
+
+def test_guard_expr_parameters():
+    y = Dimension(name='y')
+    thickness = Symbol(name='thickness')
+    flag = GuardExpr('is_writer', initvalue=y >= y.symbolic_min + thickness)
+    body = Iteration(Conditional(flag, List()), y, (y.symbolic_min, y.symbolic_max, 1))
+
+    efunc = make_efunc('compute', body)
+    assert set(efunc.parameters) == {y.symbolic_min, y.symbolic_max, thickness}
+    assert FindApplications(GuardExpr).visit(efunc) == {flag}
+    assert FindApplications(GuardExpr).visit(Conditional(True, body)) == {flag}
+
+    # The predicate becomes explicit at lowering; no high-level flag remains
+    symbol = Symbol(name=flag.name, dtype=flag.dtype)
+    lowered = Uxreplace({flag: symbol}).visit(body)
+    lowered = List(body=(DummyExpr(symbol, flag.initvalue), lowered))
+    assert not FindApplications(GuardExpr).visit(lowered)
 
 
 @pytest.fixture

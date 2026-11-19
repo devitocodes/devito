@@ -211,7 +211,12 @@ def _hoist_invariant(iet):
                 if hsf1.issubset(hsf0) and _is_iter_carried(hsf1, scope):
                     hs, hsf = hs1, hsf1
                 elif hsf0.issubset(hsf1) and hs0 is halo_spots[0]:
-                    # Special case
+                    # Later overwrites invalidate the exchange covering the next step
+                    exprs = FindWithin(Expression, hs1).visit(it)
+                    writes = {e.write for e in exprs if not e.is_reduction}
+                    if writes.intersection({f, hsf1.fmapper[f].bundle}):
+                        continue
+
                     hs, hsf = hs0, hsf0
                 else:
                     # No hoisting possible, skip

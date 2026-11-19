@@ -1,5 +1,6 @@
 import abc
 from collections import OrderedDict
+from contextlib import suppress
 from ctypes import POINTER, c_int, c_void_p, sizeof
 from functools import reduce
 from itertools import product
@@ -12,7 +13,7 @@ from devito.ir.equations import DummyEq, OpInc, OpMax, OpMin
 from devito.ir.iet import (
     AugmentedExpression, Call, Callable, CommCallable, Conditional, ElementalCall,
     ElementalFunction, Expression, ExpressionBundle, FindNodes, Iteration, List, Prodder,
-    Return, Transformer, make_efunc
+    Return, Transformer, Uxreplace, make_efunc
 )
 from devito.mpi import MPI
 from devito.symbolics import (
@@ -20,11 +21,12 @@ from devito.symbolics import (
     subs_op_args
 )
 from devito.tools import (
-    as_mapper, dtype_len, dtype_to_mpitype, flatten, generator, infer_datasize, is_integer
+    as_mapper, dtype_len, dtype_to_mpitype, flatten, frozendict, generator,
+    infer_datasize, is_integer
 )
 from devito.types import (
     Array, Bag, BundleView, CompositeObject, CustomDimension, Dimension, Eq, LocalObject,
-    Symbol
+    Region, Symbol
 )
 
 __all__ = ['HaloExchangeBuilder', 'ReductionBuilder', 'mpi_registry']
@@ -101,16 +103,17 @@ class HaloExchangeBuilder:
         if isinstance(poke, Callable):
             self._efuncs.append(poke)
 
+        region = self._make_region(hs, key)
+        region = self._regions.setdefault(hs, region)
+
         # Callable for compute over the CORE region
         callpoke = self._call_poke(poke)
-        compute = self._make_compute(hs, key, msgs, callpoke)
+        compute = self._make_compute(hs, key, region, msgs, callpoke)
         if isinstance(compute, Callable):
             self._efuncs.append(compute)
 
         # Callable for compute over the OWNED region
-        region = self._make_region(hs, key)
-        region = self._regions.setdefault(hs, region)
-        callcompute = self._call_compute(hs, compute, msgs)
+        callcompute = self._call_compute(hs, compute, region, msgs)
         remainder = self._make_remainder(hs, key, callcompute, region)
         if isinstance(remainder, Callable):
             self._efuncs.append(remainder)
@@ -141,7 +144,7 @@ class HaloExchangeBuilder:
     @abc.abstractmethod
     def _make_region(self, hs, key):
         """
-        Construct an MPIRegion describing the HaloSpot's OWNED DataRegion.
+        Construct an MPIRegion describing the HaloSpot's CORE and OWNED regions.
         """
         return
 
@@ -624,6 +627,21 @@ class OverlapHaloExchangeBuilder(DiagHaloExchangeBuilder):
         remainder()
     """
 
+    def _make_region(self, hs, key):
+        if hs.body.is_Call:
+            # Preserve the region layout of an existing compute helper
+            region = hs.body.region.function
+            arguments, pname = region.arguments, region.pname
+        else:
+            arguments = hs.arguments
+            # Reuse the first C type registered for each layout to share compute helpers
+            mapper = frozendict({r.pfields: r.pname for r in reversed(self.regions)})
+            pname = mapper.get(Region.__pfields_setup__(arguments), f'region{key}')
+
+        # Record zero is the CORE, followed by one record per OWNED region
+        regions = (hs.omapper.core,) + tuple(i for _, i in hs.omapper.owned)
+        return MPIRegion(f'reg{key}', pname, arguments, regions)
+
     def _make_msg(self, f, hse, key):
         # Only retain the halos required by the Diag scheme
         halos = sorted(i for i in hse.halos if isinstance(i.dim, tuple))
@@ -683,23 +701,21 @@ class OverlapHaloExchangeBuilder(DiagHaloExchangeBuilder):
         call = call._rebuild(arguments=call.arguments + (msg,))
         return call
 
-    def _make_compute(self, hs, key, *args):
+    def _make_compute(self, hs, key, region, *args):
         if hs.body.is_Call:
             return None
         else:
-            return make_efunc(
-                f'compute{key}',
-                hs.body,
-                hs.arguments,
-                efunc_type=ComputeFunction
-            )
+            return make_efunc(f'compute{key}', hs.body, region,
+                              efunc_type=ComputeFunction)
 
-    def _call_compute(self, hs, compute, *args):
+    def _call_compute(self, hs, compute, region, *args):
         if compute is None:
             assert hs.body.is_Call
-            return hs.body._rebuild(dynamic_args_mapper=hs.omapper.core)
+            call = hs.body
         else:
-            return compute.make_call(dynamic_args_mapper=hs.omapper.core)
+            call = compute.make_call()
+
+        return Uxreplace({call.region: Byref(IndexedPointer(region, 0))}).visit(call)
 
     def _make_wait(self, f, hse, key, msg=None):
         fcast = cast(f.c0.dtype, '*')
@@ -764,9 +780,15 @@ class OverlapHaloExchangeBuilder(DiagHaloExchangeBuilder):
         arguments = list(f.handles) + list(hse.loc_indices.values()) + [nb, msg]
         return HaloWaitCall(name, arguments)
 
-    def _make_remainder(self, hs, key, callcompute, *args):
+    def _make_remainder(self, hs, key, callcompute, region):
         assert callcompute.is_Call
-        body = [callcompute._rebuild(dynamic_args_mapper=i) for _, i in hs.omapper.owned]
+
+        body = []
+        for i in range(1, region.nregions):
+            region_i = Byref(IndexedPointer(region, i))
+            call = Uxreplace({callcompute.region: region_i}).visit(callcompute)
+            body.append(call)
+
         return Remainder.make(f'remainder{key}', body)
 
     def _call_remainder(self, remainder):
@@ -789,9 +811,6 @@ class Overlap2HaloExchangeBuilder(OverlapHaloExchangeBuilder):
         halowait()
         remainder()
     """
-
-    def _make_region(self, hs, key):
-        return MPIRegion('reg', key, hs.arguments, hs.omapper.owned)
 
     def _make_msg(self, f, hse, key):
         # Only retain the halos required by the Diag scheme
@@ -909,19 +928,11 @@ class Overlap2HaloExchangeBuilder(OverlapHaloExchangeBuilder):
         assert callcompute.is_Call
 
         dim = Dimension(name='i')
-        region_i = IndexedPointer(region, dim)
+        region_i = Byref(IndexedPointer(region, dim + 1))
+        iet = Uxreplace({callcompute.region: region_i}).visit(callcompute)
 
-        dynamic_args_mapper = {}
-        for i in hs.arguments:
-            if i.is_Dimension:
-                dynamic_args_mapper[i] = (FieldFromComposite(i.min_name, region_i),
-                                          FieldFromComposite(i.max_name, region_i))
-            else:
-                dynamic_args_mapper[i] = (FieldFromComposite(i.name, region_i),)
-
-        iet = callcompute._rebuild(dynamic_args_mapper=dynamic_args_mapper)
-        # The -1 below is because an Iteration, by default, generates <=
-        iet = Iteration(iet, dim, region.nregions - 1)
+        # Skip the CORE record, retaining a zero-based loop over OWNED regions
+        iet = Iteration(iet, dim, region.nregions - 2)
 
         return Remainder.make(f'remainder{key}', iet)
 
@@ -970,19 +981,15 @@ class FullHaloExchangeBuilder(Overlap2HaloExchangeBuilder):
         remainder()
     """
 
-    def _make_compute(self, hs, key, msgs, callpoke):
+    def _make_compute(self, hs, key, region, msgs, callpoke):
         if hs.body.is_Call:
             return None
         else:
             mapper = {i: List(body=[callpoke, i]) for i in
                       FindNodes(ExpressionBundle).visit(hs.body)}
             iet = Transformer(mapper).visit(hs.body)
-            return make_efunc(
-                f'compute{key}',
-                iet,
-                hs.arguments,
-                efunc_type=ComputeFunction
-            )
+            return make_efunc(f'compute{key}', iet, region,
+                              efunc_type=ComputeFunction)
 
     def _make_poke(self, hs, key, msgs):
         lflag = Symbol(name='lflag')
@@ -1332,72 +1339,47 @@ class MPIMsgEnriched(MPIMsg):
         return {self.name: self.value}
 
 
-class MPIRegion(CompositeObject):
+class MPIRegion(Region):
 
-    __rargs__ = ('prefix', 'key', 'arguments', 'owned')
+    """
+    Runtime records for the CORE, followed by the OWNED regions.
+    """
 
-    def __init__(self, prefix, key, arguments, owned):
-        self._prefix = prefix
-        self._key = key
-        self._owned = owned
+    __rargs__ = ('name', 'pname', 'arguments', 'regions')
 
-        # Sorting for deterministic codegen
-        self._arguments = sorted(arguments, key=lambda i: i.name)
-
-        name = f'{prefix}{key}'
-        pname = f'region{key}'
-
-        fields = []
-        for i in self.arguments:
-            if i.is_Dimension:
-                fields.append((i.min_name, c_int))
-                fields.append((i.max_name, c_int))
-            else:
-                fields.append((i.name, c_int))
-
-        super().__init__(name, pname, fields)
+    def __init__(self, name, pname, arguments, regions):
+        self.regions = tuple(regions)
+        super().__init__(name, pname, arguments)
 
     def __value_setup__(self, dtype, value):
-        # We eventually produce an array of `struct region` that is as big as
-        # the number of OWNED sub-regions we have to compute to complete a
-        # halo update
         return (dtype._type_*self.nregions)()
 
     @property
-    def arguments(self):
-        return self._arguments
-
-    @property
-    def prefix(self):
-        return self._prefix
-
-    @property
-    def key(self):
-        return self._key
-
-    @property
-    def owned(self):
-        return self._owned
-
-    @property
     def nregions(self):
-        return len(self.owned)
+        return len(self.regions)
 
     def _arg_values(self, args=None, **kwargs):
         values = self._arg_defaults()
-        for i, (_, mapper) in enumerate(self.owned):
-            entry = values[self.name][i]
-            for a in self.arguments:
-                if a.is_Dimension:
-                    a_m, a_M = mapper[a]
-                    setattr(entry, a.min_name, subs_op_args(a_m, args))
-                    setattr(entry, a.max_name, subs_op_args(a_M, args))
-                else:
-                    try:
-                        setattr(entry, a.name, subs_op_args(mapper[a][0], args))
-                    except AttributeError:
-                        setattr(entry, a.name, mapper[a][0])
+
+        # Scalar controls still need runtime localization, e.g. SubDomain thicknesses
+        for a in self.arguments:
+            if not a.is_Dimension:
+                values.update(a._arg_values(args=args, **kwargs))
+        args = {**args, **values}
+
+        for entry, mapper in zip(self.value, self.regions, strict=True):
+            data = flatten(mapper[a] for a in self.arguments)
+            for symbol, value in zip(self.symbols, data, strict=True):
+                with suppress(AttributeError):
+                    value = subs_op_args(value, args)
+                setattr(entry, symbol.name, value)
+
         return values
+
+    def _arg_check(self, args, *_args, **kwargs):
+        for a in self.arguments:
+            if not a.is_Dimension:
+                a._arg_check(args, **kwargs)
 
 
 class ReductionBuilder:

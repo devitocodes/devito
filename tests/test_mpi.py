@@ -23,7 +23,9 @@ from devito.ir.iet import (
 from devito.ir.support.space import Backward, Forward
 from devito.mpi import MPI
 from devito.mpi.distributed import CustomTopology
-from devito.mpi.routines import ComputeCall, HaloUpdateCall, HaloUpdateList, MPICall
+from devito.mpi.routines import (
+    ComputeCall, ComputeFunction, HaloUpdateCall, HaloUpdateList, MPICall, MPIRegion
+)
 from devito.tools import Bunch
 from devito.types import Bundle
 from devito.types.dimension import ModuloDimension, RankOffset
@@ -2606,6 +2608,98 @@ class TestCodeGeneration:
         expected = 1 - (x == 0) - (x == 15) - (y == 0) - (y == 15)
         np.testing.assert_allclose(values, expected, rtol=0, atol=1e-7)
 
+    @pytest.mark.parallel(mode=[(2, 'overlap2')])
+    @pytest.mark.parametrize('blocklevels', [0, 1])
+    def test_region_parameters(self, mode, blocklevels):
+        """Region bindings survive blocking, parameter updates and MPI lowering."""
+        grid = Grid(shape=(32, 64), topology=(1, 2))
+
+        u = TimeFunction(name='u', grid=grid, space_order=4)
+
+        eq = Eq(u.forward, u + .01*u.laplace + .125)
+
+        op = Operator(eq, opt=('advanced', {'blockinner': True,
+                                            'blocklevels': blocklevels}))
+
+        compute = op._func_table['compute0'].root
+        assert [str(i) for i in compute.body.unpacks] == [
+            'const int y_m = reg0->y_m;', 'const int y_M = reg0->y_M;'
+        ]
+
+        # Core and boundary calls select different records of the same region array
+        core, = FindNodes(ComputeCall).visit(op)
+        remainder = op._func_table['remainder0'].root
+        boundary, = FindNodes(ComputeCall).visit(remainder)
+        assert str(core.region) == '&(reg0[0])'
+        assert str(boundary.region) == '&(reg0[i + 1])'
+
+        _ = op.cfunction
+
+    @pytest.mark.parallel(mode=[(1, 'overlap2')])
+    def test_region_reuse(self, mode):
+        """Region struct types must preserve reuse of identical compute helpers."""
+        grid = Grid(shape=(32, 32))
+        time = grid.time_dim
+
+        u = TimeFunction(name='u', grid=grid, space_order=2)
+        v = TimeFunction(name='v', grid=grid, space_order=2)
+
+        early = ConditionalDimension(name='early', parent=time, condition=time <= 2)
+        late = ConditionalDimension(name='late', parent=time, condition=time > 2)
+
+        eqs = [Eq(u.forward, u.dx2 + 1, implicit_dims=early),
+               Eq(v.forward, v.dx2 + 1, implicit_dims=late)]
+
+        op = Operator(eqs, name='RegionReuse')
+
+        # One shared helper, with the region parameter renamed during abstraction
+        compute, = [i.root for i in op._func_table.values()
+                    if isinstance(i.root, ComputeFunction)]
+        assert [str(i) for i in compute.body.unpacks] == [
+            'const int x_m = o0->x_m;', 'const int x_M = o0->x_M;'
+        ]
+
+        # The two call sites retain separate records with the same C type
+        regions = [i for i in op.parameters if isinstance(i, MPIRegion)]
+        assert [i.pname for i in regions] == ['region0', 'region0']
+        calls = FindNodes(ComputeCall).visit(op)
+        assert [str(i.region) for i in calls] == ['&(reg0[0])', '&(reg1[0])']
+
+        op.apply(time_M=3)
+
+    @pytest.mark.parametrize('overwrite', [False, True])
+    @pytest.mark.parallel(mode=[(2, 'basic'), (2, 'overlap2')])
+    def test_hoisting_after_overwrite(self, overwrite, mode):
+        """A late overwrite invalidates an earlier exchange for the next step."""
+        class Boundary(SubDomain):
+            name = 'boundary'
+
+            def define(self, dimensions):
+                x, y = dimensions
+                return {x: x, y: ('left', 1)}
+
+        grid = Grid(shape=(16, 16), extent=(15., 15.), topology=(2, 1))
+        boundary = Boundary(grid=grid)
+
+        u = TimeFunction(name='u', grid=grid, space_order=2)
+        rec = SparseTimeFunction(name='rec', grid=grid, nt=4, npoint=1)
+
+        np.asarray(rec.coordinates.data)[:] = (7.5, 0.)
+
+        eqs = [Eq(u.forward, u + u.dx + 1), rec.interpolate(expr=u.forward)]
+        if overwrite:
+            eqs.append(Eq(u.forward, 0, subdomain=boundary))
+
+        op = Operator(eqs, name='BoundaryOverwrite')
+
+        op.apply(time_M=3)
+
+        expected = np.ones((4, 1)) if overwrite else np.arange(1, 5)[:, None]
+        assert np.allclose(np.asarray(rec.data), expected)
+
+        calls = FindNodes(HaloUpdateCall).visit(get_time_loop(op))
+        assert len(calls) == (2 if overwrite else 1)
+
 
 class TestOperatorAdvanced:
 
@@ -3734,6 +3828,32 @@ class TestOperatorAdvanced:
                   'middle': slice(20, 44)}[side]
         g.data[inside] = 1
         assert np.all(f.data == g.data)
+
+    @pytest.mark.parallel(mode=[(2, 'overlap2')])
+    def test_region_arguments(self, mode):
+        """Packed regions preserve runtime overrides of distributed bounds."""
+        grid = Grid(shape=(32, 64), extent=(31., 63.), topology=(1, 2))
+
+        u = TimeFunction(name='u', grid=grid, space_order=4)
+        v = TimeFunction(name='v', grid=grid, space_order=4)
+
+        eq0 = Eq(v.forward, v + .01*v.laplace + .125)
+        eq1 = Eq(u.forward, u + .01*u.laplace + .125)
+
+        with switchconfig(mpi='basic'):
+            reference = Operator(eq0, name='RegionReference')
+        op = Operator(eq1, name='RegionArguments',
+                      opt=('advanced', {'blockinner': True}))
+
+        for bounds in ({}, {'x_m': 2, 'x_M': 29, 'y_m': 5, 'y_M': 58}):
+            for f in (u, v):
+                f.data_with_halo.fill(0)
+
+            reference.apply(time_M=3, **bounds)
+            op.apply(time_M=3, **bounds)
+
+            np.testing.assert_allclose(np.asarray(u.data), np.asarray(v.data),
+                                       rtol=1.e-6, atol=1.e-7)
 
 
 def gen_serial_norms(shape, so):
