@@ -244,6 +244,18 @@ class WeightedInterpolator(GenericInterpolator):
     def r(self):
         return self.sfunction.r
 
+    @property
+    def _support_indices(self):
+        """Base cells for every staggering used by the sparse operations."""
+        if not self._shifts_used:
+            return [self.sfunction._coords_indices]
+
+        # Redistribution must use the same fp64 cells as the interpolation tables
+        spacing, origin = self.grid._spacing_fp64, self.grid._origin_fp64
+        return [_cell_indices(self.sfunction.coordinates_data, self.grid,
+                              shift, spacing, origin)
+                for shift in self._shifts_used]
+
     @cached_property
     def _coeff_dtype(self):
         # Weights are real even for complex-valued sparse fields.
@@ -398,11 +410,10 @@ class WeightedInterpolator(GenericInterpolator):
         if coords is None or sfunc is None:
             raise ValueError("No coordinates or sparse function provided")
 
-        # Fp64 grid geometry -- avoids fp32 rounding on cell boundaries.
         grid = sfunc.grid
-        spacing = np.array([as_fp64_decimal(h) for h in grid.spacing])
-        origin = np.array([as_fp64_decimal(o)
-                           for o in (origin or grid.origin)])
+        spacing = grid._spacing_fp64
+        origin = (np.array([as_fp64_decimal(o) for o in origin])
+                  if origin is not None else grid._origin_fp64)
 
         args = {}
         for key in self._shifts_used or {None}:
@@ -652,15 +663,6 @@ class Gridpoints(_HostTable):
 
 class Coeffs(_HostTable):
     """Per-dim interpolation weights, shape ``(npoint, 2*r)``."""
-
-
-def _resolved_geometry(grid, kwargs):
-    """Fp64 (spacing, origin) tuple honoring runtime `h_x`/`o_x`/... overrides."""
-    spacing = np.array([as_fp64_decimal(kwargs.get(s.name, v)) for s, v
-                        in zip(grid.spacing_symbols, grid.spacing, strict=True)])
-    origin = np.array([as_fp64_decimal(kwargs.get(o.name, v)) for o, v
-                       in zip(grid.origin_symbols, grid.origin, strict=True)])
-    return spacing, origin
 
 
 def _positions_fp64(coords, grid, shifts, spacing, origin):

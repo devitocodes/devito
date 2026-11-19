@@ -161,6 +161,9 @@ class BasePrinter(CodePrinter):
     def _print_VoidDType(self, expr):
         return ctypes_vector_mapper[expr].__name__
 
+    def _print_GuardExpr(self, expr):
+        return expr._sympystr(self)
+
     def _print_Function(self, expr):
         if isinstance(expr, AbstractFunction):
             return str(expr)

@@ -191,7 +191,9 @@ def preprocess(clusters, options=None, **kwargs):
             continue
 
         else:
-            dims = set(c.ispace.promote(lambda d: d.is_Block).itdims)
+            # HaloSchemes refer to the parent of a strided Dimension
+            key = lambda d: d.is_Block or (d.is_Conditional and d.is_Injective)
+            dims = set(c.ispace.promote(key).itdims)
             roots = {d.root for d in dims}
 
             found = []

@@ -68,6 +68,7 @@ __all__ = [
     'Distributor',
     'SparseDistributor',
     'SubDistributor',
+    'SubGridDistributor',
     'devito_mpi_finalize',
     'devito_mpi_init',
 ]
@@ -375,10 +376,15 @@ class Distributor(DenseDistributor):
             self._comm = MPI.COMM_NULL
             self._topology = tuple(1 for _ in range(len(shape)))
 
-        # The domain decomposition
+        self.__decomposition_setup__()
+
+    def __decomposition_setup__(self):
+        """
+        Set up the domain decomposition.
+        """
         self._decomposition = [
             Decomposition(np.array_split(range(i), j), c)
-            for i, j, c in zip(shape, self.topology, self.mycoords, strict=True)
+            for i, j, c in zip(self.glb_shape, self.topology, self.mycoords, strict=True)
         ]
 
     @cached_property
@@ -483,6 +489,41 @@ class Distributor(DenseDistributor):
     def _rebuild(self, shape=None, dimensions=None, comm=None):
         return Distributor(shape or self.shape, dimensions or self.dimensions,
                            comm or self.comm)
+
+
+class SubGridDistributor(Distributor):
+
+    """
+    Decompose a SubGrid over a set of MPI processes in a manner consistent with
+    the parent distributor: a rank owns the SubGrid points on its parent points.
+
+    Parameters
+    ----------
+    subgrid : SubGrid
+        The SubGrid to be decomposed.
+    """
+
+    def __init__(self, subgrid):
+        self._parent = subgrid.parent.distributor
+        self._factors = subgrid.factor
+
+        super().__init__(subgrid.shape, subgrid.dimensions, self.parent.comm,
+                         tuple(self.parent.topology))
+
+    def __decomposition_setup__(self):
+        """
+        Set up the decomposition, aligned with that of the parent Distributor.
+        """
+        self._decomposition = [
+            Decomposition([d[d % f == 0] // f for d in dec], c)
+            for dec, f, c in zip(self.parent.decomposition, self._factors,
+                                 self.mycoords, strict=True)
+        ]
+
+    @property
+    def parent(self):
+        """The parent distributor of this SubGridDistributor."""
+        return self._parent
 
 
 class SubDistributor(DenseDistributor):
@@ -706,6 +747,14 @@ class SubDistributor(DenseDistributor):
         return ret
 
     @cached_property
+    def _obj_neighborhood(self):
+        # The neighborhood is determined by the SubDomain thicknesses, hence the
+        # name. E.g., `nb_x0_7` for `{x: ('middle', 0, 7), y: y}`
+        name = ''.join(f'_{d.root.name}{d.ltkn.value}_{d.rtkn.value}'
+                       for d in self.dimensions if d.is_Sub)
+        return MPINeighborhood(self.neighborhood, name=f'nb{name}')
+
+    @cached_property
     def rank_populated(self):
         """Constant symbol for a switch indicating that data is allocated on this rank"""
         return Constant(name=f'rank_populated_{self._subdomain_name}', dtype=np.int8,
@@ -852,14 +901,15 @@ class MPICommObject(Object):
 class MPINeighborhood(CompositeObject):
 
     __rargs__ = ('neighborhood',)
+    __rkwargs__ = ('name',)
 
-    def __init__(self, neighborhood):
+    def __init__(self, neighborhood, name='nb'):
         self._neighborhood = neighborhood
 
         self._entries = [i for i in neighborhood if isinstance(i, tuple)]
 
         fields = [(''.join(j.name[0] for j in i), c_int) for i in self.entries]
-        super().__init__('nb', 'neighborhood', fields)
+        super().__init__(name, 'neighborhood', fields)
 
     @property
     def entries(self):
@@ -894,12 +944,11 @@ class MPINeighborhood(CompositeObject):
         return values
 
     def _arg_values(self, *args, **kwargs):
-        grid = kwargs.get('grid')
-        # Update `nb` based on object attached to `grid`
-        if grid is not None:
-            return grid.distributor._obj_neighborhood._arg_defaults()
-        else:
-            return self._arg_defaults()
+        # Use `nb` as provided by the (possibly overriding) Grid or SubDomain.
+        # E.g., an override may be defined on a new Grid
+        if self.name in kwargs.get('args', {}):
+            return {}
+        return self._arg_defaults()
 
 
 class CustomTopology(DimensionTuple):

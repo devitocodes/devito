@@ -1,3 +1,4 @@
+import pickle
 from functools import cached_property
 
 import numpy as np
@@ -22,10 +23,12 @@ from devito.ir.iet import (
 from devito.ir.support.space import Backward, Forward
 from devito.mpi import MPI
 from devito.mpi.distributed import CustomTopology
-from devito.mpi.routines import ComputeCall, HaloUpdateCall, HaloUpdateList, MPICall
+from devito.mpi.routines import (
+    ComputeCall, ComputeFunction, HaloUpdateCall, HaloUpdateList, MPICall, MPIRegion
+)
 from devito.tools import Bunch
 from devito.types import Bundle
-from devito.types.dimension import ModuloDimension
+from devito.types.dimension import ModuloDimension, RankOffset
 from examples.seismic.acoustic import acoustic_setup
 
 
@@ -934,6 +937,71 @@ class TestSparseFunction:
         op.apply(time_M=5)
         assert np.all(s.data == 1)
 
+    @pytest.mark.parallel(mode=[2, 4])
+    @pytest.mark.parametrize('ndim', [1, 2, 3])
+    @pytest.mark.parametrize('interpolation,radius',
+                             [('nearest', 0), ('linear', 1), ('sinc', 4)])
+    def test_rank_map_equivalence(self, mode, ndim, interpolation, radius):
+        """Send each point to every rank owning a cell in its interpolation stencil."""
+        grid = Grid(shape=(9,)*ndim, extent=(1.,)*ndim)
+        # Include partition boundaries and coordinates outside the global domain
+        coordinates = np.array([[value + (axis % 2)*0.125 for axis in range(ndim)]
+                                for value in (-0.25, 0., 0.125, 0.49, 0.5, 0.875,
+                                              1., 1.25)],
+                               dtype=np.float32)
+        src = SparseFunction(name='support_src', grid=grid, npoint=len(coordinates),
+                             interpolation=interpolation, r=radius)
+        src.coordinates.data[:] = coordinates
+        plain = Function(name='support_plain', grid=grid, space_order=8)
+        shifted = Function(name='support_shifted', grid=grid, space_order=8,
+                           staggered=grid.dimensions)
+        Operator(src.inject(field=(plain, shifted), expr=src), name='SparseSupport')
+
+        # Reference: enumerate all stencil cells, including the half-cell shift
+        expected = grid.distributor.glb_to_rank(src._support) or {}
+        assert src._dist_datamap == expected
+
+    @pytest.mark.parallel(mode=[2, 4])
+    @pytest.mark.parametrize('override', [False, True])
+    def test_staggered_injection_support(self, mode, override):
+        """Half-cell shifts must redistribute across partition boundaries."""
+        grid = Grid(shape=(64,), extent=(63/32,))
+        coordinate = 2/grid.distributor.nprocs
+        x, = grid.dimensions
+        u = Function(name='u', grid=grid, space_order=2, staggered=x)
+        u.data[:] = 0
+        src = SparseFunction(name='src', grid=grid, npoint=1)
+        src.coordinates.data[:] = coordinate
+        src.data[:] = 1
+        op = Operator(src.inject(field=u, expr=src))
+        if override:
+            replacement = SparseFunction(name='replacement', grid=grid, npoint=1)
+            replacement.coordinates.data[:] = coordinate
+            replacement.data[:] = 1
+            op(src=replacement)
+        else:
+            op()
+
+        total = MPI.COMM_WORLD.allreduce(float(np.asarray(u.data).sum()), op=MPI.SUM)
+        assert np.isclose(total, 1, rtol=0, atol=1e-7)
+
+    @pytest.mark.parallel(mode=4)
+    @pytest.mark.parametrize('interpolation', ['nearest', 'linear'])
+    def test_staggered_support_union(self, mode, interpolation):
+        grid = Grid(shape=(8, 8), extent=(7., 7.), topology=(2, 2))
+        x, y = grid.dimensions
+        u = Function(name='ux', grid=grid, space_order=2, staggered=x)
+        v = Function(name='uy', grid=grid, space_order=2, staggered=y)
+        src = SparseFunction(name='src', grid=grid, npoint=1,
+                             interpolation=interpolation)
+        src.coordinates.data[:] = 4.
+        Operator(src.inject(field=(u, v), expr=src), name='SparseSupportUnion')
+
+        # Boxing the union would also send the point to rank 0
+        ranks = (1, 2) if interpolation == 'nearest' else (1, 2, 3)
+        expected = {r: [0] for r in ranks} if src.npoint else {}
+        assert src._dist_datamap == expected
+
 
 class TestOperatorSimple:
 
@@ -1135,6 +1203,60 @@ def check_halo_exchanges(op, exp0, exp1):
     assert len(calls) == exp1
 
     return calls, tloop
+
+
+class TestGlobalIndex:
+
+    @pytest.mark.parallel(mode=[2, 4])
+    def test_dimension_as_expression(self, mode):
+        """Dimensions in an expression are global indices (issue #2214)."""
+        grid = Grid(shape=(8, 8))
+        x, y = grid.dimensions
+        f = Function(name='f', grid=grid)
+
+        Operator(Eq(f, 10*x + y))()
+
+        check = 10*np.arange(8)[:, None] + np.arange(8)
+        assert np.all(f.data[:] == check[f.local_indices])
+
+    @pytest.mark.parallel(mode=[2, 4])
+    def test_dimension_as_expression_subdomain(self, mode):
+        """Same as above, but restricted to a SubDomain."""
+        grid = Grid(shape=(8, 8))
+        x, y = grid.dimensions
+        f = Function(name='f', grid=grid)
+
+        Operator(Eq(f, 10*x + y, subdomain=grid.interior))()
+
+        check = 10*np.arange(8)[:, None] + np.arange(8)
+        check[[0, -1], :] = check[:, [0, -1]] = 0
+        assert np.all(f.data[:] == check[f.local_indices])
+
+    @pytest.mark.parallel(mode=[2])
+    def test_dimension_indexing_unaffected(self, mode):
+        """Dimensions indexing a Function remain rank-local."""
+        grid = Grid(shape=(8,))
+        x = grid.dimensions[0]
+        f = Function(name='f', grid=grid, space_order=1)
+        g = Function(name='g', grid=grid)
+
+        f.data[:] = np.arange(8)
+        Operator(Eq(g, f.subs(x, x + 1) + x))()
+
+        # The last point reads a zero from the physical boundary halo
+        check = 2*np.arange(8) + 1
+        check[-1] = 7
+        assert np.all(g.data[:] == check[g.local_indices])
+
+    def test_serial_code_unchanged(self):
+        """No index offset is generated without MPI."""
+        grid = Grid(shape=(4, 4))
+        x, y = grid.dimensions
+        f = Function(name='f', grid=grid)
+
+        op = Operator(Eq(f, x + y))
+
+        assert not any(p.name.startswith('io_') for p in op.parameters)
 
 
 class TestHaloWrites:
@@ -2453,6 +2575,131 @@ class TestCodeGeneration:
         # to Function on SubDomain
         check_halo_exchanges(op, 0, 0)
 
+    @pytest.mark.parallel(mode=[(1, 'overlap'), (1, 'overlap2'), (1, 'full'),
+                                (2, 'overlap'), (2, 'overlap2'), (2, 'full')])
+    @pytest.mark.parametrize('time_dependent', [False, True])
+    def test_overlap_within_iteration(self, mode, time_dependent):
+        grid = Grid(shape=(16, 16), extent=(15., 15.), topology=('*', 1))
+        if time_dependent:
+            u = TimeFunction(name='u', grid=grid, space_order=2)
+            v = TimeFunction(name='v', grid=grid, space_order=2)
+            u.data_with_halo[:] = 0
+            equations = [Eq(u.forward, u + u.laplace + 1),
+                         Eq(v.forward, u.forward + u.forward.laplace)]
+        else:
+            u = Function(name='u', grid=grid, space_order=2)
+            v = Function(name='v', grid=grid, space_order=2)
+            equations = [Eq(u, 1), Eq(v, u + u.laplace)]
+
+        op = Operator(equations, name='OverlapWithinIteration')
+        calls = FindNodes(ComputeCall).visit(op)
+        assert len(calls) == int(time_dependent)
+        if time_dependent:
+            check_halo_exchanges(op, 2, 1)
+            assert calls == FindNodes(ComputeCall).visit(get_time_loop(op))
+            op.apply(time_M=0)
+            values = np.asarray(v.data[1])
+        else:
+            op.apply()
+            values = np.asarray(v.data)
+
+        x, y = np.meshgrid(*grid.distributor.glb_numb, indexing='ij')
+        # The zero exterior halo subtracts one at each physical boundary
+        expected = 1 - (x == 0) - (x == 15) - (y == 0) - (y == 15)
+        np.testing.assert_allclose(values, expected, rtol=0, atol=1e-7)
+
+    @pytest.mark.parallel(mode=[(2, 'overlap2')])
+    @pytest.mark.parametrize('blocklevels', [0, 1])
+    def test_region_parameters(self, mode, blocklevels):
+        """Region bindings survive blocking, parameter updates and MPI lowering."""
+        grid = Grid(shape=(32, 64), topology=(1, 2))
+
+        u = TimeFunction(name='u', grid=grid, space_order=4)
+
+        eq = Eq(u.forward, u + .01*u.laplace + .125)
+
+        op = Operator(eq, opt=('advanced', {'blockinner': True,
+                                            'blocklevels': blocklevels}))
+
+        compute = op._func_table['compute0'].root
+        assert [str(i) for i in compute.body.unpacks] == [
+            'const int y_m = reg0->y_m;', 'const int y_M = reg0->y_M;'
+        ]
+
+        # Core and boundary calls select different records of the same region array
+        core, = FindNodes(ComputeCall).visit(op)
+        remainder = op._func_table['remainder0'].root
+        boundary, = FindNodes(ComputeCall).visit(remainder)
+        assert str(core.region) == '&(reg0[0])'
+        assert str(boundary.region) == '&(reg0[i + 1])'
+
+        _ = op.cfunction
+
+    @pytest.mark.parallel(mode=[(1, 'overlap2')])
+    def test_region_reuse(self, mode):
+        """Region struct types must preserve reuse of identical compute helpers."""
+        grid = Grid(shape=(32, 32))
+        time = grid.time_dim
+
+        u = TimeFunction(name='u', grid=grid, space_order=2)
+        v = TimeFunction(name='v', grid=grid, space_order=2)
+
+        early = ConditionalDimension(name='early', parent=time, condition=time <= 2)
+        late = ConditionalDimension(name='late', parent=time, condition=time > 2)
+
+        eqs = [Eq(u.forward, u.dx2 + 1, implicit_dims=early),
+               Eq(v.forward, v.dx2 + 1, implicit_dims=late)]
+
+        op = Operator(eqs, name='RegionReuse')
+
+        # One shared helper, with the region parameter renamed during abstraction
+        compute, = [i.root for i in op._func_table.values()
+                    if isinstance(i.root, ComputeFunction)]
+        assert [str(i) for i in compute.body.unpacks] == [
+            'const int x_m = o0->x_m;', 'const int x_M = o0->x_M;'
+        ]
+
+        # The two call sites retain separate records with the same C type
+        regions = [i for i in op.parameters if isinstance(i, MPIRegion)]
+        assert [i.pname for i in regions] == ['region0', 'region0']
+        calls = FindNodes(ComputeCall).visit(op)
+        assert [str(i.region) for i in calls] == ['&(reg0[0])', '&(reg1[0])']
+
+        op.apply(time_M=3)
+
+    @pytest.mark.parametrize('overwrite', [False, True])
+    @pytest.mark.parallel(mode=[(2, 'basic'), (2, 'overlap2')])
+    def test_hoisting_after_overwrite(self, overwrite, mode):
+        """A late overwrite invalidates an earlier exchange for the next step."""
+        class Boundary(SubDomain):
+            name = 'boundary'
+
+            def define(self, dimensions):
+                x, y = dimensions
+                return {x: x, y: ('left', 1)}
+
+        grid = Grid(shape=(16, 16), extent=(15., 15.), topology=(2, 1))
+        boundary = Boundary(grid=grid)
+
+        u = TimeFunction(name='u', grid=grid, space_order=2)
+        rec = SparseTimeFunction(name='rec', grid=grid, nt=4, npoint=1)
+
+        np.asarray(rec.coordinates.data)[:] = (7.5, 0.)
+
+        eqs = [Eq(u.forward, u + u.dx + 1), rec.interpolate(expr=u.forward)]
+        if overwrite:
+            eqs.append(Eq(u.forward, 0, subdomain=boundary))
+
+        op = Operator(eqs, name='BoundaryOverwrite')
+
+        op.apply(time_M=3)
+
+        expected = np.ones((4, 1)) if overwrite else np.arange(1, 5)[:, None]
+        assert np.allclose(np.asarray(rec.data), expected)
+
+        calls = FindNodes(HaloUpdateCall).visit(get_time_loop(op))
+        assert len(calls) == (2 if overwrite else 1)
+
 
 class TestOperatorAdvanced:
 
@@ -3351,6 +3598,74 @@ class TestOperatorAdvanced:
             assert np.all(glb[:, 3:-3] == 0.)
             assert np.all(glb[:, -3:] == 2.)
 
+    @pytest.mark.parallel(mode=4)
+    @pytest.mark.parametrize('expand', [True, False])
+    @pytest.mark.parametrize('region', [('middle', 6, 6), ('middle', 16, 16),
+                                        ('middle', 15, 17), ('left', 17),
+                                        ('right', 18), ('middle', 0, 17),
+                                        ('middle', 18, 0)])
+    def test_halo_zero_subdomain(self, region, expand, mode):
+        """
+        Derivatives with `halo=0` treat their argument as zero outside the global
+        SubDomain, not outside its part on each rank, and read the halo past the
+        Grid edges. The rank edges lie at 16, 32 and 48, within the stencil radius
+        of some of the SubDomain edges.
+        """
+        class Region(SubDomain):
+            name = 'region'
+
+            def define(self, dimensions):
+                x, = dimensions
+                return {x: region}
+
+        serial = Grid(shape=(64,), comm=MPI.COMM_SELF)
+        grid = Grid(shape=(64,))
+        subdomain = Region(grid=serial)
+
+        def functions(grid):
+            kwargs = {'grid': grid, 'space_order': 4}
+            return [Function(name=n, **kwargs) for n in ('f', 'o', 'g')]
+
+        f0, o0, g0 = functions(serial)
+        f1, o1, g1 = functions(grid)
+        rng = np.random.default_rng(0)
+        f0.data[:] = f1.data[:] = rng.normal(size=grid.shape)
+
+        # Non-zero halos past the Grid edges, read where the SubDomain touches them
+        h = f0._size_halo[grid.dimensions[0]].left
+        left, right = rng.normal(size=h), rng.normal(size=h)
+        for f in (f0, f1):
+            # Globally indexed, so on the edge ranks only
+            f.data_with_halo[:h], f.data_with_halo[-h:] = left, right
+
+        # Compiled for the serial Grid, applied to both
+        op = Operator([Eq(o0, f0.dx(halo=0), subdomain=subdomain),
+                       Inc(g0, f0.dx(halo=0).T, subdomain=subdomain)],
+                      opt=('advanced', {'expand': expand}))
+        op.apply()
+        op.apply(f=f1, o=o1, g=g1)
+
+        glb = grid.distributor.glb_slices[grid.dimensions[0]]
+        assert np.allclose(o1.data, o0.data[glb], rtol=1e-12)
+        assert np.allclose(g1.data, g0.data[glb], rtol=1e-12)
+
+    @pytest.mark.parallel(mode=4)
+    def test_rank_offset_empty(self, mode):
+        """
+        The offsets of a rank from the Grid edges, including an empty rank, also
+        once unpickled.
+        """
+        grid = Grid(shape=(3,))
+        x = grid.dimensions[0]
+
+        lofs = pickle.loads(pickle.dumps(RankOffset(name='x_lofs', side=LEFT, root=x)))
+        rofs = pickle.loads(pickle.dumps(RankOffset(name='x_rofs', side=RIGHT, root=x)))
+        values = (lofs._arg_values(grid=grid)['x_lofs'],
+                  rofs._arg_values(grid=grid)['x_rofs'])
+
+        # Rank 3 is empty
+        assert values == [(0, 2), (1, 1), (2, 0), (0, 0)][grid.distributor.myrank]
+
     @pytest.mark.parallel(mode=[(4, 'full')])
     def test_custom_subdomain(self, mode):
         """
@@ -3513,6 +3828,32 @@ class TestOperatorAdvanced:
                   'middle': slice(20, 44)}[side]
         g.data[inside] = 1
         assert np.all(f.data == g.data)
+
+    @pytest.mark.parallel(mode=[(2, 'overlap2')])
+    def test_region_arguments(self, mode):
+        """Packed regions preserve runtime overrides of distributed bounds."""
+        grid = Grid(shape=(32, 64), extent=(31., 63.), topology=(1, 2))
+
+        u = TimeFunction(name='u', grid=grid, space_order=4)
+        v = TimeFunction(name='v', grid=grid, space_order=4)
+
+        eq0 = Eq(v.forward, v + .01*v.laplace + .125)
+        eq1 = Eq(u.forward, u + .01*u.laplace + .125)
+
+        with switchconfig(mpi='basic'):
+            reference = Operator(eq0, name='RegionReference')
+        op = Operator(eq1, name='RegionArguments',
+                      opt=('advanced', {'blockinner': True}))
+
+        for bounds in ({}, {'x_m': 2, 'x_M': 29, 'y_m': 5, 'y_M': 58}):
+            for f in (u, v):
+                f.data_with_halo.fill(0)
+
+            reference.apply(time_M=3, **bounds)
+            op.apply(time_M=3, **bounds)
+
+            np.testing.assert_allclose(np.asarray(u.data), np.asarray(v.data),
+                                       rtol=1.e-6, atol=1.e-7)
 
 
 def gen_serial_norms(shape, so):

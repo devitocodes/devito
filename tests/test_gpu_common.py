@@ -14,7 +14,7 @@ from devito import (
 from devito.arch import Cpu64, Device, get_cpu_info, get_gpu_info
 from devito.exceptions import InvalidArgument
 from devito.ir import (
-    Call, Conditional, Expression, FindNodes, FindSymbols, Section,
+    Call, Conditional, Expression, FindNodes, FindSymbols, Section, Transfer,
     retrieve_iteration_tree
 )
 from devito.passes.iet.languages.openmp import OmpIteration
@@ -285,7 +285,9 @@ class TestPassesOptional:
 
         # The transfer bound is a product of the four `size[i]`, each cast to
         # `long`; the multiplication is thus carried out in 64-bit arithmetic
-        for transfer in op.body.maps + op.body.unmaps:
+        transfers = FindNodes(Transfer).visit(op.body.maps + op.body.unmaps)
+        assert len(transfers) == 3
+        for transfer in transfers:
             code = transfer.ccode.value
             for i in range(4):
                 assert f'(long)(u_vec->size[{i}])' in code
@@ -453,7 +455,10 @@ class TestStreaming:
         assert len(retrieve_iteration_tree(op)) == 3
         locks = [i for i in FindSymbols().visit(op) if isinstance(i, Lock)]
         assert len(locks) == 1  # Only 1 because it's only `tmp` that needs protection
-        assert len(op._func_table) == 5 + int(configuration['language'] == 'openacc')
+        if configuration['language'] == 'openacc':
+            assert len(op._func_table) == 7
+        else:
+            assert len(op._func_table) == 5
         exprs = FindNodes(Expression).visit(op._func_table['copy_to_host0'].root)
         b = 17 if configuration['language'] == 'openacc' else 16  # No `qid` w/ OMP
         assert str(exprs[b]) == 'const int deviceid = sdata0->deviceid;'
@@ -508,7 +513,10 @@ class TestStreaming:
         body = sections[2].body[0].body[0]
         assert str(body.body[0]) == 'release_lock0(lock0);'
         assert str(body.body[1]) == 'activate0(time,sdata0);'
-        assert len(op._func_table) == 5 + int(configuration['language'] == 'openacc')
+        if configuration['language'] == 'openacc':
+            assert len(op._func_table) == 7
+        else:
+            assert len(op._func_table) == 5
         calls = FindNodes(Call).visit(op._func_table['copy_to_host0'].root)
         stores = [str(i) for i in calls if i.name == '__atomic_store_n']
         assert stores[0] == '__atomic_store_n(&lock0[0],1,__ATOMIC_RELEASE);'
@@ -563,7 +571,10 @@ class TestStreaming:
         assert str(body.body[1]) == 'sdata0[0].time = time;'
         assert str(body.body[2]) == \
             '__atomic_store_n(&sdata0[0].flag,2,__ATOMIC_RELEASE);'
-        assert len(op._func_table) == 5 + int(configuration['language'] == 'openacc')
+        if configuration['language'] == 'openacc':
+            assert len(op._func_table) == 7
+        else:
+            assert len(op._func_table) == 5
         exprs = FindNodes(Expression).visit(op._func_table['copy_to_host0'].root)
         b = 21 if configuration['language'] == 'openacc' else 20  # No `qid` w/ OMP
         assert exprs[b].write is u
@@ -636,7 +647,10 @@ class TestStreaming:
         body = op1._func_table['activate0'].root.body
         assert str(body.body[-1]) == \
             '__atomic_store_n(&sdata0[wi0].flag,2,__ATOMIC_RELEASE);'
-        assert len(op1._func_table) == 5 + int(configuration['language'] == 'openacc')
+        if configuration['language'] == 'openacc':
+            assert len(op1._func_table) == 7
+        else:
+            assert len(op1._func_table) == 5
         exprs = FindNodes(Expression).visit(op1._func_table['copy_to_host0'].root)
         b = 21 if configuration['language'] == 'openacc' else 20  # No `qid` w/ OMP
         assert exprs[b].write is usave
@@ -695,8 +709,9 @@ class TestStreaming:
         op = Operator(eqn, opt=opt)
 
         # Check generated code
+        # OpenACC maps both the Function and its staging array.
         if configuration['language'] == 'openacc':
-            assert len(op._func_table) == 10
+            assert len(op._func_table) == 11
         else:
             assert len(op._func_table) == 8
         assert len([i for i in FindSymbols().visit(op) if i.is_Array]) == ntmps
@@ -771,7 +786,7 @@ class TestStreaming:
         # Check generated code
         arrays = [i for i in FindSymbols().visit(op) if i.is_Array]
         if configuration['language'] == 'openacc':
-            assert len(op._func_table) == 10
+            assert len(op._func_table) == 11
             assert len(arrays) == ntmps
         else:
             assert len(op._func_table) == 8
@@ -982,7 +997,7 @@ class TestStreaming:
 
         # Check generated code
         if configuration['language'] == 'openacc':
-            assert len(op1._func_table) == 10
+            assert len(op1._func_table) == 11
         else:
             assert len(op1._func_table) == 8
         assert len([i for i in FindSymbols().visit(op1) if i.is_Array]) == ntmps
@@ -1074,7 +1089,7 @@ class TestStreaming:
 
         # Check generated code
         if configuration['language'] == 'openacc':
-            assert len(op1._func_table) == 10
+            assert len(op1._func_table) == 11
         else:
             assert len(op1._func_table) == 8
         assert len([i for i in FindSymbols().visit(op1) if i.is_Array]) == ntmps
@@ -1160,7 +1175,7 @@ class TestStreaming:
         # loop nests, but they eventually get mapped to the same pair of efuncs,
         # since devito attempts to maximize code reuse
         if configuration['language'] == 'openacc':
-            assert len(op1._func_table) == 9
+            assert len(op1._func_table) == 10
         else:
             assert len(op1._func_table) == 7
 
@@ -1383,7 +1398,7 @@ class TestStreaming:
         # are identical, so they get mapped to the same efuncs (init + copy)
         # There also are two extra functions to allocate and free arrays
         if configuration['language'] == 'openacc':
-            assert len(op._func_table) == 9
+            assert len(op._func_table) == 10
         else:
             assert len(op._func_table) == 7
 
@@ -1442,7 +1457,7 @@ class TestStreaming:
         # We just check the generated code here
         assert len([i for i in FindSymbols().visit(op) if isinstance(i, Lock)]) == 1
         if configuration['language'] == 'openacc':
-            assert len(op._func_table) == 9
+            assert len(op._func_table) == 11
         else:
             assert len(op._func_table) == 7
 
@@ -1502,7 +1517,7 @@ class TestStreaming:
 
         # Check generated code
         if configuration['language'] == 'openacc':
-            assert len(op._func_table) == 10
+            assert len(op._func_table) == 11
         else:
             assert len(op._func_table) == 8
         assert len([i for i in FindSymbols().visit(op) if i.is_Array]) == ntmps
@@ -1560,16 +1575,21 @@ class TestStreaming:
                                   {'npthreads': 1}))
 
         # Check generated code
-        diff = int(configuration['language'] == 'openmp')
-        extra = int(configuration['language'] == 'openacc')
-        assert len(op1._func_table) == 14 - diff + extra
-        assert len([i for i in FindSymbols().visit(op1) if i.is_Array]) == 9 - diff
-        assert len(op2._func_table) == 14 - diff + extra
-        assert len([i for i in FindSymbols().visit(op2) if i.is_Array]) == 9 - diff
         # The streaming/buffering cannot be fused since the guards of
         # vas and vasb/vasf are not compatible.
-        assert len(op3._func_table) == 12 - diff + extra
-        assert len([i for i in FindSymbols().visit(op3) if i.is_Array]) == 9 - diff
+        if configuration['language'] == 'openacc':
+            expected_funcs = (16, 16, 14)
+            expected_arrays = 9
+        elif configuration['language'] == 'openmp':
+            expected_funcs = (13, 13, 11)
+            expected_arrays = 8
+        else:
+            expected_funcs = (14, 14, 12)
+            expected_arrays = 9
+        for op, nfuncs in zip((op1, op2, op3), expected_funcs, strict=True):
+            assert len(op._func_table) == nfuncs
+            arrays = [i for i in FindSymbols().visit(op) if i.is_Array]
+            assert len(arrays) == expected_arrays
 
         op0.apply(time_m=15, time_M=35, save_shift=0)
         op1.apply(time_m=15, time_M=36, save_shift=0, u=u1)

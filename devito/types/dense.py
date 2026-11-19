@@ -1165,16 +1165,18 @@ class Function(DiscreteFunction):
             processed = staggered
         else:
             # Staggering is not NODE or CELL or None
-            # therefore it's a tuple of dimensions
+            # therefore it's a tuple of dimensions. These may be the roots of
+            # `dimensions` (e.g., `staggered=x` for a Function on a SubDomain)
+            staggered = set(as_tuple(staggered))
             processed = []
             for d in dimensions:
-                if d in as_tuple(staggered):
+                if {d, d.root} & staggered:
                     processed.append(sympy.S.One)
-                elif -d in as_tuple(staggered):
+                elif {-d, -d.root} & staggered:
                     processed.append(sympy.S.NegativeOne)
                 else:
                     processed.append(sympy.S.Zero)
-        return Staggering(*processed, getters=dimensions)
+        return Staggering(*processed, getters=[d.root for d in dimensions])
 
     @classmethod
     def __indices_setup__(cls, *args, **kwargs):
