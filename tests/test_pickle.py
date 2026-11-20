@@ -33,7 +33,7 @@ from devito.types import (
 from devito.types import Symbol as dSymbol
 from devito.types import TempFunction, ThreadID, Timer
 from devito.types.basic import AbstractSymbol, BoundSymbol
-from devito.types.dimension import MultiSubDimension
+from devito.types.dimension import GlobalIndex, MultiSubDimension
 from examples.seismic import (
     AcquisitionGeometry, Receiver, RickerSource, TimeAxis, demo_model
 )
@@ -415,6 +415,15 @@ class TestBasic:
 
         assert d.name == new_d.name
         assert d.symbolic_size.name == new_d.symbolic_size.name
+
+    def test_global_index(self, pickle):
+        d = Dimension(name='d')
+        index = GlobalIndex(d)
+
+        new_index = pickle.loads(pickle.dumps(index))
+
+        assert type(new_index) is GlobalIndex
+        assert new_index.dim.name == d.name
 
     def test_lock(self, pickle):
         ld = CustomDimension(name='ld', symbolic_size=2)

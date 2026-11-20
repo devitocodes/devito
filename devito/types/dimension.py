@@ -214,6 +214,11 @@ class Dimension(ArgProvider):
     def index(self):
         return self
 
+    @cached_property
+    def global_index(self):
+        """The global index along the Dimension."""
+        return GlobalIndex(self)
+
     @property
     def is_const(self):
         return False
@@ -634,6 +639,33 @@ class Thickness(DataSymbol):
 
         comm = args.comm if args.options['mpi'] else None
         mpi_raise(error, InvalidArgument, comm=comm)
+
+
+class GlobalIndex(sympy.Expr):
+    """
+    The global index of `dim`, i.e. the loop index plus the offset of this rank's
+    part of the Grid. A bare `dim` used as a value is the loop index, local to the
+    rank on a distributed Grid.
+
+    Examples
+    --------
+    >>> from devito import Eq, Function, Grid
+    >>> grid = Grid(shape=(4,))
+    >>> x, = grid.dimensions
+    >>> f = Function(name='f', grid=grid)
+    >>> Eq(f, x.global_index)
+    Eq(f(x), GlobalIndex(x))
+    """
+
+    is_commutative = True
+    is_integer = True
+
+    def __new__(cls, dim):
+        return sympy.Expr.__new__(cls, dim)
+
+    @property
+    def dim(self):
+        return self.args[0]
 
 
 class RankOffset(Thickness):
