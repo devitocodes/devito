@@ -17,7 +17,7 @@ from devito.types import (
 )
 from devito.types.array import Array
 from devito.types.basic import AbstractFunction
-from devito.types.dimension import MultiSubDimension, Thickness
+from devito.types.dimension import MultiSubDimension, RankOffset, Thickness
 
 __all__ = ['concretize_subdims', 'dimension_sort', 'lower_exprs']
 
@@ -294,6 +294,12 @@ def _(tkn, mapper, rebuilt, sregistry):
         return
 
     mapper[tkn] = tkn._rebuild(name=sregistry.make_name(prefix=tkn.name))
+
+
+@_concretize_subdims.register(RankOffset)
+def _(tkn, mapper, rebuilt, sregistry):
+    """A RankOffset belongs to the Grid, not to a SubDimension, so it is kept as is."""
+    return
 
 
 @_concretize_subdims.register(SubDimension)

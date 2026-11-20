@@ -628,6 +628,31 @@ class Thickness(DataSymbol):
         mpi_raise(error, InvalidArgument, comm=comm)
 
 
+class RankOffset(Thickness):
+    """
+    The number of points of `root` owned by the MPI ranks before (`side=LEFT`)
+    or after (`side=RIGHT`) this one, that is the offset of this rank from that
+    edge of the Grid. Zero without domain decomposition.
+    """
+
+    def _arg_values(self, grid=None, **kwargs):
+        root = self.root
+        if grid is not None:
+            root = next((d for d in grid.dimensions if d.name == root.name), root)
+
+        if grid is None or not grid.is_distributed(root):
+            return {self.name: 0}
+
+        dec = grid.distributor.decomposition[root]
+        if dec.loc_empty:
+            # No iterations run on an empty rank
+            return {self.name: 0}
+        elif self.side == LEFT:
+            return {self.name: dec.loc_abs_min - dec.glb_min}
+        else:
+            return {self.name: dec.glb_max - dec.loc_abs_max}
+
+
 class AbstractSubDimension(DerivedDimension):
 
     """

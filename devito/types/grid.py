@@ -16,8 +16,8 @@ from devito.types.args import ArgProvider
 from devito.types.basic import Scalar
 from devito.types.dense import Function
 from devito.types.dimension import (
-    ConditionalDimension, DefaultDimension, Dimension, MultiSubDimension, SpaceDimension,
-    Spacing, SteppingDimension, SubDimension, TimeDimension
+    ConditionalDimension, DefaultDimension, Dimension, MultiSubDimension, RankOffset,
+    SpaceDimension, Spacing, SteppingDimension, SubDimension, TimeDimension
 )
 from devito.types.utils import DimensionTuple, GlobalLocal
 
@@ -208,8 +208,7 @@ class Grid(CartesianDiscretization, ArgProvider):
         self._origin_symbols = tuple(Scalar(name=f'o_{d.name}', dtype=dtype,
                                             is_const=True)
                                      for d in self.dimensions)
-        self._origin_isymbols = tuple(Scalar(name=f'io_{d.name}', dtype=np.int32,
-                                             is_const=True)
+        self._origin_isymbols = tuple(RankOffset(name=f'io_{d.name}', side=LEFT, root=d)
                                       for d in self.dimensions)
 
         # Sanity check
@@ -398,7 +397,6 @@ class Grid(CartesianDiscretization, ArgProvider):
         ret = []
         ret.append(self.time_dim.spacing.name)
         ret.extend([i.name for i in self.origin_map])
-        ret.extend([i.name for i in self.origin_imap])
         for i in self.spacing_map:
             try:
                 ret.append(i.name)
@@ -420,7 +418,6 @@ class Grid(CartesianDiscretization, ArgProvider):
 
         # Grid origin
         args.update({k.name: v for k, v in self.origin_map.items()})
-        args.update({k.name: v for k, v in self.origin_imap.items()})
 
         # MPI-related objects
         if self.distributor.comm:
