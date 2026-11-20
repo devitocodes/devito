@@ -6,6 +6,8 @@ from devito import (
     Eq, Function, Grid, Inc, MatrixSparseTimeFunction, Operator, SparseTimeFunction,
     TimeFunction, configuration, sin, switchconfig
 )
+from devito.data.allocators import DataReference
+from devito.exceptions import InvalidArgument
 from devito.ir import Call, Callable, DummyExpr, Expression, FindNodes, SymbolRegistry
 from devito.passes import Graph, generate_macros, linearize
 from devito.types import Array, Bundle, CustomDimension, DefaultDimension
@@ -159,6 +161,24 @@ def test_interpolation_enforcing_int64_indexing_v2():
 
     Operator(rec.interpolate(expr=u.forward),
              opt=('advanced', {'linearize': True, 'index-mode': 'int32'}))
+
+
+@switchconfig(autopadding=False)
+@pytest.mark.parametrize('index_mode', ['int32', 'int64'])
+def test_large_allocation(index_mode):
+    grid = Grid(shape=(1024, 1024, 1024))
+    # Validate the allocation size without allocating or accessing its storage
+    data = np.broadcast_to(np.zeros(1, dtype=np.float32), (3, *grid.shape))
+    u = TimeFunction(name='u', grid=grid, time_order=2, space_order=0,
+                     allocator=DataReference(data))
+    op = Operator(Eq(u.forward, u + 1), name='large',
+                  opt=('advanced', {'linearize': True, 'index-mode': index_mode}))
+
+    if index_mode == 'int32':
+        with pytest.raises(InvalidArgument, match='int32 pointer arithmetic'):
+            op.arguments(time_m=0, time_M=2)
+    else:
+        op.arguments(time_m=0, time_M=2)
 
 
 def test_interpolation_msf():

@@ -589,6 +589,11 @@ class SubDistributor(DenseDistributor):
         return self._parent
 
     @property
+    def _obj_comm(self):
+        """Share the parent's symbolic communicator as well as its MPI handle."""
+        return self.parent._obj_comm
+
+    @property
     def p(self):
         """Shortcut for `SubDistributor.parent`"""
         return self.parent

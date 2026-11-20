@@ -52,12 +52,10 @@ class NThreadsAbstract(Scalar):
 
     def __new__(cls, *args, **kwargs):
         kwargs.setdefault('name', cls.name)
+        kwargs['dtype'] = np.int32
         kwargs['is_const'] = True
-        return super().__new__(cls, **kwargs)
 
-    @classmethod
-    def __dtype_setup__(cls, **kwargs):
-        return np.int32
+        return super().__new__(cls, **kwargs)
 
 
 class NThreadsBase(NThreadsAbstract):

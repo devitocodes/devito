@@ -1838,6 +1838,7 @@ class TestSubDomainFunctionsParallel:
         grid = Grid(shape=(11, 11), extent=(10., 10.), topology=(2, 1))
         # Only held by rank 0
         reduced_domain = ReducedDomain(('middle', 0, 7), None, grid=grid)
+        assert reduced_domain.distributor._obj_comm is grid.distributor._obj_comm
 
         if time_dependent:
             f = TimeFunction(name='f', grid=reduced_domain, space_order=2)
