@@ -15,7 +15,8 @@ from sympy.logic.boolalg import BooleanFunction
 from devito.finite_differences.elementary import Max, Min
 from devito.tools import (  # noqa
     Bunch, Pickable, as_tuple, ctypes_to_cstr, ctypes_vector_mapper, double2, double3,
-    double4, dtype_to_ctype, float2, float3, float4, int2, int3, int4, is_integer
+    double4, dtype_to_ctype, extract_dtype, float2, float3, float4, int2, int3, int4,
+    is_integer
 )
 from devito.types import Symbol
 from devito.types.basic import Basic
@@ -493,6 +494,13 @@ class Cast(UnaryOp):
     def dtype(self):
         return self._dtype
 
+    @cached_property
+    def alignment(self):
+        """Byte alignment of a typed access, if the target's size is known."""
+        with suppress(TypeError):
+            return np.dtype(self.dtype).itemsize
+        return None
+
     @property
     def reinterpret(self):
         return self._reinterpret
@@ -542,6 +550,10 @@ class IndexedPointer(Expr, Pickable, BasicWrapperMixin, Terminal):
     @property
     def base(self):
         return self._base
+
+    @property
+    def dtype(self):
+        return self.base.dtype
 
     @property
     def index(self):
@@ -659,6 +671,12 @@ class RoundUp(Function):
                 return value + step - remainder
 
         return super().__new__(cls, value, step, **kwargs)
+
+    def _eval_is_integer(self):
+        dtype = extract_dtype(self.value)
+        if (self.value.is_integer or
+                isinstance(dtype, type) and issubclass(dtype, np.integer)):
+            return True
 
     @property
     def value(self):

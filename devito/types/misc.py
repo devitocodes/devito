@@ -1,4 +1,4 @@
-from ctypes import c_double, c_void_p
+from ctypes import POINTER, c_double
 
 import numpy as np
 import sympy
@@ -201,15 +201,36 @@ class Hyperplane(tuple):
 
 class Pointer(LocalObject, sympy.Expr):
 
-    __rkwargs__ = LocalObject.__rkwargs__ + ('dtype',)
+    """
+    A Pointer is defined by the pointee base type and its indirections.
 
-    def __init__(self, *args, dtype=c_void_p, **kwargs):
+    Unlike plain LocalObjects, Pointers can be used within arbitrary expressions.
+
+    Examples
+    --------
+    `Pointer('p', dtype_base=c_float, stars='**')` declares `float **p`.
+    """
+
+    __rkwargs__ = LocalObject.__rkwargs__ + ('dtype_base', 'stars')
+
+    def __init__(self, *args, dtype_base=None, stars='*', **kwargs):
         super().__init__(*args, **kwargs)
-        self._dtype = dtype
+        if not isinstance(stars, str) or any(i != '*' for i in stars):
+            raise ValueError('`stars` must be a string of zero or more `*` characters')
+        self.dtype_base = dtype_base
+        self.stars = stars
+
+    def _hashable_content(self):
+        return super()._hashable_content() + (self.stars,)
 
     @property
     def dtype(self):
-        return self._dtype
+        ctype = self.dtype_base
+        if isinstance(ctype, CustomDtype):
+            return CustomDtype(ctype.name, ctype.template, ctype.modifier + self.stars)
+        for _ in self.stars:
+            ctype = POINTER(ctype)
+        return ctype
 
 
 class Indirection(Symbol):
