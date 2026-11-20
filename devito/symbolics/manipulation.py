@@ -19,6 +19,7 @@ from devito.symbolics.search import (
 )
 from devito.symbolics.unevaluation import Add as UnevalAdd
 from devito.symbolics.unevaluation import Mul as UnevalMul
+from devito.symbolics.unevaluation import OrderedAdd, OrderedMul
 from devito.symbolics.unevaluation import Pow as UnevalPow
 from devito.symbolics.unevaluation import UnevaluableMixin
 from devito.symbolics.unevaluation import ceiling as UnevalCeil
@@ -225,6 +226,17 @@ def _(expr, args, kwargs):
     if all(i.is_Number for i in args):
         return expr.func.__base__(*args)
     return expr.func(*args)
+
+
+@_uxreplace_handle.register(OrderedAdd)
+def _(expr, args, kwargs):
+    # Print the reconstructed scalar order, including after local renaming
+    return _uxreplace_handle.dispatch(Add)(expr, args, kwargs)
+
+
+@_uxreplace_handle.register(OrderedMul)
+def _(expr, args, kwargs):
+    return _uxreplace_handle.dispatch(Mul)(expr, args, kwargs)
 
 
 @_uxreplace_handle.register(Add)
