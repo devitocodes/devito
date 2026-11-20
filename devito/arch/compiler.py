@@ -1,4 +1,7 @@
+import ctypes
+import os
 import platform
+import sys
 import time
 import warnings
 from contextlib import suppress
@@ -183,6 +186,10 @@ class Compiler(GCCToolchain, Signer):
         ``suffix='4.9'``, the ``gcc-4.9`` will be used as JIT compiler.
     cpp : bool, optional, default=False
         If True, JIT compile using a C++ compiler.
+    std : str, optional, default=None
+        Override the compiler class default language standard.
+    openmp : bool, optional, default=False
+        Enable OpenMP compilation independently of the language.
     mpi : bool, optional, default=False
         If True, JIT compile using an MPI compiler.
     platform : Platform, optional
@@ -192,6 +199,7 @@ class Compiler(GCCToolchain, Signer):
     fields = {'cc', 'ld'}
     linker_opt = '-Wl,'
     _default_cpp = False
+    _load_mode = ctypes.DEFAULT_MODE
     _cxxstd = 'c++14'
     _cstd = 'c99'
 
@@ -202,10 +210,14 @@ class Compiler(GCCToolchain, Signer):
         else:
             self._name = maybe_name
 
+        std = kwargs.pop('std', None)
         super().__init__(**kwargs)
 
         self.__lookup_cmds__()
         self._cpp = kwargs.get('cpp', self._default_cpp)
+        self._std = std
+        self.openmp = kwargs.get('openmp', False) or 'openmp' in kwargs.get(
+            'language', configuration['language'])
 
         self.suffix = kwargs.get('suffix')
         if not kwargs.get('mpi'):
@@ -247,6 +259,8 @@ class Compiler(GCCToolchain, Signer):
         """
         return self.__class__(name=self.name, suffix=kwargs.pop('suffix', self.suffix),
                               mpi=kwargs.pop('mpi', configuration['mpi']),
+                              cpp=kwargs.pop('cpp', self._cpp),
+                              std=kwargs.pop('std', self._std),
                               **kwargs)
 
     @property
@@ -269,7 +283,7 @@ class Compiler(GCCToolchain, Signer):
 
     @property
     def std(self):
-        return self._cxxstd if self._cpp else self._cstd
+        return self._std or (self._cxxstd if self._cpp else self._cstd)
 
     def get_version(self):
         result, stdout, stderr = call_capture_output((self.cc, "--version"))
@@ -300,7 +314,11 @@ class Compiler(GCCToolchain, Signer):
             The loaded shared object.
         """
         try:
-            return npct.load_library(str(self.get_jit_dir().joinpath(soname)), '.')
+            library = self.get_jit_dir().joinpath(soname)
+            if self._load_mode != ctypes.DEFAULT_MODE:
+                return ctypes.CDLL(str(library.with_suffix(self.so_ext)),
+                                   mode=self._load_mode)
+            return npct.load_library(str(library), '.')
         except AttributeError as e:
             # Some ctypes paths re-wrap dlopen failures, such as a partially
             # written .so, as AttributeError. Normalize so jit_compile treats
@@ -470,6 +488,9 @@ class Compiler(GCCToolchain, Signer):
     def _signature_items(self):
         return (str(self._cmdline([])), self.src_ext, self.so_ext)
 
+    def add_defines(self, defines):
+        self.defines = filter_ordered(self.defines + as_list(defines))
+
     def add_include_dirs(self, dirs):
         self.include_dirs = filter_ordered(self.include_dirs + as_list(dirs))
 
@@ -522,7 +543,6 @@ class GNUCompiler(Compiler):
         else:
             self.cflags = ['-march=native'] + self.cflags
 
-        language = kwargs.pop('language', configuration['language'])
         try:
             if self.version >= Version("4.9.0"):
                 # Append the openmp flag regardless of the `language` value,
@@ -530,7 +550,7 @@ class GNUCompiler(Compiler):
                 # they support `#pragma omp simd`
                 self.ldflags += ['-fopenmp']
         except (TypeError, ValueError):
-            if 'openmp' in language:
+            if self.openmp:
                 self.ldflags += ['-fopenmp']
 
     def __lookup_cmds__(self):
@@ -573,24 +593,30 @@ class ClangCompiler(Compiler):
                                  '-fopenmp-targets=amdgcn-amd-amdhsa',
                                  '-Xopenmp-target=amdgcn-amd-amdhsa']
                 self.ldflags += [f'-march={platform.march}']
-        elif isinstance(platform, AppleArm):
+        elif isinstance(platform, AppleArm) or sys.platform == 'darwin':
+            # Synthetic CPU targets must use the host's OpenMP runtime too
             # NOTE:
             # Apple Mx supports OpenMP through Apple's LLVM compiler.
             # The compiler can be installed with Homebrew or can be built from scratch.
             # Check if installed and set compiler flags accordingly
             llvmm1 = get_m1_llvm_path(language)
-            if llvmm1 and 'openmp' in language:
-                mx = platform.march
-                self.ldflags += [f'-mcpu=apple-{mx}',
-                                 '-fopenmp', f'-L{llvmm1["libs"]}']
+            if not isinstance(platform, AppleArm):
+                self.cflags += ['-march=native']
+            if llvmm1 and self.openmp:
+                if isinstance(platform, AppleArm):
+                    self.ldflags += [f'-mcpu=apple-{platform.march}']
+                self.ldflags += ['-fopenmp', f'-L{llvmm1["libs"]}',
+                                 f'-Wl,-rpath,{llvmm1["libs"]}']
                 self.cflags += ['-Xclang', f'-I{llvmm1["include"]}']
+            elif self.openmp and not isinstance(platform, AppleArm):
+                self.ldflags += ['-fopenmp']
         else:
             if platform in [POWER8, POWER9]:
                 # -march isn't supported on power architectures
                 self.cflags += ['-mcpu=native']
             else:
                 self.cflags += ['-march=native']
-            if 'openmp' in language:
+            if self.openmp:
                 self.ldflags += ['-fopenmp']
 
     def __lookup_cmds__(self):
@@ -624,7 +650,7 @@ class AOMPCompiler(Compiler):
         if not configuration['safe-math']:
             self.cflags.append('-ffast-math')
 
-        if 'openmp' in language:
+        if self.openmp:
             self.ldflags += ['-fopenmp']
 
         if isinstance(platform, NvidiaDevice):
@@ -666,6 +692,8 @@ class DPCPPCompiler(Compiler):
 class NvidiaCompiler(Compiler):
 
     _default_cpp = True
+    # Prefer the linked NVIDIA runtime over globally loaded OpenACC symbols
+    _load_mode = getattr(os, 'RTLD_DEEPBIND', ctypes.DEFAULT_MODE)
 
     def __init_finalize__(self, **kwargs):
 
@@ -683,10 +711,10 @@ class NvidiaCompiler(Compiler):
 
             if language == 'openacc':
                 self.cflags.extend(['-mp', '-acc:gpu'])
-            elif 'openmp' in language:
+            elif self.openmp:
                 self.cflags.extend(['-mp=gpu'])
         elif isinstance(platform, Cpu64):
-            if 'openmp' in language:
+            if self.openmp:
                 self.cflags.append('-mp')
             if isinstance(platform, NvidiaArm):
                 self.cflags.append(f'-mcpu={platform.march}')
@@ -867,7 +895,6 @@ class IntelCompiler(Compiler):
 
     def __init_finalize__(self, **kwargs):
         platform = kwargs.pop('platform', configuration['platform'])
-        language = kwargs.pop('language', configuration['language'])
 
         self.cflags.append("-xHost")
 
@@ -880,7 +907,7 @@ class IntelCompiler(Compiler):
             # Systematically use 512-bit vectors if avx512 is available.
             self.cflags.append("-qopt-zmm-usage=high")
 
-        if 'openmp' in language:
+        if self.openmp:
             self.ldflags.append('-qopenmp')
 
         if kwargs.get('mpi'):
@@ -932,11 +959,9 @@ class IntelKNLCompiler(IntelCompiler):
     def __init_finalize__(self, **kwargs):
         IntelCompiler.__init_finalize__(self, **kwargs)
 
-        language = kwargs.pop('language', configuration['language'])
-
         self.cflags.append('-xMIC-AVX512')
 
-        if language != 'openmp':
+        if not self.openmp:
             warning("Running on Intel KNL without OpenMP is highly discouraged")
 
 
@@ -951,7 +976,7 @@ class OneapiCompiler(Compiler):
         if language == 'sycl':
             warning(f"Use SyclCompiler (`sycl`) to jit-compile sycl, not {self.name}")
 
-        elif 'openmp' in language:
+        elif self.openmp:
             # Earlier versions to OneAPI 2023.2.0 (clang17 underneath), have an
             # OpenMP bug concerning reductions, hence with them we're forced to
             # use the obsolete -fopenmp
@@ -1062,7 +1087,8 @@ class CustomCompiler(Compiler):
         self._base.__init_finalize__(self, **kwargs)
         # Update cflags
         try:
-            extra_c = environ.get('CFLAGS').split(' ')
+            flags = 'CXXFLAGS' if self._cpp else 'CFLAGS'
+            extra_c = environ.get(flags, environ.get('CFLAGS')).split(' ')
             self.cflags = self.cflags + extra_c
         except AttributeError:
             pass
@@ -1088,6 +1114,10 @@ class CustomCompiler(Compiler):
     @property
     def _default_cpp(self):
         return self._base._default_cpp
+
+    @property
+    def _load_mode(self):
+        return self._base._load_mode
 
 
 class CompilerRegistry(dict):

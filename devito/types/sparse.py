@@ -803,7 +803,8 @@ class AbstractSparseFunction(DiscreteFunction):
 
         return values
 
-    def _arg_apply(self, dataobj, alias=None):
+    def _arg_apply(self, dataobj, alias=None, access_mode=None):
+        super()._arg_apply(dataobj, alias=alias, access_mode=access_mode)
         key = alias if alias is not None else self
         if isinstance(key, AbstractSparseFunction):
             # Gather into `self.data`
@@ -2336,7 +2337,8 @@ class MatrixSparseTimeFunction(AbstractSparseTimeFunction):
 
     # The implementation in AbstractSparseFunction now relies on us
     # having a .coordinates property, which we don't have.
-    def _arg_apply(self, dataobj, *subfuncs, alias=None):
+    def _arg_apply(self, dataobj, *subfuncs, alias=None, access_mode=None):
+        DiscreteFunction._arg_apply(self, dataobj, alias=alias, access_mode=access_mode)
         key = alias if alias is not None else self
         if isinstance(key, AbstractSparseFunction):
             # Gather into `self.data`

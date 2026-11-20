@@ -13,6 +13,7 @@ from dataclasses import dataclass
 
 import numpy as np
 
+from devito.data.utils import index_axis_span
 from devito.tools import is_integer
 
 __all__ = ['Affine', 'Explicit', 'IndexScalar', 'Selection', 'index_has_array',
@@ -93,18 +94,6 @@ def _is_legacy_multidim_basic(idx, ndim):
             all(is_integer(i) for i in idx))
 
 
-def _axis_span(item):
-    """Number of array axes consumed by one raw index component."""
-    if item is np.newaxis:
-        return 0
-    elif isinstance(item, np.ndarray) and item.dtype == np.bool_:
-        return item.ndim
-    elif isinstance(item, (list, tuple)):
-        arr = np.asarray(item)
-        return arr.ndim if arr.dtype == np.bool_ else 1
-    return 1
-
-
 def _expand(idx, ndim):
     """
     Expand a raw index into exactly `ndim` per-axis components, replacing
@@ -123,7 +112,7 @@ def _expand(idx, ndim):
     # Replace Ellipsis with the right number of full slices
     if any(i is Ellipsis for i in items):
         pos = next(k for k, i in enumerate(items) if i is Ellipsis)
-        consumed = sum(_axis_span(i) for i in items if i is not Ellipsis)
+        consumed = sum(index_axis_span(i) for i in items if i is not Ellipsis)
         fill = [slice(None)] * (ndim - consumed)
         items = items[:pos] + fill + items[pos + 1:]
 

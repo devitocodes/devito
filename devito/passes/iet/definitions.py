@@ -9,6 +9,7 @@ from operator import itemgetter
 
 import numpy as np
 
+from devito.exceptions import InvalidOperator
 from devito.ir import (
     Block, Call, Definition, DummyExpr, EntryFunction, FindNodes, FindSymbols, Iteration,
     List, MapExprStmts, Return, Transformer, make_callable
@@ -481,6 +482,11 @@ class DataManager:
         iet : Callable
             The input Iteration/Expression tree.
         """
+        for expr, parents in MapExprStmts().visit(iet).items():
+            if any(f.is_DiscreteFunction and f._mem_local for f in expr.functions) and \
+               not any(isinstance(i, self.langbb.DeviceIteration) for i in parents):
+                raise InvalidOperator("Device-resident Functions cannot be "
+                                      "accessed by host code")
         storage = Storage()
 
         # Process inline definitions

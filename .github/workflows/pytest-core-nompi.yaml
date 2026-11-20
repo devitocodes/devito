@@ -163,6 +163,7 @@ jobs:
       run: |
         pytest \
           -v \
+          --capture=no \
           -k "${{ matrix.test-set }}" \
           -m "not parallel" \
           --cov \
@@ -248,6 +249,7 @@ jobs:
         command: |
           pytest \
             -v \
+            --capture=no \
             -k "${{ matrix.test-set }}" \
             -m "not parallel" \
             --cov \

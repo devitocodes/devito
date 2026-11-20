@@ -30,6 +30,11 @@ RUN rm -rf /app/devito/.git
 RUN eval "$MPI4PY_FLAGS /venv/bin/pip install --no-cache-dir --verbose -r /app/devito/requirements-mpi.txt"
 
 # Devito
+ARG TORCH_INDEX_URL
+RUN if [ -n "$TORCH_INDEX_URL" ]; then \
+        /venv/bin/pip install --no-cache-dir --index-url "$TORCH_INDEX_URL" \
+            -r /app/devito/requirements-torch.txt; \
+    fi
 RUN /venv/bin/pip install --no-cache-dir -e "/app/devito[extras,tests]" && rm -rf ~/.cache/pip
 
 FROM $base AS utilities

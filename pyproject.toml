@@ -59,6 +59,7 @@ dependencies = { file = ["requirements.txt"] }
 
 [tool.setuptools.dynamic.optional-dependencies]
 # Map each extra to its requirements-*.txt
+torch  = { file = ["requirements-torch.txt"] }
 mpi    = { file = ["requirements-mpi.txt"] }
 nvidia = { file = ["requirements-nvidia.txt"] }
 tests  = { file = ["requirements-testing.txt"] }
@@ -73,7 +74,7 @@ fallback_version = "0+untagged"
 
 [tool.pytest.ini_options]
 python_files = ["test_*.py", "*_example.py", "example_*.py"]
-addopts = "--durations=20 --maxfail=5"
+addopts = "--durations=20 --maxfail=5 --exclude-warning-annotations"
 filterwarnings = ["ignore::pytest.PytestCacheWarning"]
 
 [tool.ruff]

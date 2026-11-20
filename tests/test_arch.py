@@ -1,17 +1,23 @@
+import ctypes
+import os
+import shutil
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import suppress
 from io import BytesIO
 from pathlib import Path
+from subprocess import check_call
 from types import SimpleNamespace
+from unittest.mock import Mock
 
 import pytest
 from packaging.version import Version
 
 from devito import configuration, switchconfig
 from devito.arch import BLACKWELL, NVIDIAX, archinfo, platform_registry
-from devito.arch.archinfo import AppleArm, get_apple_platform
+from devito.arch.archinfo import AppleArm, get_apple_platform, get_m1_llvm_path
 from devito.arch.compiler import (
-    Compiler, CudaCompiler, GNUCompiler, compiler_registry, sniff_compiler_version
+    Compiler, CudaCompiler, CustomCompiler, GNUCompiler, NvidiaCompiler,
+    compiler_registry, sniff_compiler_version
 )
 from devito.tools import os_helper
 
@@ -23,6 +29,38 @@ from devito.tools import os_helper
 def test_sniff_compiler_version(cc):
     with pytest.raises(RuntimeError, match=cc):
         sniff_compiler_version(cc)
+
+
+@pytest.mark.skipif(not hasattr(os, 'RTLD_DEEPBIND') or shutil.which('gcc') is None,
+                    reason='Requires ELF deep binding and GCC')
+@pytest.mark.parametrize('custom', [False, True])
+def test_compiler_runtime_symbols(tmp_path, monkeypatch, custom):
+    """A globally loaded runtime must not interpose on NVIDIA kernel dependencies."""
+    monkeypatch.setattr('devito.arch.compiler.sniff_compiler_version',
+                        lambda cc, **kwargs: Version('16.0'))
+    symbol = f'devito_test_runtime_{str(custom).lower()}'
+    vendor = f'vendor_{custom}'
+    sources = {
+        'global': f'int {symbol}(void) {{ return 17; }}',
+        vendor: f'int {symbol}(void) {{ return 42; }}',
+        'kernel': f'extern int {symbol}(void); int check(void) {{ return {symbol}(); }}'
+    }
+    for name, source in sources.items():
+        src = tmp_path / f'{name}.c'
+        src.write_text(source)
+        args = ['gcc', '-shared', '-fPIC', str(src), '-o',
+                str(tmp_path / f'lib{name}.so')]
+        if name == 'kernel':
+            args += [f'-L{tmp_path}', f'-l{vendor}', f'-Wl,-rpath,{tmp_path}']
+        check_call(args)
+
+    global_runtime = ctypes.CDLL(str(tmp_path / 'libglobal.so'), mode=ctypes.RTLD_GLOBAL)
+    assert getattr(global_runtime, symbol)() == 17
+    platform = platform_registry['cpu64-dummy']()
+    compiler = (CustomCompiler(base=NvidiaCompiler, platform=platform) if custom else
+                NvidiaCompiler(platform=platform))
+    monkeypatch.setattr(compiler, 'get_jit_dir', lambda: tmp_path)
+    assert compiler.load('libkernel').check() == 42
 
 
 @pytest.mark.parametrize("cc", ['gcc-4.9', 'gcc-11', 'gcc', 'gcc-14', 'gcc-123'])
@@ -42,6 +80,25 @@ def test_apple_platform(brand, expected):
     platform = get_apple_platform(brand)
     assert isinstance(platform, AppleArm)
     assert platform.name == expected
+
+
+@pytest.mark.parametrize('loaded', [
+    [], ['/numerical/lib/libomp.dylib'], ['/usr/lib/libSystem.B.dylib']
+])
+def test_apple_openmp_runtime(monkeypatch, loaded):
+    monkeypatch.setattr('devito.arch.archinfo.sys.platform', 'darwin')
+    monkeypatch.setattr('devito.arch.archinfo.run', lambda *a, **kw: Mock(
+        stdout=b'Target: arm64-apple-darwin\nInstalledDir: /llvm/bin\n'))
+    monkeypatch.setattr('devito.arch.archinfo.os.path.exists', lambda p: True)
+    dyld = Mock()
+    dyld._dyld_image_count.return_value = len(loaded)
+    dyld._dyld_get_image_name.side_effect = [p.encode() for p in loaded]
+    monkeypatch.setattr('devito.arch.archinfo.ctypes.CDLL', lambda name: dyld)
+
+    paths = get_m1_llvm_path.func('openmp')
+    assert paths['include'] == '/llvm/include'
+    assert paths['libs'] == ('/numerical/lib' if '/numerical/lib/libomp.dylib'
+                             in loaded else '/llvm/lib')
 
 
 def test_switcharch():
