@@ -691,6 +691,11 @@ class ClusterGroup(tuple):
         return flatten(c.exprs for c in self)
 
     @cached_property
+    def occurrences(self):
+        """Pairs of expressions and their Clusters in `Scope` timestamp order."""
+        return tuple((expr, c) for c in self for expr in c.exprs)
+
+    @cached_property
     def local_sums(self):
         return tuple(s for c in self for s in c.local_sums)
 
