@@ -494,6 +494,13 @@ class Cast(UnaryOp):
     def dtype(self):
         return self._dtype
 
+    @cached_property
+    def alignment(self):
+        """Byte alignment of a typed access, if the target's size is known."""
+        with suppress(TypeError):
+            return np.dtype(self.dtype).itemsize
+        return None
+
     @property
     def reinterpret(self):
         return self._reinterpret
