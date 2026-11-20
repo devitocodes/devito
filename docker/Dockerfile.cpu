@@ -54,15 +54,19 @@ ENV PATH=${PATH}:/opt/openmpi/bin
 ENV LD_LIBRARY_PATH=/opt/openmpi/lib
 
 # LIKWID is used by DevitoProfiler to measure hardware counters on CPU backends
+ARG LIKWID_VERSION=5.5.2
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
-RUN curl -fsSL https://github.com/RRZE-HPC/likwid/archive/refs/tags/v5.5.2.tar.gz \
-        | tar -xz -C /tmp && cd /tmp/likwid-5.5.2 && \
-    printf '\nACCESSMODE=perf_event\nBUILDAPPDAEMON=false\n' >> config.mk && \
+RUN curl -fsSL https://github.com/RRZE-HPC/likwid/archive/refs/tags/v${LIKWID_VERSION}.tar.gz \
+        | tar -xz -C /tmp && cd /tmp/likwid-${LIKWID_VERSION} && \
+    printf '\nPREFIX=/opt/likwid\nACCESSMODE=perf_event\nBUILDAPPDAEMON=false\n' >> config.mk && \
     if [ "$(uname -m)" = aarch64 ]; then \
         echo 'COMPILER=GCCARMv8' >> config.mk; fi && \
     make -j "$(nproc)" && make install && \
-    install -Dm644 COPYING /usr/local/share/doc/likwid/COPYING && \
-    ldconfig && rm -rf /tmp/likwid-5.5.2
+    install -Dm644 COPYING /opt/likwid/share/doc/likwid/COPYING && \
+    rm -rf /tmp/likwid-${LIKWID_VERSION}
+
+ENV PATH=/opt/likwid/bin:${PATH}
+ENV LD_LIBRARY_PATH=/opt/likwid/lib:${LD_LIBRARY_PATH}
 
 # Cleanup
 RUN apt-get clean && apt-get autoclean && apt-get autoremove -y && rm -rf /var/lib/apt/lists/*
