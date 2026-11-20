@@ -17,7 +17,7 @@ from devito.types import (
 )
 from devito.types.array import Array
 from devito.types.basic import AbstractFunction
-from devito.types.dimension import MultiSubDimension, Thickness
+from devito.types.dimension import GlobalIndex, MultiSubDimension, Thickness
 
 __all__ = ['concretize_subdims', 'dimension_sort', 'lower_exprs']
 
@@ -156,8 +156,7 @@ def _lower_exprs(expressions, subs):
         # Add dimensions map to the mapper in case dimensions are used
         # as an expression, i.e. Eq(u, x, subdomain=xleft)
         mapper.update(dimension_map)
-        # Dimensions used as an expression are global indices, unlike loop indices
-        mapper.update(_make_global_index_map(expr, dimension_map))
+        mapper.update(_make_global_index_map(expr, dimension_map, subs))
         # Add the user-supplied substitutions
         mapper.update(subs)
         # Apply mapper to expression
@@ -204,19 +203,23 @@ def _make_dimension_map(expr):
     return frozendict(dimension_map)
 
 
-def _make_global_index_map(expr, dimension_map):
+def _make_global_index_map(expr, dimension_map, subs):
     """
-    Map the Dimensions of a distributed Grid to the global indices they stand for
-    when used as an expression, i.e. Eq(u, x + y) -> Eq(u[x, y], x + io_x + y + io_y).
-    Dimensions indexing an Indexed are unaffected as the Indexed is replaced as a whole.
+    Map each GlobalIndex to the loop index plus, on a distributed Grid, the offset
+    of this rank's part, i.e. Eq(u, GlobalIndex(x)) -> Eq(u[x], x + io_x).
     """
-    if not isinstance(expr, Eq):
+    indices = expr.find(GlobalIndex)
+    if not indices:
         return {}
 
     grids = {f.grid.root for f in retrieve_functions(expr) if f.grid is not None}
-    return {d: dimension_map.get(d, d) + o
-            for grid in grids if grid.distributor.is_parallel
-            for d, o in zip(grid.dimensions, grid.origin_isymbols, strict=True)}
+    mapper = dict(dimension_map)
+    mapper.update({d: dimension_map.get(d, d) + o
+                   for grid in grids if grid.distributor.is_parallel
+                   for d, o in zip(grid.dimensions, grid.origin_isymbols, strict=True)})
+    mapper.update(subs)
+    # The argument may have been shifted, e.g. `GlobalIndex(x + h_x)` by an FD
+    return {i: uxreplace(i.dim, mapper) for i in indices}
 
 
 def concretize_subdims(exprs, **kwargs):
