@@ -268,7 +268,7 @@ class Grid(CartesianDiscretization, ArgProvider):
     @property
     def origin_isymbols(self):
         """Symbols representing the global index of the rank's first grid point."""
-        return self._origin_isymbols
+        return DimensionTuple(*self._origin_isymbols, getters=self.dimensions)
 
     @property
     def origin_imap(self):

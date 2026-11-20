@@ -25,3 +25,9 @@ def test_extent_dtypes(dtype: np.dtype[np.number]) -> None:
     # Check that the spacings have the correct values
     assert dx == dtype(extent[0] / 4)
     assert dy == dtype(extent[1] / 4)
+
+
+def test_origin_isymbols_by_dimension():
+    grid = Grid(shape=(4, 5, 6))
+    for i, dim in enumerate(grid.dimensions):
+        assert grid.origin_isymbols[dim] is grid.origin_isymbols[i]
