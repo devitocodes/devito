@@ -17,6 +17,7 @@ from devito.symbolics import (
     DefFunction, IndexedPointer, Reserved, estimate_cost, q_leaf, q_terminal, search
 )
 from devito.symbolics.manipulation import _uxreplace
+from devito.symbolics.unevaluation import OrderedAdd, OrderedMul
 from devito.tools import DAG, as_list, as_tuple, extract_dtype, frozendict
 from devito.types import Eq, Symbol, Temp
 
@@ -431,6 +432,13 @@ def _(expr):
     temporaries, which `cse_dtype` would otherwise declare as floating-point
     and thus produce non-integral array subscripts.
     """
+    return {}
+
+
+@_catch.register(OrderedAdd)
+@_catch.register(OrderedMul)
+def _(expr):
+    # Partial extraction could reassociate operations with fixed rounding points
     return {}
 
 

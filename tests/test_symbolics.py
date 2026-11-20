@@ -29,6 +29,7 @@ from devito.symbolics import (  # noqa
 )
 from devito.symbolics.unevaluation import Add as UnevalAdd
 from devito.symbolics.unevaluation import Mul as UnevalMul
+from devito.symbolics.unevaluation import OrderedAdd, OrderedMul
 from devito.tools import (
     CustomDtype, as_tuple, dtypes_vector_mapper, extract_dtype, frozendict
 )
@@ -1369,6 +1370,58 @@ class TestUxreplace:
 
         assert rebuilt.strides == (b,)
         assert expr.strides == (a,)
+
+    @pytest.mark.parametrize('op, separator', [(OrderedAdd, ' + '), (OrderedMul, '*')])
+    @pytest.mark.parametrize('dtype', [np.float16, np.float32])
+    def test_uxreplace_order(self, op, separator, dtype):
+        a, b, c, z = [dSymbol(name=n, dtype=dtype) for n in 'abcz']
+        expr = op(c, b, a)
+        assert ccode(expr) == separator.join(('c', 'b', 'a'))
+
+        rebuilt = uxreplace(expr, {a: z})
+
+        assert ccode(rebuilt) == separator.join(('b', 'c', 'z'))
+        assert uxreplace(rebuilt, {z: a, b: z, c: b}).args == (a, b, z)
+        assert uxreplace(expr, {z: a}) is expr
+
+    @pytest.mark.parametrize('op', [OrderedAdd, OrderedMul])
+    def test_uxreplace_reconstruction(self, op):
+        a, b, c, z = [dSymbol(name=n) for n in 'abcz']
+        nested = op(b, c)
+        expr = op(a, nested)
+
+        assert uxreplace(expr, {a: z}).args == (b, c, z)
+        assert uxreplace(op(a, b), {a: Number(2), b: Number(3)}).args == (2, 3)
+
+    @pytest.mark.parametrize('op', [OrderedAdd, OrderedMul])
+    def test_uxreplace_compound_order(self, op):
+        a, b, c, z = [dSymbol(name=n) for n in 'abcz']
+        expr = op(a, b, c)
+
+        rebuilt = uxreplace(expr, {expr: {b: z, c: None}})
+
+        assert rebuilt.args == (a, z)
+
+    def test_ordered_factorization(self):
+        grid = Grid(shape=(8,))
+
+        a, b, c, z, out, ref = [Function(name=n, grid=grid, space_order=0)
+                                for n in ('a', 'b', 'c', 'z', 'out', 'ref')]
+
+        eq = uxreplace(Eq(out, OrderedAdd(OrderedMul(a, b), OrderedMul(a, c))), {a: z})
+        eq0 = Eq(ref, z*b + z*c)
+
+        reference = Operator(eq0, opt='noop')
+        candidate = Operator(eq, opt='advanced')
+
+        z.data[:] = (np.arange(8) + 1)*.125
+        b.data[:] = np.arange(8) + 1
+        c.data[:] = -np.arange(8)*.03125
+
+        assert 'b[x]*z[x] + c[x]*z[x]' in str(candidate)
+        reference.apply()
+        candidate.apply()
+        assert np.allclose(out.data, ref.data)
 
 
 def test_minmax():

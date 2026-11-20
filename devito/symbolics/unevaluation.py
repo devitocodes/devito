@@ -1,7 +1,7 @@
 import sympy
 from sympy import sympify
 
-__all__ = ['Add', 'Mod', 'Mul', 'Pow', 'ceiling', 'floor']
+__all__ = ['Add', 'Mod', 'Mul', 'OrderedAdd', 'OrderedMul', 'Pow', 'ceiling', 'floor']
 
 
 class UnevaluableMixin:
@@ -46,3 +46,27 @@ class ceiling(sympy.ceiling, UnevaluableMixin):
 
 class floor(sympy.floor, UnevaluableMixin):
     __new__ = UnevaluableMixin.__new__
+
+
+class OrderedAdd(Add):
+
+    """An addition with an explicit operand order for printing."""
+
+    def __new__(cls, *args, **kwargs):
+        return cls._from_args(args)
+
+    def as_ordered_terms(self, order=None, data=False):
+        if data:
+            return super().as_ordered_terms(order=order, data=data)
+        return list(self.args)
+
+
+class OrderedMul(Mul):
+
+    """A product with an explicit factor order for printing."""
+
+    def __new__(cls, *args, **kwargs):
+        return cls._from_args(args)
+
+    def as_ordered_factors(self, order=None):
+        return list(self.args)
