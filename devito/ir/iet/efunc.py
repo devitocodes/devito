@@ -136,12 +136,12 @@ def make_efunc(name, iet, region=None, retval='void', prefix='static',
 # Callable machinery
 
 
-def make_callable(name, iet, retval='void', prefix='static'):
+def make_callable(name, iet, retval='void', prefix='static', cls=Callable):
     """
-    Utility function to create a Callable from an IET.
+    Create a Callable (or subclass `cls`) from an IET.
     """
     parameters = derive_parameters(iet, ordering='canonical')
-    return Callable(name, iet, retval, parameters=parameters, prefix=prefix)
+    return cls(name, iet, retval, parameters=parameters, prefix=prefix)
 
 
 # EntryFunction machinery
@@ -190,7 +190,7 @@ class ThreadCallable(Callable):
 class DeviceFunction(Callable):
 
     """
-    A Callable executed asynchronously on a device.
+    A Callable executed on a device, including kernels and inline helpers.
     """
 
     def __init__(self, name, body, retval='void', parameters=None,
