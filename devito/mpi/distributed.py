@@ -220,10 +220,13 @@ class AbstractDistributor(ABC):
         The Distributor of the ConditionalDimensions in `dimensions` subsampling
         those of `self`, or `self` if there are none.
         """
+        if not self.is_parallel:
+            return self
+
         subsampled = {d.parent: d for d in dimensions
                       if d.is_Conditional and d.parent in self.dimensions
                       and is_integer(d.factor)}
-        if not subsampled or not self.is_parallel:
+        if not subsampled:
             return self
 
         return SubGridDistributor(
@@ -323,9 +326,9 @@ class DenseDistributor(AbstractDistributor):
     @cached_property
     def size_map(self):
         """Map between Dimensions and their global/local size."""
-        return {d: GlobalLocal(g, l)
-                for d, g, l in zip(self.dimensions, self.glb_shape, self.shape,
-                                   strict=True)}
+        return frozendict({d: GlobalLocal(g, l)
+                           for d, g, l in zip(self.dimensions, self.glb_shape,
+                                              self.shape, strict=True)})
 
     @cached_property
     def _obj_comm(self):

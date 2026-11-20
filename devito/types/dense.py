@@ -313,12 +313,12 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
             return self.shape
         retval = []
         for d, s in zip(self.dimensions, self.shape, strict=True):
-            size = self._size_map.get(d)
+            size = self.size_map.get(d)
             retval.append(size.glb if size is not None else s)
         return tuple(retval)
 
     @property
-    def _size_map(self):
+    def size_map(self):
         """Map between the decomposed Dimensions and their global/local size."""
         return self.grid.size_map
 
@@ -1097,9 +1097,11 @@ class Function(DiscreteFunction):
     @property
     def _is_on_grid(self):
         """Whether the space Dimensions of `self` are those of its Grid."""
-        if self.grid is None or self.ndim != self.grid.dim:
+        if self.grid is None:
             return False
-        return self.space_dimensions == self.grid.dimensions
+        # A TimeFunction also has its time Dimension
+        ndim = self.grid.dim + int(self.is_TimeFunction)
+        return self.ndim == ndim and self.space_dimensions == self.grid.dimensions
 
     def __distributor_setup__(self, **kwargs):
         distributor = super().__distributor_setup__(**kwargs)
@@ -1108,7 +1110,7 @@ class Function(DiscreteFunction):
         return distributor.subsample(self.dimensions)
 
     @property
-    def _size_map(self):
+    def size_map(self):
         return self._distributor.size_map
 
     def __init_finalize__(self, *args, **kwargs):
@@ -1646,12 +1648,6 @@ class TimeFunction(Function):
     @property
     def _time_buffering_default(self):
         return self._time_buffering and not isinstance(self.save, Buffer)
-
-    @property
-    def _is_on_grid(self):
-        if self.grid is None or self.ndim != self.grid.dim + 1:
-            return False
-        return self.space_dimensions == self.grid.dimensions
 
     def _arg_check(self, args, intervals, **kwargs):
         super()._arg_check(args, intervals, **kwargs)

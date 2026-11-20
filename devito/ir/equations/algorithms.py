@@ -219,7 +219,7 @@ def _make_global_index_map(expr, dimension_map):
     if not isinstance(expr, Eq):
         return {}
 
-    values = set(retrieve_dimensions(expr))
+    values = retrieve_dimensions(expr, mode='unique')
     grids = {f.grid.root for f in retrieve_functions(expr) if f.grid is not None}
     return {d: dimension_map.get(d, d) + o
             for grid in grids
