@@ -201,6 +201,23 @@ def _make_dimension_map(expr):
                 if d.is_Conditional and d.parent in expr.subdomain.dimension_map
             })
 
+        # Likewise, an implicit ConditionalDimension defined over the Grid's
+        # Dimensions must iterate over, and be conditioned on, the SubDomain's
+        # Dimensions, e.g. `Eq(u, v, implicit_dims=ci, subdomain=sd)` with
+        # `ci = ConditionalDimension(parent=y, condition=Gt(u, 0))`
+        sdmap = expr.subdomain.dimension_map
+        for d in getattr(expr, 'implicit_dims', ()):
+            if not d.is_Conditional:
+                continue
+            kwargs = {}
+            if d.parent in sdmap:
+                kwargs['parent'] = sdmap[d.parent]
+            if d.condition is not None and \
+               any(i in sdmap for i in d.condition.free_symbols):
+                kwargs['condition'] = d.condition.xreplace(sdmap)
+            if kwargs:
+                dimension_map[d] = d._rebuild(**kwargs)
+
     return frozendict(dimension_map)
 
 
