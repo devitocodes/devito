@@ -60,6 +60,22 @@ class TestCollectDerivatives:
 
         assert len(leq.find(Derivative)) == 3
 
+    def test_no_aggregation_along_x0(self):
+        """
+        A coefficient that varies along a Dimension a derivative interpolates
+        along, through its `x0`, stays outside it.
+        """
+        grid = Grid(shape=(10, 10))
+        x, y = grid.dimensions
+        u = TimeFunction(name="u", grid=grid, space_order=4, staggered=y)
+        f = Function(name='f', grid=grid, dimensions=(y,), shape=(10,), space_order=4)
+
+        derivative = u.diff(x, x0={y: y})
+        eq = Eq(u.forward, f*derivative + f*derivative.subs(u, u.forward))
+        leq = collect_derivatives([eq])[0]
+
+        assert all(d.expr.function is u.function for d in leq.find(Derivative))
+
     def test_symbolic_constant_times_add(self):
         grid = Grid(shape=(10, 10))
         dt = grid.time_dim.spacing

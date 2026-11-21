@@ -491,6 +491,21 @@ class TestDerivatives:
             errors.append(np.abs(out.data[10:-10, 0] - exact[10:-10]).max())
         assert order_of(errors) > 1.8
 
+    def test_weights_cross_term(self):
+        """Weights given for `eta` apply to the `eta` term of `u.dx`."""
+        grid = sine_grid(21)
+        _, eta = grid.computational_dimensions
+        u = field('u', grid)
+        top = Top(grid=grid)
+        outs = [Function(name=f'out{k}', grid=grid, space_order=8) for k in range(3)]
+        derivatives = [u.dx(fd_indices={eta: (0, 1, 2)}, weights=w)
+                       for w in (None, {eta: (-1.5, 2., -.5)}, {eta: (-3., 4., -1.)})]
+        Operator([Eq(o, d, subdomain=top)
+                  for o, d in zip(outs, derivatives, strict=True)]).apply()
+        taylor, given, doubled = (o.data[10:-10, 0] for o in outs)
+        assert np.allclose(given, taylor, rtol=1e-6)
+        assert not np.allclose(doubled, taylor, rtol=1e-2)
+
     def test_weights_interpolated(self):
         """A transposed derivative with weights cannot also interpolate."""
         grid = sine_grid(21)

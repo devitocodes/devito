@@ -165,7 +165,9 @@ def _(expr, mapper, nn_derivs=None):
     # Is the potential coefficient really a coefficient?
     csymbols = set().union(*[i.free_symbols for i in hope_coeffs])
     cdims = [i._defines for i in csymbols if i.is_Dimension]
-    ddims = [set(i.dims) for i in derivs]
+    # A derivative also moves its argument along the Dimensions of its `x0`, e.g.
+    # interpolating it there
+    ddims = [set(i.dims) | set(i.x0) for i in derivs]
     if any(i & j for i, j in product(cdims, ddims)):
         return expr
 

@@ -19,6 +19,7 @@ The transpose `.T` is the adjoint in the inner product weighted by the Jacobian
 """
 
 from collections import Counter
+from collections.abc import Mapping
 from itertools import product
 
 import sympy
@@ -26,7 +27,7 @@ import sympy
 from .differentiable import Add, Mul
 from .tools import centered, transpose
 
-__all__ = ['physical_grid', 'physical_derivative']
+__all__ = ['physical_derivative', 'physical_grid']
 
 
 def physical_grid(deriv):
@@ -228,7 +229,7 @@ def _computational(deriv, expr, grid, dims, orders, x0, moving, factor, own):
     derivative also interpolates `expr` along it.
 
     The `own` term uses the stencil options of `deriv`. The other terms use
-    centered stencils.
+    centered stencils, with the weights `deriv` gives per Dimension, if any.
     """
     xi = {d: _computational_dimension(grid, d) for d in (*dims, *x0)}
     fd_indices = {_computational_dimension(grid, d): v
@@ -239,12 +240,21 @@ def _computational(deriv, expr, grid, dims, orders, x0, moving, factor, own):
                                if xi[d] in fd_indices}}
     differentiated = [(xi[d], o) for d, o in zip(dims, orders, strict=True)]
 
+    # Weights given per Dimension apply to every term along that Dimension, other
+    # weights to the own term only
+    per_dimension = isinstance(deriv.weights, Mapping)
+    if per_dimension:
+        given = {_computational_dimension(grid, d): w for d, w in deriv.weights.items()}
+        weights = {xi[d]: given[xi[d]] for d in dims if xi[d] in given} or None
+    else:
+        weights = deriv.weights if own else None
+
     # Forward, the own term is the derivative of a Grid, including its interpolation
     if own and dims and deriv.transpose != transpose:
         return type(deriv)(expr, *differentiated,
                            fd_order=tuple(deriv.fd_order[d] for d in dims),
                            x0={xi[d] if d in dims else d: v for d, v in x0.items()},
-                           side=deriv.side, weights=deriv.weights, **settings)
+                           side=deriv.side, weights=weights, **settings)
 
     # A rotated stencil is evaluated at `x0` along every Dimension, so it needs no
     # interpolation
@@ -262,14 +272,15 @@ def _computational(deriv, expr, grid, dims, orders, x0, moving, factor, own):
         return expr
 
     if own:
-        if interp and (deriv.weights is not None or deriv.side not in (None, centered)):
+        if interp and ((weights is not None and not per_dimension) or
+                       deriv.side not in (None, centered)):
             raise NotImplementedError(f"The transpose of {deriv}, with weights or a "
                                       "side, cannot interpolate along other Dimensions")
         fd_orders = tuple(deriv.fd_order[d] for d in dims)
-        stencil = {'side': deriv.side, 'weights': deriv.weights}
+        stencil = {'side': deriv.side, 'weights': weights}
     else:
         fd_orders = (fd_order,)*len(dims)
-        stencil = {'side': centered}
+        stencil = {'side': centered, 'weights': weights}
 
     at = x0 if deriv.method == 'RSFD' else {d: x0[d] for d in (*dims, *interp) if d in x0}
     return type(deriv)(expr, *differentiated, *[(xi[d], 0) for d in interp],

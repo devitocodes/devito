@@ -143,7 +143,10 @@ class Differentiable(sympy.Expr, Evaluable):
             return self._args_diff[0].indices_ref
         elif len(self._args_diff) == 0:
             return DimensionTuple(*self.dimensions, getters=self.dimensions)
-        return highest_priority(self).indices_ref
+        # Where the highest priority argument is, a derivative at its `x0` rather
+        # than at its argument's Function
+        prio = lambda a: (deep_priority(a), len(a.dimensions))
+        return sorted(self._args_diff, key=prio, reverse=True)[0].indices_ref
 
     @cached_property
     def is_TimeDependent(self):

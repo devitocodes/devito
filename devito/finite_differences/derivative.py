@@ -14,8 +14,12 @@ from devito.types.utils import DimensionTuple
 from devito.warnings import warn
 
 from .curvilinear import physical_derivative, physical_grid
-from .differentiable import Add, Differentiable, Mul, diffify, interp_for_fd
-from .finite_difference import cross_derivative, generic_derivative, indices_at
+from .differentiable import (
+    Add, Differentiable, EvalDerivative, Mul, diffify, interp_for_fd
+)
+from .finite_difference import (
+    cross_derivative, generic_derivative, indices_at, weights_along
+)
 from .rsfd import d45
 from .tools import direct, transpose
 
@@ -56,6 +60,11 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
         one-sided stencil next to a boundary. They replace the points given by
         `fd_order` and `side`. A tuple can only be given for a derivative along
         one Dimension.
+    weights : tuple, Differentiable or dict of {Dimension: weights}, optional
+        The finite-difference weights, per unit grid spacing, e.g. those of a
+        boundary closure, or a Function of them along a stencil Dimension, which
+        may vary in space and then includes the spacing. A dict gives them per
+        Dimension; the other Dimensions use Taylor weights.
 
     Examples
     --------
@@ -352,6 +361,9 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
             return None
         elif isinstance(weights, Differentiable):
             return weights
+        elif isinstance(weights, Mapping):
+            return frozendict({d: w if isinstance(w, Differentiable) else as_tuple(w)
+                               for d, w in weights.items()})
         else:
             return as_tuple(weights)
 
@@ -607,6 +619,25 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
             # the expression as is.
             return self._rebuild(self.expr, **rkw)
 
+    @property
+    def indices_ref(self):
+        """
+        The indices of the derivative: those of its argument, moved to `x0` along
+        the Dimensions it differentiates or interpolates, or to its mirror image
+        `2 d - x0` for a transpose, which writes there.
+        """
+        return self._located(self.expr.indices_ref)
+
+    def _located(self, indices):
+        """`indices` moved to `x0`, or to `2 d - x0` for a transpose."""
+        mirror = self.transpose == transpose
+        moved = {d: 2*d - v if mirror else v for d, v in self.x0.items()
+                 if d in self.dims}
+        if not moved:
+            return indices
+        return DimensionTuple(*[moved.get(d, indices[d]) for d in indices.getters],
+                              getters=indices.getters)
+
     def _is_relocated(self, func):
         """
         True if the Derivative must be evaluated at the location of `func`, e.g.
@@ -714,11 +745,17 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
         else:
             assert self.method == 'FD'
             res = generic_derivative(expr, self.dims[0], self.fd_order[0],
-                                     self.deriv_order[0], weights=self.weights,
+                                     self.deriv_order[0],
+                                     weights=weights_along(self.weights, self.dims[0]),
                                      side=self.side, matvec=self.transpose,
                                      x0=self.x0, expand=expand,
                                      subdomain=subdomain,
                                      fd_indices=self.fd_indices.get(self.dims[0]))
+
+        # The result sits where the derivative does, at its `x0`, which an
+        # interpolation or derivative of it reads
+        if isinstance(res, EvalDerivative):
+            res = EvalDerivative(*res.args, base=self, growth=res.growth)
 
         # Step 4: Apply substitutions
         for e in self._ppsubs:
