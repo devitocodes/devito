@@ -4,7 +4,7 @@ from itertools import product
 
 from devito.finite_differences.differentiable import IndexDerivative, IndexSum
 from devito.symbolics import retrieve_indexed, search
-from devito.tools import DefaultOrderedDict, as_tuple, filter_sorted, split
+from devito.tools import DefaultOrderedDict, as_tuple, filter_sorted, memoized_func, split
 from devito.types import (
     Dimension, DimensionTuple, Indirection, ModuloDimension, StencilDimension, TensorMove
 )
@@ -264,6 +264,7 @@ def bounded(expr):
     return dims - expr.free_symbols
 
 
+@memoized_func(scope='build')
 def unbounded(expr):
     """
     Retrieve all unbounded Dimensions in `expr`.
@@ -273,7 +274,8 @@ def unbounded(expr):
     bound = set().union(*[i.dimensions for i in search(expr, IndexDerivative)])
     sdims = search(expr, StencilDimension, mode='unique', deep=True)
 
-    return sdims - bound
+    # Immutable, as the cached result is shared across callers
+    return frozenset(sdims - bound)
 
 
 Extrema = namedtuple('Extrema', 'm M')
