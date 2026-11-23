@@ -19,7 +19,7 @@ from devito.ir import Cluster, Interval, IterationSpace
 from devito.ir.clusters.algorithms import check_halo_writes
 from devito.ir.equations import LoweredEq
 from devito.ir.iet import (
-    Call, Conditional, FindNodes, FindSymbols, Iteration, retrieve_iteration_tree
+    Break, Call, Conditional, FindNodes, FindSymbols, Iteration, retrieve_iteration_tree
 )
 from devito.ir.support.space import Backward, Forward
 from devito.mpi import MPI
@@ -2660,6 +2660,7 @@ class TestCodeGeneration:
         boundary, = FindNodes(ComputeCall).visit(remainder)
         assert str(core.region) == '&(reg0[0])'
         assert str(boundary.region) == '&(reg0[i + 1])'
+        assert FindNodes(Break).visit(remainder)
 
         _ = op.cfunction
 

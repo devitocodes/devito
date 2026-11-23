@@ -6,12 +6,12 @@ from functools import reduce
 from itertools import product
 from operator import mul
 
-from sympy import Integer
+from sympy import Integer, Or
 
 from devito.data import CENTER, HALO, LEFT, NOPAD, OWNED, RIGHT
 from devito.ir.equations import DummyEq, OpInc, OpMax, OpMin
 from devito.ir.iet import (
-    AugmentedExpression, Call, Callable, CommCallable, Conditional, ElementalCall,
+    AugmentedExpression, Break, Call, Callable, CommCallable, Conditional, ElementalCall,
     ElementalFunction, Expression, ExpressionBundle, FindNodes, Iteration, List, Prodder,
     Return, Transformer, Uxreplace, make_efunc
 )
@@ -929,8 +929,15 @@ class Overlap2HaloExchangeBuilder(OverlapHaloExchangeBuilder):
         assert callcompute.is_Call
 
         dim = Dimension(name='i')
-        region_i = Byref(IndexedPointer(region, dim + 1))
-        iet = Uxreplace({callcompute.region: region_i}).visit(callcompute)
+        record = IndexedPointer(region, dim + 1)
+        iet = Uxreplace({callcompute.region: Byref(record)}).visit(callcompute)
+
+        # MPIRegion places empty OWNED records after all active ones.
+        empty = [FieldFromComposite(d.min_name, record) >
+                 FieldFromComposite(d.max_name, record)
+                 for d in region.arguments if d.is_Dimension]
+        if empty:
+            iet = [Conditional(Or(*empty), Break()), iet]
 
         # Skip the CORE record, retaining a zero-based loop over OWNED regions
         iet = Iteration(iet, dim, region.nregions - 2)
