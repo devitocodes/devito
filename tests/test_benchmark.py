@@ -7,7 +7,11 @@ import pytest
 from benchmarks.user.benchmark import run
 from conftest import skipif
 from devito import Eq, Function, Grid, Operator, TimeFunction, configuration, switchconfig
-from devito.ir.iet import Expression, FindNodes, Iteration, TimedList
+from devito.ir.iet import (
+    Call, CallableBody, Conditional, Expression, FindNodes, Iteration, List, TimedList
+)
+from devito.operator.profiling import TimeLoopTimer
+from devito.passes.iet.instrument import time_loop_region
 from devito.types import Timer
 
 
@@ -118,7 +122,7 @@ def test_nosetup_time_loop():
     op = Operator([Eq(f, 2), Eq(u.forward, u + f),
                    Eq(v.backward, v + u), Eq(f, f + 3)], opt='noop')
 
-    outer, = [i for i in FindNodes(TimedList).visit(op) if i.name == Timer.time_loop]
+    outer, = [i for i in FindNodes(TimedList).visit(op) if i.name == 'time_loop']
     assert len([i for i in FindNodes(Iteration).visit(outer) if i.dim.is_Time]) == 2
     assert all(e.write is not f for e in FindNodes(Expression).visit(outer))
     if (wait := op._Target.langbb().get('device-wait')) is not None:
@@ -126,6 +130,7 @@ def test_nosetup_time_loop():
     summary = op.apply(time_m=1, time_M=4)
     assert (u.data[5, 0, 0], v.data[0, 0, 0], f.data[0, 0]) == (8, 12, 5)
     timer = next(p for p in op.parameters if isinstance(p, Timer))
+    assert isinstance(timer, TimeLoopTimer)
     assert summary.globals_nosetup_all.time == max(timer.total, 1e-6)
 
 
@@ -145,7 +150,6 @@ def test_nosetup_rank_reduction(mode, stepping):
     op = Operator(eqns, opt='noop')
     args = op.arguments(time_M=1) if stepping else op.arguments()
     timer = args['timers']._obj
-    assert hasattr(timer, Timer.time_loop) == stepping
 
     # Opposite ranks dominate the two sections. Use exact times to test the reduction.
     rank = grid.distributor.myrank
@@ -156,3 +160,17 @@ def test_nosetup_rank_reduction(mode, stepping):
     assert summary.globals['vanilla-nosetup'].time == (11. if stepping else 16.)
     if stepping:
         assert summary.globals_nosetup_all.gpointss == (2 * 16 * 16 / 1e9) / 11.
+
+
+def test_nosetup_guarded_time_loops():
+    t = Grid(shape=(8,)).time_dim
+    first = Conditional(t.symbolic_max > 0, Iteration((), t, (0, 1, 1)))
+    second = Iteration((), t, (2, 3, 1))
+    middle = Call('between_steps')
+    group = List(body=[Call('setup'), first, middle, second, Call('teardown')])
+
+    scope, span = time_loop_region(CallableBody([Call('init'), group]))
+    assert scope.body[span] == (first, middle, second)
+
+    scope, span = time_loop_region(CallableBody(first))
+    assert scope.body[span] == (first,)

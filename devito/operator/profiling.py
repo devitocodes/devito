@@ -51,6 +51,15 @@ class NcuProfiling(str):
         return obj
 
 
+class TimeLoopTimer(Timer):
+
+    """A profiler timer whose outer time loop gives the total elapsed time."""
+
+    @property
+    def total(self):
+        return self.value._obj.time_loop
+
+
 class Profiler:
 
     _default_includes = []
@@ -152,6 +161,10 @@ class Profiler:
                 new_sections[k] = v
         self._sections.clear()
         self._sections.update(new_sections)
+
+    def make_timer(self, fields):
+        cls = TimeLoopTimer if 'time_loop' in fields else Timer
+        return cls(self.name, fields)
 
     def instrument(self, iet, timer):
         """
@@ -346,18 +359,18 @@ class AdvancedProfiler(Profiler):
 
             # Same as above but without setup overheads (e.g., host-device
             # data transfers)
-            timer = args.get(self.name)
-            if timer is not None and hasattr(timer._obj, Timer.time_loop):
-                reduce_over_nosetup = getattr(timer._obj, Timer.time_loop)
-                if comm is not MPI.COMM_NULL:
-                    reduce_over_nosetup = comm.allreduce(reduce_over_nosetup, op=MPI.MAX)
-                # A short or empty loop can finish within one timer tick
-                reduce_over_nosetup = max(reduce_over_nosetup, 1e-6)
-            else:
+            try:
+                reduce_over_nosetup = args[self.name]._obj.time_loop
+            except (KeyError, AttributeError):
                 mapper = defaultdict(list)
                 for (name, _), v in summary.items():
                     mapper[name].append(v.time)
                 reduce_over_nosetup = sum(max(i) for i in mapper.values()) or reduce_over
+            else:
+                if comm is not MPI.COMM_NULL:
+                    reduce_over_nosetup = comm.allreduce(reduce_over_nosetup, op=MPI.MAX)
+                # A short or empty loop can finish within one timer tick
+                reduce_over_nosetup = max(reduce_over_nosetup, 1e-6)
             summary.add_glb_vanilla('vanilla-nosetup', reduce_over_nosetup)
 
             # Typical finite difference benchmark metrics

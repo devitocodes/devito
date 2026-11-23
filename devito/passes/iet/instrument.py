@@ -9,7 +9,7 @@ from devito.mpi.routines import (
     MPIList, RemainderCall
 )
 from devito.passes.iet.engine import iet_pass
-from devito.types import TempArray, TempFunction, Timer
+from devito.types import TempArray, TempFunction
 
 __all__ = ['instrument']
 
@@ -24,52 +24,51 @@ def instrument(graph, **kwargs):
     fields = profiler.all_sections
     region = time_loop_region(graph.root.body) if profiler._track_time_loop else None
     if region:
-        fields.append(Timer.time_loop)
-    timer = Timer(profiler.name, fields)
+        fields.append('time_loop')
 
-    if region:
-        instrument_time_loop(graph, region=region, timer=timer, **kwargs)
-    instrument_sections(graph, timer=timer, **kwargs)
+    instrument_sections(graph, timer=profiler.make_timer(fields), region=region, **kwargs)
     sync_sections(graph, **kwargs)
 
 
 def time_loop_region(scope):
-    """Find the host statements spanning the first to the last time loop."""
-    while True:
-        steps = [n for n, node in enumerate(scope.body)
-                 if any(i.dim.is_Time for i in FindNodes(Iteration).visit(node))]
-        if not steps:
-            return None
-        first, last = steps[0], steps[-1]
-        child = scope.body[first]
-        if first != last or type(child) is not List or child.header or child.footer:
-            return scope, first, last + 1
-        # Look through plain lists, keeping parallel regions and pragmas intact
-        scope = child
+    """Find the first and last stepping statements in their common host scope."""
+    mapper = MapNodes('any', Iteration, mode='groupby').visit(scope.body) or {}
+    paths = [(*parents, i) for parents, loops in mapper.items() for i in loops
+             if i.dim.is_Time]
+    # Only a plain List can be opened without crossing a guard or parallel region.
+    for siblings in zip(*paths, strict=False):
+        node = siblings[0]
+        if (type(node) is List and not (node.header or node.footer) and
+                all(i is node for i in siblings)):
+            scope = node
+            continue
+        positions = [scope.body.index(i) for i in siblings]
+        return scope, slice(min(positions), max(positions) + 1)
 
 
-@iet_pass
-def instrument_time_loop(iet, region, timer, langbb, **kwargs):
-    """Time the stepping code once, including completion of its device work."""
-    if not isinstance(iet, EntryFunction):
-        return iet, {}
+def instrument_time_loop(iet, region, timer, langbb):
+    """
+    Time the host stepping region once, including completion of its device work.
 
-    scope, first, stop = region
-    body = scope.body[first:stop]
-    wait = langbb.get('device-wait')
-    if wait is not None:
-        waits = (wait,)
+    For example, a CUDA Operator contains::
+
+        setup(); cudaDeviceSynchronize(); START(time_loop)
+        for (time = time_m; time <= time_M; ++time) { ... }
+        cudaDeviceSynchronize(); STOP(time_loop, timers); teardown();
+    """
+    scope, span = region
+    body = list(scope.body)
+    if (wait := langbb.get('device-wait')) is not None:
+        waits = [wait]
     elif sync := langbb.get('map-wait'):
-        waits = tuple(sync(q) for q in FindSymbols().visit(body)
-                      if isinstance(q, langbb.AsyncQueue))
+        waits = [sync(q) for q in FindSymbols().visit(body[span])
+                 if isinstance(q, langbb.AsyncQueue)]
     else:
-        waits = ()
+        waits = []
 
-    timed = TimedList(timer=timer, lname=Timer.time_loop, body=body + waits)
-    body = scope.body[:first] + waits + (timed,) + scope.body[stop:]
-    iet = Transformer({scope: scope._rebuild(body=body)}).visit(iet)
-    headers = [TimedList._start_timer_header(), TimedList._stop_timer_header()]
-    return iet, {'headers': headers}
+    timed = TimedList(timer=timer, lname='time_loop', body=body[span] + waits)
+    body[span] = [*waits, timed]
+    return Transformer({scope: scope._rebuild(body=body)}).visit(iet)
 
 
 @iet_pass
@@ -157,14 +156,14 @@ def track_subsections(iet, **kwargs):
 
 
 @iet_pass
-def instrument_sections(iet, **kwargs):
+def instrument_sections(iet, profiler, timer, region, langbb, **kwargs):
     """
     Instrument the Sections of the input IET based on `profiler.sections`.
     """
-    profiler = kwargs['profiler']
-    timer = kwargs['timer']
-
-    piet = profiler.instrument(iet, timer)
+    piet = iet
+    if region and isinstance(iet, EntryFunction):
+        piet = instrument_time_loop(iet, region, timer, langbb)
+    piet = profiler.instrument(piet, timer)
 
     if piet is iet:
         return piet, {}
@@ -189,7 +188,7 @@ def sync_sections(iet, langbb=None, profiler=None, **kwargs):
 
     mapper = {}
     for tl in FindNodes(TimedList).visit(iet):
-        if tl.name == Timer.time_loop:
+        if tl.name == 'time_loop':
             continue
         symbols = FindSymbols().visit(tl)
 
