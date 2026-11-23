@@ -3744,6 +3744,34 @@ class TestOperatorAdvanced:
 
         assert np.allclose(out.data, ref.data)
 
+    @pytest.mark.parametrize('mode', [
+        pytest.param(None, id='serial'),
+        pytest.param(4, marks=pytest.mark.parallel, id='basic')
+    ])
+    def test_inc_subdomain_halo(self, mode):
+        """
+        An `Inc` on a SubDomain reading its target Function with a stencil, at the
+        previous time step, exchanges the halo of that Function.
+        """
+        class Core(SubDomain):
+            name = 'core'
+
+            def define(self, dimensions):
+                x, y = dimensions
+                return {x: ('middle', 6, 0), y: y}
+
+        grid = Grid(shape=(64, 8), dtype=np.float64)
+        core = Core(grid=grid)
+        u, ref = (TimeFunction(name=n, grid=grid, space_order=4) for n in ('u', 'ref'))
+
+        u.data[:] = ref.data[:] = np.random.default_rng(0).normal(size=u.shape_global)
+
+        Operator([Eq(u.forward, u), Inc(u.forward, 0.1*u.dx, subdomain=core),
+                  Eq(ref.forward, ref),
+                  Eq(ref.forward, ref + 0.1*ref.dx, subdomain=core)]).apply(time_M=1)
+
+        assert np.allclose(u.data, ref.data)
+
     @pytest.mark.parallel(mode=4)
     def test_rank_offset_empty(self, mode):
         """
