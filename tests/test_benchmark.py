@@ -1,6 +1,7 @@
 import os
 import sys
 from subprocess import check_call
+from unittest.mock import patch
 
 import pytest
 
@@ -13,7 +14,7 @@ from devito.ir.iet import (
 )
 from devito.ir.support import SymbolRegistry
 from devito.operator.profiling import AdvancedProfiler, TimeLoopTimer
-from devito.passes.iet.engine import Graph
+from devito.passes.iet.engine import Graph, iet_pass
 from devito.passes.iet.instrument import instrument, time_loop_region
 from devito.passes.iet.languages.targets import CTarget
 from devito.types import Timer
@@ -179,6 +180,9 @@ def test_nosetup_guarded_time_loops():
     scope, span = time_loop_region(CallableBody(first))
     assert scope.body[span] == (first,)
 
+    scope, span = time_loop_region(CallableBody([first, middle, first]))
+    assert scope.body[span] == (first, middle, first)
+
 
 def test_nosetup_time_loop_calls_profiled_helper():
     t = Grid(shape=(8,)).time_dim
@@ -189,8 +193,14 @@ def test_nosetup_time_loop_calls_profiled_helper():
     profiler = AdvancedProfiler('timers')
     profiler.analyze(step)
 
-    instrument(graph, profiler=profiler, sregistry=SymbolRegistry(),
-               langbb=CTarget.langbb())
+    # Profiling extensions can replace the pass that instruments named sections.
+    @iet_pass
+    def custom_sections(iet, profiler, timer, **kwargs):
+        return profiler.instrument(iet, timer), {}
+
+    with patch('devito.passes.iet.instrument.instrument_sections', custom_sections):
+        instrument(graph, profiler=profiler, sregistry=SymbolRegistry(),
+                   langbb=CTarget.langbb())
 
     outer, = FindNodes(TimedList).visit(graph.root)
     call, = FindNodes(Call).visit(outer)

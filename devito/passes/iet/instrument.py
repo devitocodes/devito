@@ -22,32 +22,32 @@ def instrument(graph, **kwargs):
     track_subsections(graph, **kwargs)
 
     fields = profiler.all_sections
-    if profiler._track_time_loop:
-        loops = FindNodes(Iteration).visit(graph.root.body.body)
-        if any(i.dim.is_Time for i in loops):
-            fields.append('time_loop')
-
-    instrument_sections(graph, timer=profiler.make_timer(fields), **kwargs)
+    if profiler._track_time_loop and (region := time_loop_region(graph.root.body)):
+        timer = profiler.make_timer([*fields, 'time_loop'])
+        instrument_time_loop(graph, region=region, timer=timer, **kwargs)
+    else:
+        timer = profiler.make_timer(fields)
+    instrument_sections(graph, timer=timer, **kwargs)
     sync_sections(graph, **kwargs)
 
 
 def time_loop_region(scope):
     """Find the first and last stepping statements in their common host scope."""
-    mapper = MapNodes('any', Iteration, mode='groupby').visit(scope.body) or {}
-    paths = [(*parents, i) for parents, loops in mapper.items() for i in loops
-             if i.dim.is_Time]
-    # Only a plain List can be opened without crossing a guard or parallel region.
-    for siblings in zip(*paths, strict=False):
-        node = siblings[0]
-        if (type(node) is List and not (node.header or node.footer) and
-                all(i is node for i in siblings)):
-            scope = node
-            continue
-        positions = [scope.body.index(i) for i in siblings]
-        return scope, slice(min(positions), max(positions) + 1)
+    enclosed = MapNodes('any', Iteration).visit(scope)
+    steppers = {i for i in enclosed.get(scope, ()) if i.dim.is_Time}
+    active = steppers | {stmt for stmt, loops in enclosed.items()
+                         if steppers.intersection(loops)}
+    while indices := [n for n, stmt in enumerate(scope.body) if stmt in active]:
+        first, last = indices[0], indices[-1]
+        stmt = scope.body[first]
+        # Only open a bare List. Keep guards and parallel regions inside the timer.
+        if first != last or type(stmt) is not List or stmt.header or stmt.footer:
+            return scope, slice(first, last + 1)
+        scope = stmt
 
 
-def instrument_time_loop(iet, timer, langbb):
+@iet_pass
+def instrument_time_loop(iet, region, timer, langbb, **kwargs):
     """
     Time the host stepping region once, including completion of its device work.
 
@@ -57,7 +57,10 @@ def instrument_time_loop(iet, timer, langbb):
         for (time = time_m; time <= time_M; ++time) { ... }
         cudaDeviceSynchronize(); STOP(time_loop, timers); teardown();
     """
-    scope, span = time_loop_region(iet.body)
+    if not isinstance(iet, EntryFunction):
+        return iet, {}
+
+    scope, span = region
     body = list(scope.body)
     if (wait := langbb.get('device-wait')) is not None:
         waits = [wait]
@@ -69,7 +72,8 @@ def instrument_time_loop(iet, timer, langbb):
 
     timed = TimedList(timer=timer, lname='time_loop', body=body[span] + waits)
     body[span] = [*waits, timed]
-    return Transformer({scope: scope._rebuild(body=body)}).visit(iet)
+    piet = Transformer({scope: scope._rebuild(body=body)}).visit(iet)
+    return piet, {'headers': _timer_headers()}
 
 
 @iet_pass
@@ -157,21 +161,20 @@ def track_subsections(iet, **kwargs):
 
 
 @iet_pass
-def instrument_sections(iet, profiler, timer, langbb, **kwargs):
+def instrument_sections(iet, profiler, timer, **kwargs):
     """
     Instrument the Sections of the input IET based on `profiler.sections`.
     """
-    piet = iet
-    if isinstance(iet, EntryFunction) and 'time_loop' in timer.fields:
-        piet = instrument_time_loop(iet, timer, langbb)
-    piet = profiler.instrument(piet, timer)
+    piet = profiler.instrument(iet, timer)
 
     if piet is iet:
         return piet, {}
 
-    headers = [TimedList._start_timer_header(), TimedList._stop_timer_header()]
+    return piet, {'headers': _timer_headers()}
 
-    return piet, {'headers': headers}
+
+def _timer_headers():
+    return [TimedList._start_timer_header(), TimedList._stop_timer_header()]
 
 
 @iet_pass
