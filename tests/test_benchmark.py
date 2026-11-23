@@ -8,10 +8,14 @@ from benchmarks.user.benchmark import run
 from conftest import skipif
 from devito import Eq, Function, Grid, Operator, TimeFunction, configuration, switchconfig
 from devito.ir.iet import (
-    Call, CallableBody, Conditional, Expression, FindNodes, Iteration, List, TimedList
+    Call, Callable, CallableBody, Conditional, EntryFunction, Expression, FindNodes,
+    Iteration, List, Section, TimedList
 )
-from devito.operator.profiling import TimeLoopTimer
-from devito.passes.iet.instrument import time_loop_region
+from devito.ir.support import SymbolRegistry
+from devito.operator.profiling import AdvancedProfiler, TimeLoopTimer
+from devito.passes.iet.engine import Graph
+from devito.passes.iet.instrument import instrument, time_loop_region
+from devito.passes.iet.languages.targets import CTarget
 from devito.types import Timer
 
 
@@ -174,3 +178,21 @@ def test_nosetup_guarded_time_loops():
 
     scope, span = time_loop_region(CallableBody(first))
     assert scope.body[span] == (first,)
+
+
+def test_nosetup_time_loop_calls_profiled_helper():
+    t = Grid(shape=(8,)).time_dim
+    loop = Iteration(Call('step'), t, (0, 1, 1))
+    graph = Graph(EntryFunction('Kernel', loop, 'int'))
+    step = Callable('step', Section('section0', Call('work')), 'void')
+    graph.efuncs[step.name] = step
+    profiler = AdvancedProfiler('timers')
+    profiler.analyze(step)
+
+    instrument(graph, profiler=profiler, sregistry=SymbolRegistry(),
+               langbb=CTarget.langbb())
+
+    outer, = FindNodes(TimedList).visit(graph.root)
+    call, = FindNodes(Call).visit(outer)
+    assert outer.name == 'time_loop'
+    assert call.arguments == (outer.timer,)

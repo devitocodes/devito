@@ -22,11 +22,12 @@ def instrument(graph, **kwargs):
     track_subsections(graph, **kwargs)
 
     fields = profiler.all_sections
-    region = time_loop_region(graph.root.body) if profiler._track_time_loop else None
-    if region:
-        fields.append('time_loop')
+    if profiler._track_time_loop:
+        loops = FindNodes(Iteration).visit(graph.root.body.body)
+        if any(i.dim.is_Time for i in loops):
+            fields.append('time_loop')
 
-    instrument_sections(graph, timer=profiler.make_timer(fields), region=region, **kwargs)
+    instrument_sections(graph, timer=profiler.make_timer(fields), **kwargs)
     sync_sections(graph, **kwargs)
 
 
@@ -46,7 +47,7 @@ def time_loop_region(scope):
         return scope, slice(min(positions), max(positions) + 1)
 
 
-def instrument_time_loop(iet, region, timer, langbb):
+def instrument_time_loop(iet, timer, langbb):
     """
     Time the host stepping region once, including completion of its device work.
 
@@ -56,7 +57,7 @@ def instrument_time_loop(iet, region, timer, langbb):
         for (time = time_m; time <= time_M; ++time) { ... }
         cudaDeviceSynchronize(); STOP(time_loop, timers); teardown();
     """
-    scope, span = region
+    scope, span = time_loop_region(iet.body)
     body = list(scope.body)
     if (wait := langbb.get('device-wait')) is not None:
         waits = [wait]
@@ -156,13 +157,13 @@ def track_subsections(iet, **kwargs):
 
 
 @iet_pass
-def instrument_sections(iet, profiler, timer, region, langbb, **kwargs):
+def instrument_sections(iet, profiler, timer, langbb, **kwargs):
     """
     Instrument the Sections of the input IET based on `profiler.sections`.
     """
     piet = iet
-    if region and isinstance(iet, EntryFunction):
-        piet = instrument_time_loop(iet, region, timer, langbb)
+    if isinstance(iet, EntryFunction) and 'time_loop' in timer.fields:
+        piet = instrument_time_loop(iet, timer, langbb)
     piet = profiler.instrument(piet, timer)
 
     if piet is iet:
