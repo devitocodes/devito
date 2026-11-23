@@ -162,10 +162,6 @@ class Profiler:
         self._sections.clear()
         self._sections.update(new_sections)
 
-    def make_timer(self, fields):
-        cls = TimeLoopTimer if 'time_loop' in fields else Timer
-        return cls(self.name, fields)
-
     def instrument(self, iet, timer):
         """
         Instrument the given IET for C-level performance profiling.

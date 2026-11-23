@@ -8,8 +8,9 @@ from devito.mpi.routines import (
     ComputeCall, HaloUpdateCall, HaloUpdateList, HaloWaitCall, HaloWaitList, MPICall,
     MPIList, RemainderCall
 )
+from devito.operator.profiling import TimeLoopTimer
 from devito.passes.iet.engine import iet_pass
-from devito.types import TempArray, TempFunction
+from devito.types import TempArray, TempFunction, Timer
 
 __all__ = ['instrument']
 
@@ -21,23 +22,29 @@ def instrument(graph, **kwargs):
 
     track_subsections(graph, **kwargs)
 
+    region = None
+    if profiler._track_time_loop:
+        region = time_loop_region(graph.root.body)
+
     fields = profiler.all_sections
-    if profiler._track_time_loop and (region := time_loop_region(graph.root.body)):
-        timer = profiler.make_timer([*fields, 'time_loop'])
-        instrument_time_loop(graph, region=region, timer=timer, **kwargs)
+    if region is None:
+        timer = Timer(profiler.name, fields)
     else:
-        timer = profiler.make_timer(fields)
+        timer = TimeLoopTimer(profiler.name, [*fields, 'time_loop'])
+        instrument_time_loop(graph, region=region, timer=timer, **kwargs)
+
     instrument_sections(graph, timer=timer, **kwargs)
     sync_sections(graph, **kwargs)
 
 
 def time_loop_region(scope):
     """Find the first and last stepping statements in their common host scope."""
-    enclosed = MapNodes('any', Iteration).visit(scope)
-    steppers = {i for i in enclosed.get(scope, ()) if i.dim.is_Time}
-    active = steppers | {stmt for stmt, loops in enclosed.items()
-                         if steppers.intersection(loops)}
-    while indices := [n for n, stmt in enumerate(scope.body) if stmt in active]:
+    finder = FindNodes(Iteration)
+    while True:
+        indices = [n for n, stmt in enumerate(scope.body)
+                   if any(i.dim.is_Time for i in finder.visit(stmt))]
+        if not indices:
+            return None
         first, last = indices[0], indices[-1]
         stmt = scope.body[first]
         # Only open a bare List. Keep guards and parallel regions inside the timer.
@@ -49,7 +56,8 @@ def time_loop_region(scope):
 @iet_pass
 def instrument_time_loop(iet, region, timer, langbb, **kwargs):
     """
-    Time the host stepping region once, including completion of its device work.
+    Time the host code from the first stepping loop through the last,
+    including intervening statements and completion of device work.
 
     For example, a CUDA Operator contains::
 
@@ -62,9 +70,11 @@ def instrument_time_loop(iet, region, timer, langbb, **kwargs):
 
     scope, span = region
     body = list(scope.body)
-    if (wait := langbb.get('device-wait')) is not None:
+    wait = langbb.get('device-wait')
+    sync = langbb.get('map-wait')
+    if wait is not None:
         waits = [wait]
-    elif sync := langbb.get('map-wait'):
+    elif sync is not None:
         waits = [sync(q) for q in FindSymbols().visit(body[span])
                  if isinstance(q, langbb.AsyncQueue)]
     else:
@@ -190,10 +200,10 @@ def sync_sections(iet, langbb=None, profiler=None, **kwargs):
     if not profiler._supports_async_sections:
         return iet, {}
 
+    sections = FindNodes(Section).visit(iet)
+    timed_sections = [n for s in sections for n in s.body if isinstance(n, TimedList)]
     mapper = {}
-    for tl in FindNodes(TimedList).visit(iet):
-        if tl.name == 'time_loop':
-            continue
+    for tl in timed_sections:
         symbols = FindSymbols().visit(tl)
 
         queues = [i for i in symbols if isinstance(i, langbb.AsyncQueue)]

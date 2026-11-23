@@ -11,6 +11,7 @@ from devito.exceptions import InvalidOperator
 from devito.ir.iet import (
     BusyWaitCall, FindNodes, Iteration, MapNodes, TimedList, retrieve_iteration_tree
 )
+from devito.operator.profiling import TimeLoopTimer
 from devito.types import ArrayMapped
 from examples.seismic import Receiver, RickerSource, TimeAxis
 
@@ -376,6 +377,7 @@ class TestOperator:
                           opt=('buffering', 'tasking', 'orchestrate'))
 
         # Propagate, then run an empty loop to check timer reset.
+        timer = next(p for p in op.parameters if isinstance(p, TimeLoopTimer))
         for time_m, time_M in [(0, 4), (1, 0)]:
             summary = op.apply(time_m=time_m, time_M=time_M)
 
@@ -385,9 +387,7 @@ class TestOperator:
             # Only shutdown is a top-level wait; nested waits are included already.
             reported_waits = [k for k in summary if k.name.startswith('busywait')]
             assert len(reported_waits) == 1
-            assert summary.globals_nosetup_all.time == pytest.approx(
-                sum(v.time for v in summary.values())
-            )
+            assert summary.globals_nosetup_all.time == max(timer.total, 1e-6)
 
     @pytest.mark.parametrize('shape', [(20, 20), (8, 8, 8)])
     def test_streaming_tiled(self, shape):
