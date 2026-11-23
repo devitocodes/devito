@@ -18,6 +18,7 @@ from devito.mpi import MPI
 from devito.parameters import configuration
 from devito.symbolics import subs_op_args
 from devito.tools import DefaultOrderedDict, flatten
+from devito.types import Timer
 
 __all__ = ['NcuProfiling', 'create_profile']
 
@@ -60,6 +61,7 @@ class Profiler:
     _lib_dirs = []
 
     _supports_async_sections = False
+    _track_time_loop = False
 
     _verbosity = 0
 
@@ -250,6 +252,7 @@ class ProfilerVerbose2(Profiler):
 class AdvancedProfiler(Profiler):
 
     _supports_async_sections = True
+    _track_time_loop = True
 
     def _evaluate_section(self, name, data, args, dtype):
         # Time to run the section
@@ -343,12 +346,18 @@ class AdvancedProfiler(Profiler):
 
             # Same as above but without setup overheads (e.g., host-device
             # data transfers)
-            mapper = defaultdict(list)
-            for (name, _), v in summary.items():
-                mapper[name].append(v.time)
-            reduce_over_nosetup = sum(max(i) for i in mapper.values())
-            if reduce_over_nosetup == 0:
-                reduce_over_nosetup = reduce_over
+            timer = args.get(self.name)
+            if timer is not None and hasattr(timer._obj, Timer.time_loop):
+                reduce_over_nosetup = getattr(timer._obj, Timer.time_loop)
+                if comm is not MPI.COMM_NULL:
+                    reduce_over_nosetup = comm.allreduce(reduce_over_nosetup, op=MPI.MAX)
+                # A short or empty loop can finish within one timer tick
+                reduce_over_nosetup = max(reduce_over_nosetup, 1e-6)
+            else:
+                mapper = defaultdict(list)
+                for (name, _), v in summary.items():
+                    mapper[name].append(v.time)
+                reduce_over_nosetup = sum(max(i) for i in mapper.values()) or reduce_over
             summary.add_glb_vanilla('vanilla-nosetup', reduce_over_nosetup)
 
             # Typical finite difference benchmark metrics
@@ -386,6 +395,7 @@ class AdvisorProfiler(AdvancedProfiler):
     Rely on Intel Advisor 2025.1 for performance profiling.
     """
 
+    _track_time_loop = False
     _api_resume = '__itt_resume'
     _api_pause = '__itt_pause'
 

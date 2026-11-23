@@ -30,7 +30,7 @@ from devito.ir.equations import ClusterizedEq, LoweredEq
 from devito.ir.equations.algorithms import lower_exprs
 from devito.ir.iet import (
     Callable, Conditional, Expression, FindNodes, FindSymbols, IsPerfectIteration,
-    Iteration, TimedList, retrieve_iteration_tree
+    Iteration, Section, TimedList, retrieve_iteration_tree
 )
 from devito.ir.support import Any, Backward, Forward, WaitLock
 from devito.passes.clusters import fuse
@@ -360,14 +360,10 @@ class TestCodeGen:
 
         op = Operator(Eq(u, u + 1), platform='intel64')
 
-        assert op.body.body[1].body[0].is_Section
-        assert isinstance(op.body.body[1].body[0].body[0], TimedList)
-        timedlist = op.body.body[1].body[0].body[0]
-        if 'openmp' in configuration['language']:
-            ompreg = timedlist.body[0]
-            assert ompreg.body[0].dim is grid.time_dim
-        else:
-            timedlist.body[0].dim is grid.time_dim  # noqa: B015
+        section, = FindNodes(Section).visit(op)
+        timedlist, = section.body
+        assert isinstance(timedlist, TimedList)
+        assert FindNodes(Iteration).visit(timedlist)[0].dim is grid.time_dim
 
     def test_nested_lowering(self):
         """

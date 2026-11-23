@@ -6,7 +6,9 @@ import pytest
 
 from benchmarks.user.benchmark import run
 from conftest import skipif
-from devito import Eq, Grid, Operator, TimeFunction, configuration, switchconfig
+from devito import Eq, Function, Grid, Operator, TimeFunction, configuration, switchconfig
+from devito.ir.iet import Expression, FindNodes, Iteration, TimedList
+from devito.types import Timer
 
 
 @skipif('cpu64-icx')
@@ -105,3 +107,52 @@ def test_advisor_profiling():
     op = Operator(eq0)
     assert 'ittnotify.h' in op._includes
     op.apply(time_M=5)
+
+
+@switchconfig(profiling='advanced')
+def test_nosetup_time_loop():
+    grid = Grid(shape=(32, 32))
+    f = Function(name='f', grid=grid)
+    u = TimeFunction(name='u', grid=grid, save=6)
+    v = TimeFunction(name='v', grid=grid, save=6)
+    op = Operator([Eq(f, 2), Eq(u.forward, u + f),
+                   Eq(v.backward, v + u), Eq(f, f + 3)], opt='noop')
+
+    outer, = [i for i in FindNodes(TimedList).visit(op) if i.name == Timer.time_loop]
+    assert len([i for i in FindNodes(Iteration).visit(outer) if i.dim.is_Time]) == 2
+    assert all(e.write is not f for e in FindNodes(Expression).visit(outer))
+    if (wait := op._Target.langbb().get('device-wait')) is not None:
+        assert str(outer.body[-1]) == str(wait)
+    summary = op.apply(time_m=1, time_M=4)
+    assert (u.data[5, 0, 0], v.data[0, 0, 0], f.data[0, 0]) == (8, 12, 5)
+    timer = next(p for p in op.parameters if isinstance(p, Timer))
+    assert summary.globals_nosetup_all.time == max(timer.total, 1e-6)
+
+
+@pytest.mark.parallel(mode=2)
+@pytest.mark.parametrize('stepping', [False, True])
+@switchconfig(profiling='advanced')
+def test_nosetup_rank_reduction(mode, stepping):
+    grid = Grid(shape=(16, 16))
+    if stepping:
+        u = TimeFunction(name='u', grid=grid)
+        v = TimeFunction(name='v', grid=grid)
+        eqns = [Eq(u.forward, u + 1),
+                Eq(v.forward, v + u.forward, subdomain=grid.interior)]
+    else:
+        u = Function(name='u', grid=grid)
+        eqns = [Eq(u, u + 1), Eq(u, u + 2, subdomain=grid.interior)]
+    op = Operator(eqns, opt='noop')
+    args = op.arguments(time_M=1) if stepping else op.arguments()
+    timer = args['timers']._obj
+    assert hasattr(timer, Timer.time_loop) == stepping
+
+    # Opposite ranks dominate the two sections. Use exact times to test the reduction.
+    rank = grid.distributor.myrank
+    timer.section0, timer.section1 = (8., 2.) if rank == 0 else (2., 8.)
+    if stepping:
+        timer.time_loop = 10. + rank
+    summary = op._profiler.summary(args, op._dtype, reduce_over=20.)
+    assert summary.globals['vanilla-nosetup'].time == (11. if stepping else 16.)
+    if stepping:
+        assert summary.globals_nosetup_all.gpointss == (2 * 16 * 16 / 1e9) / 11.

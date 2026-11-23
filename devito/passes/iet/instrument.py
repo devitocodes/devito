@@ -1,8 +1,8 @@
 from itertools import groupby
 
 from devito.ir.iet import (
-    BusyWait, BusyWaitCall, EntryFunction, FindNodes, FindSymbols, Iteration, MapNodes,
-    Section, TimedList, Transformer
+    BusyWait, BusyWaitCall, EntryFunction, FindNodes, FindSymbols, Iteration, List,
+    MapNodes, Section, TimedList, Transformer
 )
 from devito.mpi.routines import (
     ComputeCall, HaloUpdateCall, HaloUpdateList, HaloWaitCall, HaloWaitList, MPICall,
@@ -21,11 +21,55 @@ def instrument(graph, **kwargs):
 
     track_subsections(graph, **kwargs)
 
-    # Construct a fresh Timer object
-    timer = Timer(profiler.name, list(profiler.all_sections))
+    fields = profiler.all_sections
+    region = time_loop_region(graph.root.body) if profiler._track_time_loop else None
+    if region:
+        fields.append(Timer.time_loop)
+    timer = Timer(profiler.name, fields)
 
+    if region:
+        instrument_time_loop(graph, region=region, timer=timer, **kwargs)
     instrument_sections(graph, timer=timer, **kwargs)
     sync_sections(graph, **kwargs)
+
+
+def time_loop_region(scope):
+    """Find the host statements spanning the first to the last time loop."""
+    while True:
+        steps = [n for n, node in enumerate(scope.body)
+                 if any(i.dim.is_Time for i in FindNodes(Iteration).visit(node))]
+        if not steps:
+            return None
+        first, last = steps[0], steps[-1]
+        child = scope.body[first]
+        if first != last or type(child) is not List or child.header or child.footer:
+            return scope, first, last + 1
+        # Look through plain lists, keeping parallel regions and pragmas intact
+        scope = child
+
+
+@iet_pass
+def instrument_time_loop(iet, region, timer, langbb, **kwargs):
+    """Time the stepping code once, including completion of its device work."""
+    if not isinstance(iet, EntryFunction):
+        return iet, {}
+
+    scope, first, stop = region
+    body = scope.body[first:stop]
+    wait = langbb.get('device-wait')
+    if wait is not None:
+        waits = (wait,)
+    elif sync := langbb.get('map-wait'):
+        waits = tuple(sync(q) for q in FindSymbols().visit(body)
+                      if isinstance(q, langbb.AsyncQueue))
+    else:
+        waits = ()
+
+    timed = TimedList(timer=timer, lname=Timer.time_loop, body=body + waits)
+    body = scope.body[:first] + waits + (timed,) + scope.body[stop:]
+    iet = Transformer({scope: scope._rebuild(body=body)}).visit(iet)
+    headers = [TimedList._start_timer_header(), TimedList._stop_timer_header()]
+    return iet, {'headers': headers}
 
 
 @iet_pass
@@ -145,6 +189,8 @@ def sync_sections(iet, langbb=None, profiler=None, **kwargs):
 
     mapper = {}
     for tl in FindNodes(TimedList).visit(iet):
+        if tl.name == Timer.time_loop:
+            continue
         symbols = FindSymbols().visit(tl)
 
         queues = [i for i in symbols if isinstance(i, langbb.AsyncQueue)]

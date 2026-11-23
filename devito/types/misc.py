@@ -41,6 +41,7 @@ __all__ = [
 class Timer(CompositeObject):
 
     __rargs__ = ('name', 'sections')
+    time_loop = 'time_loop'
 
     def __init__(self, name, sections):
         super().__init__(name, 'profiler', [(i, c_double) for i in sections])
@@ -52,6 +53,8 @@ class Timer(CompositeObject):
 
     @property
     def total(self):
+        if self.time_loop in self.fields:
+            return getattr(self.value._obj, self.time_loop)
         return sum(getattr(self.value._obj, i) for i in self.fields)
 
     @property
