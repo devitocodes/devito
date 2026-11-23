@@ -13,6 +13,7 @@ __all__ = [
     'DeviceLayer',
     'DimensionTuple',
     'DiskLayer',
+    'GlobalLocal',
     'HierarchyLayer',
     'HostLayer',
     'IgnoreDimSort',
@@ -39,6 +40,7 @@ CELL = Stagger('cell')
 
 
 Size = namedtuple('Size', 'left right')
+GlobalLocal = namedtuple('GlobalLocal', 'glb loc')
 Offset = namedtuple('Offset', 'left right')
 
 

@@ -45,7 +45,7 @@ class TestSubDomains:
             # _lower_exprs expects a SymbolRegistry, so create one
             expr = Operator._lower_exprs([eq0], options={},
                                          sregistry=SymbolRegistry())[0]
-        assert str(expr.rhs) == 'ix*f[ix + 1, iy + 1] + iy'
+        assert str(expr.rhs) == 'iy + io_y + (ix + io_x)*f[ix + 1, iy + 1]'
 
     def test_multiple_middle(self):
         """
@@ -282,7 +282,7 @@ class TestSubDomains:
             # _lower_exprs expects a SymbolRegistry, so create one
             expr = Operator._lower_exprs([eq0], options={},
                                          sregistry=SymbolRegistry())[0]
-        assert str(expr.rhs) == 'ix*f[ix + 1, iy + 1] + iy'
+        assert str(expr.rhs) == 'iy + io_y + (ix + io_x)*f[ix + 1, iy + 1]'
 
     @pytest.mark.parallel(mode=2)
     def test_halo_subdomain(self, mode):

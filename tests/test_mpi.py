@@ -8,9 +8,9 @@ from conftest import _R, assert_blocking, assert_structure, body0
 from devito import (
     NODE, Buffer, ConditionalDimension, Constant, CustomDimension, DefaultDimension,
     Dimension, Eq, Function, Grid, Inc, Ne, Operator, PrecomputedSparseFunction,
-    SparseFunction, SparseTimeFunction, SubDimension, SubDomain, TensorTimeFunction,
-    TimeFunction, VectorTimeFunction, configuration, diag, div, generic_derivative, grad,
-    inner, norm, solve, switchconfig
+    SparseFunction, SparseTimeFunction, SubDimension, SubDomain, SubGrid,
+    TensorTimeFunction, TimeFunction, VectorTimeFunction, configuration, diag, div,
+    generic_derivative, grad, inner, norm, solve, switchconfig
 )
 from devito.arch.compiler import OneapiCompiler
 from devito.data import LEFT, RIGHT
@@ -1248,15 +1248,40 @@ class TestGlobalIndex:
         check[-1] = 7
         assert np.all(g.data[:] == check[g.local_indices])
 
-    def test_serial_code_unchanged(self):
-        """No index offset is generated without MPI."""
+    def test_serial_index_offsets(self):
+        """Without a decomposition the index offsets are zero."""
         grid = Grid(shape=(4, 4))
         x, y = grid.dimensions
         f = Function(name='f', grid=grid)
 
         op = Operator(Eq(f, x + y))
 
-        assert not any(p.name.startswith('io_') for p in op.parameters)
+        args = op.arguments()
+        assert args['io_x'] == args['io_y'] == 0
+        op.apply()
+        assert np.all(f.data == np.arange(4)[:, None] + np.arange(4))
+
+    @pytest.mark.parallel(mode=[1])
+    def test_single_rank_codegen(self, mode):
+        """
+        The global index offsets are generated with MPI on a single rank, as
+        code generated there may run on many (e.g., the DevitoPRO decoupler).
+        """
+        grid = Grid(shape=(9, 9))
+        x, y = grid.dimensions
+        sub = SubGrid(grid, factor=2)
+        f = Function(name='f', grid=grid, space_order=1)
+        g = Function(name='g', grid=sub)
+
+        op = Operator([Eq(f, x + y), Eq(g, f)])
+
+        names = {p.name for p in op.parameters}
+        assert {'io_x', 'io_y', 'xso', 'yso'} <= names
+
+        op.apply()
+
+        check = np.arange(9)[::2, None] + np.arange(9)[::2]
+        assert np.all(g.data[:] == check[g.local_indices])
 
 
 class TestHaloWrites:
@@ -3640,18 +3665,24 @@ class TestOperatorAdvanced:
             assert np.all(glb[:, 3:-3] == 0.)
             assert np.all(glb[:, -3:] == 2.)
 
-    @pytest.mark.parallel(mode=4)
+    @pytest.mark.parametrize('mode', [
+        pytest.param(None, id='serial'),
+        pytest.param(4, marks=pytest.mark.parallel, id='basic')
+    ])
     @pytest.mark.parametrize('expand', [True, False])
-    @pytest.mark.parametrize('region', [('middle', 6, 6), ('middle', 16, 16),
-                                        ('middle', 15, 17), ('left', 17),
-                                        ('right', 18), ('middle', 0, 17),
-                                        ('middle', 18, 0)])
-    def test_halo_zero_subdomain(self, region, expand, mode):
+    @pytest.mark.parametrize('transpose', [False, True])
+    @pytest.mark.parametrize('region, inside', [
+        (('middle', 6, 6), slice(6, 58)), (('middle', 16, 16), slice(16, 48)),
+        (('middle', 15, 17), slice(15, 47)), (('left', 17), slice(None, 17)),
+        (('right', 18), slice(46, None)), (('middle', 0, 17), slice(None, 47)),
+        (('middle', 18, 0), slice(18, None))
+    ])
+    def test_halo_zero_subdomain(self, region, inside, transpose, expand, mode):
         """
         Derivatives with `halo=0` treat their argument as zero outside the global
         SubDomain, not outside its part on each rank, and read the halo past the
-        Grid edges. The rank edges lie at 16, 32 and 48, within the stencil radius
-        of some of the SubDomain edges.
+        Grid edges. With 4 ranks, the rank edges lie at 16, 32 and 48, within the
+        stencil radius of some of the SubDomain edges.
         """
         class Region(SubDomain):
             name = 'region'
@@ -3660,36 +3691,35 @@ class TestOperatorAdvanced:
                 x, = dimensions
                 return {x: region}
 
-        serial = Grid(shape=(64,), comm=MPI.COMM_SELF)
         grid = Grid(shape=(64,))
-        subdomain = Region(grid=serial)
+        subdomain = Region(grid=grid)
+        f, f_zero, out, ref = (Function(name=n, grid=grid, space_order=4)
+                               for n in ('f', 'f_zero', 'out', 'ref'))
 
-        def functions(grid):
-            kwargs = {'grid': grid, 'space_order': 4}
-            return [Function(name=n, **kwargs) for n in ('f', 'o', 'g')]
-
-        f0, o0, g0 = functions(serial)
-        f1, o1, g1 = functions(grid)
         rng = np.random.default_rng(0)
-        f0.data[:] = f1.data[:] = rng.normal(size=grid.shape)
+        values = rng.normal(size=grid.shape)
+        f.data[:] = values
+        f_zero.data[inside] = values[inside]
 
-        # Non-zero halos past the Grid edges, read where the SubDomain touches them
-        h = f0._size_halo[grid.dimensions[0]].left
+        # Non-zero halos past the Grid edges, read where the SubDomain touches them.
+        # Globally indexed, so on the edge ranks only
+        h = f._size_halo[grid.dimensions[0]].left
         left, right = rng.normal(size=h), rng.normal(size=h)
-        for f in (f0, f1):
-            # Globally indexed, so on the edge ranks only
-            f.data_with_halo[:h], f.data_with_halo[-h:] = left, right
+        f.data_with_halo[:h], f.data_with_halo[-h:] = left, right
+        if inside.start is None:
+            f_zero.data_with_halo[:h] = left
+        if inside.stop is None:
+            f_zero.data_with_halo[-h:] = right
 
-        # Compiled for the serial Grid, applied to both
-        op = Operator([Eq(o0, f0.dx(halo=0), subdomain=subdomain),
-                       Inc(g0, f0.dx(halo=0).T, subdomain=subdomain)],
-                      opt=('advanced', {'expand': expand}))
-        op.apply()
-        op.apply(f=f1, o=o1, g=g1)
+        deriv, deriv_ref = f.dx(halo=0), f_zero.dx
+        if transpose:
+            deriv, deriv_ref = deriv.T, deriv_ref.T
+        # The reference everywhere, as the `halo=0` derivative extends past the
+        # SubDomain
+        Operator([Eq(out, deriv, subdomain=subdomain), Eq(ref, deriv_ref)],
+                 opt=('advanced', {'expand': expand})).apply()
 
-        glb = grid.distributor.glb_slices[grid.dimensions[0]]
-        assert np.allclose(o1.data, o0.data[glb], rtol=1e-12)
-        assert np.allclose(g1.data, g0.data[glb], rtol=1e-12)
+        assert np.allclose(out.data, ref.data)
 
     @pytest.mark.parallel(mode=4)
     def test_rank_offset_empty(self, mode):
