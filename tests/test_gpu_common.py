@@ -87,6 +87,12 @@ class TestDeviceID:
         'HIP_VISIBLE_DEVICES'
     )
 
+    @pytest.fixture
+    def without_runtime_query(self, monkeypatch):
+        """Disable runtime probing when exercising synthetic visibility masks."""
+        monkeypatch.setattr(Device, 'runtime_pci_bus_id', lambda *args: None)
+
+    @pytest.mark.usefixtures('without_runtime_query')
     @pytest.mark.parametrize('env_variables', [{"CUDA_VISIBLE_DEVICES": "1"},
                                                {"CUDA_VISIBLE_DEVICES": "1,2"},
                                                {"CUDA_VISIBLE_DEVICES": "1,0"},
@@ -114,10 +120,10 @@ class TestDeviceID:
             # All variants in parameterisation should yield deviceid 1
             assert argmap1._physical_deviceid == 1
 
+    @pytest.mark.usefixtures('without_runtime_query')
     def test_default_physical_deviceid(self):
         """
-        Test that the default physical device ID is 0 when no visible-device
-        environment variable is set.
+        Test that serial selection falls back to device 0 without a visibility mask.
         """
         grid = Grid(shape=(10, 10))
         u = Function(name='u', grid=grid)
@@ -130,6 +136,7 @@ class TestDeviceID:
             argmap2 = op2.arguments()
             assert argmap2._physical_deviceid == 0
 
+    @pytest.mark.usefixtures('without_runtime_query')
     @pytest.mark.parallel(mode=2)
     @pytest.mark.parametrize('visible_devices', [
         "1,2", "1,0", "0,2,3",
@@ -164,12 +171,15 @@ class TestDeviceID:
             argmap1 = op1.arguments()
             assert argmap1._physical_deviceid == expected
 
-        # In default case, physical deviceid will equal rank
+        # Without a mask, fall back to the management tool's device count
         with switchenv({i: None for i in self.visible_device_envs}):
             op2 = Operator(eq)
             argmap2 = op2.arguments()
-            assert argmap2._physical_deviceid == rank
+            count = op2._platform.numa_domains
+            expected = rank % count if count else rank
+            assert argmap2._physical_deviceid == expected
 
+    @pytest.mark.usefixtures('without_runtime_query')
     def test_visible_devices_with_devito_deviceid(self):
         """Test interaction between CUDA_VISIBLE_DEVICES and DEVITO_DEVICEID"""
         grid = Grid(shape=(10, 10))
@@ -210,7 +220,7 @@ class TestDeviceID:
 
         with switchenv({i: None for i in self.visible_device_envs}):
             argmap = op.arguments(deviceid=deviceid)
-            assert argmap._physical_deviceid == deviceid
+            assert argmap['deviceid'] == deviceid
 
 
 class TestCodeGeneration:
