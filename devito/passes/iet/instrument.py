@@ -22,26 +22,26 @@ def instrument(graph, **kwargs):
 
     track_subsections(graph, **kwargs)
 
-    loop = None
+    time_loop = None
     if profiler._track_time_loop:
         body = graph.root.body.body
         time_loops = [i for i in FindNodes(Iteration).visit(body) if i.dim.is_Time]
         if len(time_loops) == 1:
-            loop = time_loops[0]
+            time_loop = time_loops[0]
 
     fields = profiler.all_sections
-    if loop is None:
+    if time_loop is None:
         timer = Timer(profiler.name, fields)
     else:
         timer = TimeLoopTimer(profiler.name, [*fields, 'time_loop'])
-        instrument_time_loop(graph, loop=loop, timer=timer, **kwargs)
+        instrument_time_loop(graph, time_loop=time_loop, timer=timer, **kwargs)
 
     instrument_sections(graph, timer=timer, **kwargs)
     sync_sections(graph, **kwargs)
 
 
 @iet_pass
-def instrument_time_loop(iet, loop, timer, langbb, **kwargs):
+def instrument_time_loop(iet, time_loop, timer, langbb, **kwargs):
     """
     Time the Operator's sole time loop.
     On asynchronous backends, wait for device work at both boundaries.
@@ -56,9 +56,9 @@ def instrument_time_loop(iet, loop, timer, langbb, **kwargs):
         return iet, {}
 
     # Keep the loop attached to its parallel directives.
-    target = loop
+    target = time_loop
     for region in FindNodes((ParallelBlock, ParallelTree)).visit(iet):
-        if loop in FindNodes(Iteration).visit(region):
+        if time_loop in FindNodes(Iteration).visit(region):
             target = region
             break
 
