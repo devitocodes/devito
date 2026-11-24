@@ -2,7 +2,7 @@ from itertools import groupby
 
 from devito.ir.iet import (
     BusyWait, BusyWaitCall, EntryFunction, FindNodes, FindSymbols, Iteration, List,
-    MapNodes, Section, TimedList, Transformer
+    MapNodes, Section, TimedList, Transformer, retrieve_iteration_tree
 )
 from devito.mpi.routines import (
     ComputeCall, HaloUpdateCall, HaloUpdateList, HaloWaitCall, HaloWaitList, MPICall,
@@ -24,7 +24,7 @@ def instrument(graph, **kwargs):
 
     region = None
     if profiler._track_time_loop:
-        region = time_loop_region(graph.root.body)
+        region = time_loop_region(graph.root.body.body)
 
     fields = profiler.all_sections
     if region is None:
@@ -37,27 +37,34 @@ def instrument(graph, **kwargs):
     sync_sections(graph, **kwargs)
 
 
-def time_loop_region(scope):
-    """Find the first and last stepping statements in their common host scope."""
-    finder = FindNodes(Iteration)
-    while True:
-        indices = [n for n, stmt in enumerate(scope.body)
-                   if any(i.dim.is_Time for i in finder.visit(stmt))]
-        if not indices:
-            return None
-        first, last = indices[0], indices[-1]
-        stmt = scope.body[first]
-        # Only open a bare List. Keep guards and parallel regions inside the timer.
-        if first != last or type(stmt) is not List or stmt.header or stmt.footer:
-            return scope, slice(first, last + 1)
-        scope = stmt
+def time_loop_region(body):
+    """Split the host statements at the first and last time loops."""
+    body = list(_host_statements(body))
+    indices = []
+    for n, stmt in enumerate(body):
+        trees = retrieve_iteration_tree((stmt,))
+        steps = (next((i for i in tree if i.dim.is_Time), None) for tree in trees)
+        if any(steps):
+            indices.append(n)
+    if indices:
+        start, stop = indices[0], indices[-1] + 1
+        return body[:start], body[start:stop], body[stop:]
+
+
+def _host_statements(body):
+    """Unpack plain Lists, keeping guards and parallel regions intact."""
+    for stmt in body:
+        if type(stmt) is List and not (stmt.header or stmt.footer or stmt.inline):
+            yield from _host_statements(stmt.body)
+        else:
+            yield stmt
 
 
 @iet_pass
 def instrument_time_loop(iet, region, timer, langbb, **kwargs):
     """
-    Time the host code from the first stepping loop through the last,
-    including intervening statements and completion of device work.
+    Time the host code from the first stepping loop through the last.
+    On asynchronous backends, wait for device work at both boundaries.
 
     For example, a CUDA Operator contains::
 
@@ -68,21 +75,20 @@ def instrument_time_loop(iet, region, timer, langbb, **kwargs):
     if not isinstance(iet, EntryFunction):
         return iet, {}
 
-    scope, span = region
-    body = list(scope.body)
+    before, body, after = region
     wait = langbb.get('device-wait')
     sync = langbb.get('map-wait')
     if wait is not None:
         waits = [wait]
     elif sync is not None:
-        waits = [sync(q) for q in FindSymbols().visit(body[span])
+        waits = [sync(q) for q in FindSymbols().visit(body)
                  if isinstance(q, langbb.AsyncQueue)]
     else:
         waits = []
 
-    timed = TimedList(timer=timer, lname='time_loop', body=body[span] + waits)
-    body[span] = [*waits, timed]
-    piet = Transformer({scope: scope._rebuild(body=body)}).visit(iet)
+    timed = TimedList(timer=timer, lname='time_loop', body=body + waits)
+    body = List(body=[*before, *waits, timed, *after])
+    piet = iet._rebuild(body=iet.body._rebuild(body=body))
     return piet, {'headers': _timer_headers()}
 
 

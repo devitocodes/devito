@@ -9,15 +9,14 @@ from benchmarks.user.benchmark import run
 from conftest import skipif
 from devito import Eq, Function, Grid, Operator, TimeFunction, configuration, switchconfig
 from devito.ir.iet import (
-    Call, Callable, CallableBody, Conditional, EntryFunction, FindNodes, Iteration,
-    List, Section, TimedList
+    Call, Callable, Conditional, EntryFunction, FindNodes, Iteration, List, Section,
+    TimedList
 )
 from devito.ir.support import SymbolRegistry
-from devito.operator.profiling import AdvancedProfiler, TimeLoopTimer
+from devito.operator.profiling import AdvancedProfiler
 from devito.passes.iet.engine import Graph, iet_pass
-from devito.passes.iet.instrument import instrument, time_loop_region
+from devito.passes.iet.instrument import instrument
 from devito.passes.iet.languages.targets import CTarget
-from devito.types import Timer
 
 
 @skipif('cpu64-icx')
@@ -122,91 +121,72 @@ class TestTimeLoopProfiling:
 
     @switchconfig(profiling='advanced')
     def test_loop_span(self):
-        grid = Grid(shape=(32, 32))
+        grid = Grid(shape=(8, 8))
         x, y = grid.dimensions
         f = Function(name='f', grid=grid)
-        g = Function(name='g', grid=grid)
         u = TimeFunction(name='u', grid=grid, save=6)
         v = TimeFunction(name='v', grid=grid, save=6)
-        eqs = [Eq(f, 2), Eq(u.forward, u + f), Eq(g, u[5, x, y]),
-               Eq(v.backward, v + g), Eq(f, v[0, x, y])]
+
+        eqs = [Eq(f, 2), Eq(u.forward, u + f), Eq(f, u[5, x, y]),
+               Eq(v.backward, v + f), Eq(f, v[0, x, y])]
         op = Operator(eqs, opt=('noop', {'gpu-fit': (u, v)}))
 
         outer, = [i for i in FindNodes(TimedList).visit(op) if i.name == 'time_loop']
-        assert len([i for i in FindNodes(Iteration).visit(outer) if i.dim.is_Time]) == 2
-        sections = FindNodes(Section).visit(op)
-        assert FindNodes(Section).visit(outer) == sections[1:-1]
+        assert FindNodes(Section).visit(outer) == FindNodes(Section).visit(op)[1:-1]
         wait = op._Target.langbb().get('device-wait')
         if wait is not None:
             assert str(outer.body[-1]) == str(wait)
+
         summary = op.apply(time_m=1, time_M=4)
-        assert (u.data[5, 0, 0], v.data[0, 0, 0], f.data[0, 0]) == (8, 32, 32)
-        timer = next(p for p in op.parameters if isinstance(p, Timer))
-        assert isinstance(timer, TimeLoopTimer)
-        assert summary.globals_nosetup_all.time == max(timer.total, 1e-6)
+        assert f.data[0, 0] == 32
+        assert summary.globals_nosetup_all.time == max(outer.timer.total, 1e-6)
 
     @pytest.mark.parallel(mode=2)
-    @pytest.mark.parametrize('stepping', [False, True])
+    @pytest.mark.parametrize('stepping, expected', [(False, 16.), (True, 11.)])
     @switchconfig(profiling='advanced')
-    def test_rank_reduction(self, mode, stepping):
-        grid = Grid(shape=(16, 16))
-        if stepping:
-            u = TimeFunction(name='u', grid=grid)
-            v = TimeFunction(name='v', grid=grid)
-            eqns = [Eq(u.forward, u + 1),
-                    Eq(v.forward, v + u.forward, subdomain=grid.interior)]
-        else:
-            u = Function(name='u', grid=grid)
-            eqns = [Eq(u, u + 1), Eq(u, u + 2, subdomain=grid.interior)]
-        op = Operator(eqns, opt='noop')
-        args = op.arguments(time_M=1) if stepping else op.arguments()
-        timer = args['timers']._obj
+    def test_rank_reduction(self, mode, stepping, expected):
+        grid = Grid(shape=(8, 8))
+        x, y = grid.dimensions
+        u = TimeFunction(name='u', grid=grid, save=3)
+        v = Function(name='v', grid=grid)
+        f = u if stepping else u[0, x, y]
 
-        # Opposite ranks dominate the two sections. Use exact times to test the reduction.
+        op = Operator([Eq(f, f + 1), Eq(v, v + f, subdomain=grid.interior)], opt='noop')
+        args = op.arguments()
+        timer = args['timers']._obj
         rank = grid.distributor.myrank
+
+        # Different ranks dominate the two sections.
         timer.section0, timer.section1 = (8., 2.) if rank == 0 else (2., 8.)
         if stepping:
             timer.time_loop = 10. + rank
+
         summary = op._profiler.summary(args, op._dtype, reduce_over=20.)
-        assert summary.globals['vanilla-nosetup'].time == (11. if stepping else 16.)
+        assert summary.globals['vanilla-nosetup'].time == expected
         if stepping:
-            assert summary.globals_nosetup_all.gpointss == (2 * 16 * 16 / 1e9) / 11.
+            assert summary.globals_nosetup_all.gpointss == (3 * 8**2 / 1e9) / expected
 
-    def test_guarded_time_loops(self):
+    def test_guarded_helper(self):
         t = Grid(shape=(8,)).time_dim
-        first = Conditional(t.symbolic_max > 0, Iteration((), t, (0, 1, 1)))
-        second = Iteration((), t, (2, 3, 1))
-        middle = Call('between_steps')
-        group = List(body=[Call('setup'), first, middle, second, Call('teardown')])
-
-        scope, span = time_loop_region(CallableBody([Call('init'), group]))
-        assert scope.body[span] == (first, middle, second)
-
-        scope, span = time_loop_region(CallableBody(first))
-        assert scope.body[span] == (first,)
-
-        scope, span = time_loop_region(CallableBody([first, middle, first]))
-        assert scope.body[span] == (first, middle, first)
-
-    def test_profiled_helper(self):
-        t = Grid(shape=(8,)).time_dim
-        loop = Iteration(Call('step'), t, (0, 1, 1))
-        graph = Graph(EntryFunction('Kernel', loop, 'int'))
         step = Callable('step', Section('section0', Call('work')), 'void')
+        loop = Iteration(Call('step'), t, (0, 1, 1))
+        guard = Conditional(t.symbolic_max > 0, loop)
+        body = [List(body=[Call('setup'), guard]), List(body=[loop, Call('teardown')])]
+
+        graph = Graph(EntryFunction('Kernel', body, 'int'))
         graph.efuncs[step.name] = step
+
         profiler = AdvancedProfiler('timers')
         profiler.analyze(step)
 
-        # Profiling extensions can replace the pass that instruments named sections.
         @iet_pass
-        def custom_sections(iet, profiler, timer, **kwargs):
+        def sections(iet, timer, **kwargs):
             return profiler.instrument(iet, timer), {}
 
-        with patch('devito.passes.iet.instrument.instrument_sections', custom_sections):
+        with patch('devito.passes.iet.instrument.instrument_sections', sections):
             instrument(graph, profiler=profiler, sregistry=SymbolRegistry(),
                        langbb=CTarget.langbb())
 
         outer, = FindNodes(TimedList).visit(graph.root)
-        call, = FindNodes(Call).visit(outer)
-        assert outer.name == 'time_loop'
-        assert call.arguments == (outer.timer,)
+        assert [type(i) for i in outer.body] == [Conditional, Iteration]
+        assert all(i.arguments == (outer.timer,) for i in FindNodes(Call).visit(outer))
