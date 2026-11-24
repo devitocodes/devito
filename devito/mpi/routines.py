@@ -58,6 +58,10 @@ class HaloExchangeBuilder:
 
         return obj
 
+    def finalize(self, iet, metadata):
+        """Place any entry-level lifetime operations for the built exchanges."""
+        return iet, metadata
+
     @property
     def efuncs(self):
         return self._efuncs

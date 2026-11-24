@@ -372,7 +372,7 @@ def make_halo_exchanges(iet, mpimode=None, fallback='basic', **kwargs):
                 break
     iet = Transformer(mapper, nested=True).visit(iet)
 
-    return iet, {'includes': ['mpi.h'], 'efuncs': efuncs}
+    return user_heb.finalize(iet, {'includes': ['mpi.h'], 'efuncs': efuncs})
 
 
 @iet_pass

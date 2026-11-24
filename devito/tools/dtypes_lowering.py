@@ -337,6 +337,9 @@ def is_external_ctype(ctype, includes):
     True if `ctype` is known to be declared in one of the given `includes`
     files, False otherwise.
     """
+    if isinstance(ctype, CustomDtype):
+        return False
+
     # Get the base type
     while issubclass(ctype, ctypes._Pointer):
         ctype = ctype._type_
