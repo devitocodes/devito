@@ -1,6 +1,6 @@
 import numpy as np
 import pytest
-from sympy import Float, Symbol, diff, simplify, sympify
+from sympy import Float, Rational, Symbol, diff, nsimplify, simplify, sympify
 
 from conftest import assert_structure
 from devito import (
@@ -621,6 +621,121 @@ class TestFD:
         a = np.dot(f_deriv.data.reshape(-1), g.data.reshape(-1))
         b = np.dot(g_deriv.data.reshape(-1), f.data.reshape(-1))
         assert np.isclose(1 - a/b, 0, atol=1e-5)
+
+    @pytest.mark.parametrize('staggered, fd_indices', [
+        (False, (0, 1, 2)),
+        (False, (-1, 0, 1, 2)),
+        (True, (.5, 1.5, 2.5)),
+        (True, (-.5, .5, 1.5))])
+    def test_given_fd_indices(self, staggered, fd_indices):
+        """
+        A derivative with `fd_indices` reads only those points, and is exact to
+        their degree.
+        """
+        grid = Grid(shape=(11,), extent=(10.,), dtype=np.float64)
+        x, = grid.dimensions
+        shift = Rational(1, 2) if staggered else 0
+        f = Function(name='f', grid=grid, space_order=4,
+                     staggered=x if staggered else None)
+        out = Function(name='out', grid=grid, space_order=4)
+        degree = len(fd_indices) - 1
+        f.data[:] = (np.arange(11.) + float(shift))**degree
+        eq = Eq(out, f.dx(fd_indices=fd_indices))
+        read = {a.args[0] for a in eq.evaluate.rhs.atoms(type(f))}
+        assert read <= {x + nsimplify(o)*x.spacing for o in fd_indices}
+        Operator(eq).apply()
+        inner = slice(2, -4)
+        assert np.allclose(out.data[inner], degree*np.arange(11.)[inner]**(degree - 1),
+                           rtol=1e-10, atol=1e-10)
+
+    @pytest.mark.parametrize('source, target, fd_indices, weights', [
+        (False, False, (0, 1, 2), None),
+        (False, True, (-.5, .5, 1.5), None),
+        (True, False, (.5, 1.5, 2.5), None),
+        (False, True, (-.5, .5, 1.5), (-1., 2., -.5)),
+        (True, False, (.5,), (2.,))])
+    def test_fd_indices_adjoint(self, source, target, fd_indices, weights):
+        """A derivative with `fd_indices` passes the dot test with its `.T`."""
+        grid = Grid(shape=(21,), extent=(20.,), dtype=np.float64)
+        x, = grid.dimensions
+        rng = np.random.default_rng(0)
+        at = {False: (None, x), True: (x, x + x.spacing/2)}
+        f, f_out = (Function(name=n, grid=grid, space_order=4, staggered=at[k][0])
+                    for n, k in (('f', source), ('fo', target)))
+        g, g_out = (Function(name=n, grid=grid, space_order=4, staggered=at[k][0])
+                    for n, k in (('g', target), ('go', source)))
+        f.data[4:-6] = rng.standard_normal(11)
+        g.data[4:-6] = rng.standard_normal(11)
+        kwargs = {'fd_indices': fd_indices} if weights is None else \
+            {'fd_indices': fd_indices, 'weights': weights}
+        Operator([Eq(f_out, f.dx(x0={x: at[target][1]}, **kwargs)),
+                  Eq(g_out, g.dx(x0={x: 2*x - at[source][1]}, **kwargs).T)]).apply()
+        forward = np.dot(f_out.data, g.data)
+        backward = np.dot(f.data, g_out.data)
+        assert np.isclose(forward, backward, rtol=1e-12, atol=0)
+
+    def test_fd_indices_tuple(self):
+        """A tuple of fd_indices is refused for a derivative along two Dimensions."""
+        grid = Grid(shape=(11, 11))
+        x, y = grid.dimensions
+        f = Function(name='f', grid=grid, space_order=4)
+        assert f.dx(fd_indices=(0, 1)).fd_indices == {x: (0, 1)}
+        with pytest.raises(ValueError, match='one Dimension'):
+            f.dxdy(fd_indices=(0, 1))
+
+    def test_fd_indices_spacing(self):
+        """fd_indices may be given in grid spacings or as multiples of the spacing."""
+        grid = Grid(shape=(11, 11))
+        x, y = grid.dimensions
+        hx, hy = x.spacing, y.spacing
+        f = Function(name='f', grid=grid, space_order=4)
+        assert f.dx(fd_indices=(-hx, hx)) == f.dx(fd_indices=(-1, 1))
+        assert f.dx(fd_indices=(-hx/2, 1.5*hx)).fd_indices == \
+            {x: (Rational(-1, 2), Rational(3, 2))}
+        d0 = f.dxdy(fd_indices={x: (0, hx), y: (-2*hy, 0)})
+        d1 = f.dxdy(fd_indices={x: (0, 1), y: (-2, 0)})
+        assert d0 == d1
+        assert d0.evaluate == d1.evaluate
+        with pytest.raises(ValueError, match='multiples'):
+            f.dx(fd_indices=(-hy, hy))
+        with pytest.raises(ValueError, match='multiples'):
+            f.dx(fd_indices=(0, 1 + hx))
+
+    def test_fd_indices_order_zero(self):
+        """
+        A zeroth-order derivative with `fd_indices` reads those points, e.g. a
+        shift.
+        """
+        grid = Grid(shape=(11,), extent=(10.,), dtype=np.float64)
+        x, = grid.dimensions
+        f = Function(name='f', grid=grid, space_order=4)
+        out = Function(name='out', grid=grid, space_order=4)
+        f.data[:] = np.arange(11.)**2
+        Operator(Eq(out, f.diff((x, 0), x0={x: x}, fd_indices=(2,)))).apply()
+        assert np.allclose(out.data[:-2], f.data[2:], rtol=1e-12, atol=0)
+
+    def test_fd_indices_cross(self):
+        """A dict of fd_indices gives the points along each Dimension."""
+        grid = Grid(shape=(11, 11))
+        x, y = grid.dimensions
+        f = Function(name='f', grid=grid, space_order=4)
+        deriv = f.dxdy(fd_indices={x: (0, 1), y: (-1, 0)})
+        read = {a.args for a in deriv.evaluate.atoms(type(f))}
+        assert read == {(x + i*x.spacing, y + j*y.spacing)
+                        for i in (0, 1) for j in (-1, 0)}
+
+    def test_fd_indices_nested(self):
+        """
+        A derivative of a derivative with fd_indices is not merged into one, and
+        calling it adds to its fd_indices.
+        """
+        grid = Grid(shape=(11, 11))
+        x, y = grid.dimensions
+        f = Function(name='f', grid=grid, space_order=4)
+        nested = f.dx(fd_indices=(0, 1)).dx
+        assert nested._eval_expand_nest() is nested
+        assert f.dxdy(fd_indices={x: (0, 1)})(fd_indices={y: (-1, 0)}).fd_indices == \
+            {x: (0, 1), y: (-1, 0)}
 
     @pytest.mark.parametrize('dtype', [np.float32, np.float64])
     @pytest.mark.parametrize('shift, ndim', [(None, 2), (.5, 2), (.5, 3),
