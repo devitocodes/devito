@@ -673,10 +673,12 @@ class RoundUp(Function):
         return super().__new__(cls, value, step, **kwargs)
 
     def _eval_is_integer(self):
-        dtype = extract_dtype(self.value)
-        if (self.value.is_integer or
-                isinstance(dtype, type) and issubclass(dtype, np.integer)):
+        if self.value.is_integer:
             return True
+        # Opaque dtypes, e.g. CustomDtype('size_t'), are instances, not classes
+        with suppress(TypeError):
+            if issubclass(extract_dtype(self.value), np.integer):
+                return True
 
     @property
     def value(self):
