@@ -622,6 +622,28 @@ class TestFD:
         b = np.dot(g_deriv.data.reshape(-1), f.data.reshape(-1))
         assert np.isclose(1 - a/b, 0, atol=1e-5)
 
+    @pytest.mark.parametrize('so', [2, 4, 8])
+    @pytest.mark.parametrize('source, target', [(False, False), (False, True),
+                                                (True, False), (True, True)])
+    def test_fd_adjoint_staggered(self, so, source, target):
+        """The transpose of a staggered derivative, placed by its equation."""
+        grid = Grid(shape=(48,), extent=(47.,), dtype=np.float64)
+        x, = grid.dimensions
+        kwargs = {'grid': grid, 'space_order': so, 'dtype': np.float64}
+        f, g_deriv = (Function(name=n, staggered=x if source else None, **kwargs)
+                      for n in ('f', 'gd'))
+        g, f_deriv = (Function(name=n, staggered=x if target else None, **kwargs)
+                      for n in ('g', 'fd'))
+        rng = np.random.default_rng(0)
+        for u in (f, g):
+            u.data[10:-10] = rng.standard_normal(28)
+
+        Operator([Eq(f_deriv, f.dx), Eq(g_deriv, g.dx.T)]).apply()
+
+        a = np.dot(f_deriv.data, g.data)
+        b = np.dot(f.data, g_deriv.data)
+        assert np.isclose(a, b, rtol=1e-12, atol=0)
+
     @pytest.mark.parametrize('staggered, fd_indices', [
         (False, (0, 1, 2)),
         (False, (-1, 0, 1, 2)),

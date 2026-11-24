@@ -603,6 +603,10 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
                     # e.g f.dx(x0={x: x + h_x/2}).subs({x: ix})
                     psubs[sd] = d
                     nx0[sd] = nx0.pop(d)._subs(d, sd)
+        # A transpose is that of the derivative at the mirror image of the points it
+        # writes at, along the Dimensions it differentiates
+        if self.transpose == transpose:
+            nx0 = {d: 2*d - v if d in self.dims else v for d, v in nx0.items()}
         rkw['x0'] = nx0
         if psubs:
             rkw['subs'] = (psubs,)
@@ -647,8 +651,10 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
         if self.x0 or self.side is not None or func.function is self.expr.function:
             return False
         # For basic equation of the form f = Derivative(g, ...) we can just
-        # compare staggering
-        if self.expr.staggered == func.staggered and self.expr.is_Function:
+        # compare staggering. A transpose is mirrored about the points it writes at,
+        # so it is relocated unless they are the nodes
+        if self.expr.staggered == func.staggered and self.expr.is_Function and \
+                (self.transpose == direct or func.staggered.on_node):
             return False
         # Time derivatives are not affected by space staggering
         return not all(d.is_Time for d in self.dims)
