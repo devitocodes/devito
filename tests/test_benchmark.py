@@ -9,8 +9,8 @@ from benchmarks.user.benchmark import run
 from conftest import skipif
 from devito import Eq, Function, Grid, Operator, TimeFunction, configuration, switchconfig
 from devito.ir.iet import (
-    Call, Callable, Conditional, EntryFunction, FindNodes, Iteration, List, Section,
-    TimedList
+    Call, Callable, Conditional, EntryFunction, FindNodes, Iteration, ParallelBlock,
+    Section, TimedList
 )
 from devito.ir.support import SymbolRegistry
 from devito.operator.profiling import AdvancedProfiler
@@ -119,27 +119,46 @@ def test_advisor_profiling():
 
 class TestTimeLoopProfiling:
 
+    @pytest.mark.parametrize('multiple', [False, True])
     @switchconfig(profiling='advanced')
-    def test_loop_span(self):
+    def test_loop_timing(self, multiple):
         grid = Grid(shape=(8, 8))
-        x, y = grid.dimensions
         f = Function(name='f', grid=grid)
         u = TimeFunction(name='u', grid=grid, save=6)
         v = TimeFunction(name='v', grid=grid, save=6)
 
-        eqs = [Eq(f, 2), Eq(u.forward, u + f), Eq(f, u[5, x, y]),
-               Eq(v.backward, v + f), Eq(f, v[0, x, y])]
+        eqs = [Eq(f, 2), Eq(u.forward, u + f)]
+        if multiple:
+            eqs.append(Eq(v.backward, v + u))
+        eqs.append(Eq(f, f + 3))
         op = Operator(eqs, opt=('noop', {'gpu-fit': (u, v)}))
 
-        outer, = [i for i in FindNodes(TimedList).visit(op) if i.name == 'time_loop']
-        assert FindNodes(Section).visit(outer) == FindNodes(Section).visit(op)[1:-1]
-        wait = op._Target.langbb().get('device-wait')
-        if wait is not None:
-            assert str(outer.body[-1]) == str(wait)
-
+        timers = [i for i in FindNodes(TimedList).visit(op) if i.name == 'time_loop']
         summary = op.apply(time_m=1, time_M=4)
-        assert f.data[0, 0] == 32
-        assert summary.globals_nosetup_all.time == max(outer.timer.total, 1e-6)
+        assert u.data[5, 0, 0] == 8
+        assert f.data[0, 0] == 5
+
+        if multiple:
+            assert not timers
+            elapsed = sum(i.time for i in summary.values())
+        else:
+            timed, = timers
+            assert FindNodes(Section).visit(timed) == FindNodes(Section).visit(op)[1:-1]
+            elapsed = max(timed.timer.total, 1e-6)
+        assert summary.globals_nosetup_all.time == elapsed
+
+    @skipif('device')
+    @switchconfig(profiling='advanced')
+    def test_parallel_time_loop(self):
+        grid = Grid(shape=(8, 8, 8))
+        u = TimeFunction(name='u', grid=grid, save=4)
+
+        op = Operator(Eq(u, u + 1), language='openmp')
+        timed, = [i for i in FindNodes(TimedList).visit(op) if i.name == 'time_loop']
+        assert isinstance(timed.body[0], ParallelBlock)
+
+        op.apply()
+        assert (u.data == 1).all()
 
     @pytest.mark.parallel(mode=2)
     @pytest.mark.parametrize('stepping, expected', [(False, 16.), (True, 11.)])
@@ -171,9 +190,8 @@ class TestTimeLoopProfiling:
         step = Callable('step', Section('section0', Call('work')), 'void')
         loop = Iteration(Call('step'), t, (0, 1, 1))
         guard = Conditional(t.symbolic_max > 0, loop)
-        body = [List(body=[Call('setup'), guard]), List(body=[loop, Call('teardown')])]
 
-        graph = Graph(EntryFunction('Kernel', body, 'int'))
+        graph = Graph(EntryFunction('Kernel', guard, 'int'))
         graph.efuncs[step.name] = step
 
         profiler = AdvancedProfiler('timers')
@@ -187,6 +205,7 @@ class TestTimeLoopProfiling:
             instrument(graph, profiler=profiler, sregistry=SymbolRegistry(),
                        langbb=CTarget.langbb())
 
-        outer, = FindNodes(TimedList).visit(graph.root)
-        assert [type(i) for i in outer.body] == [Conditional, Iteration]
-        assert all(i.arguments == (outer.timer,) for i in FindNodes(Call).visit(outer))
+        guard, = FindNodes(Conditional).visit(graph.root)
+        timed, = FindNodes(TimedList).visit(guard)
+        call, = FindNodes(Call).visit(timed)
+        assert call.arguments == (timed.timer,)

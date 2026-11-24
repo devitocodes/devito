@@ -2,7 +2,7 @@ from itertools import groupby
 
 from devito.ir.iet import (
     BusyWait, BusyWaitCall, EntryFunction, FindNodes, FindSymbols, Iteration, List,
-    MapNodes, Section, TimedList, Transformer, retrieve_iteration_tree
+    MapNodes, ParallelBlock, ParallelTree, Section, TimedList, Transformer
 )
 from devito.mpi.routines import (
     ComputeCall, HaloUpdateCall, HaloUpdateList, HaloWaitCall, HaloWaitList, MPICall,
@@ -22,48 +22,28 @@ def instrument(graph, **kwargs):
 
     track_subsections(graph, **kwargs)
 
-    region = None
+    loop = None
     if profiler._track_time_loop:
-        region = time_loop_region(graph.root.body.body)
+        body = graph.root.body.body
+        time_loops = [i for i in FindNodes(Iteration).visit(body) if i.dim.is_Time]
+        if len(time_loops) == 1:
+            loop = time_loops[0]
 
     fields = profiler.all_sections
-    if region is None:
+    if loop is None:
         timer = Timer(profiler.name, fields)
     else:
         timer = TimeLoopTimer(profiler.name, [*fields, 'time_loop'])
-        instrument_time_loop(graph, region=region, timer=timer, **kwargs)
+        instrument_time_loop(graph, loop=loop, timer=timer, **kwargs)
 
     instrument_sections(graph, timer=timer, **kwargs)
     sync_sections(graph, **kwargs)
 
 
-def time_loop_region(body):
-    """Split the host statements at the first and last time loops."""
-    body = list(_host_statements(body))
-    indices = []
-    for n, stmt in enumerate(body):
-        trees = retrieve_iteration_tree((stmt,))
-        steps = (next((i for i in tree if i.dim.is_Time), None) for tree in trees)
-        if any(steps):
-            indices.append(n)
-    if indices:
-        start, stop = indices[0], indices[-1] + 1
-        return body[:start], body[start:stop], body[stop:]
-
-
-def _host_statements(body):
-    """Unpack plain Lists, keeping guards and parallel regions intact."""
-    for stmt in body:
-        if type(stmt) is List and not (stmt.header or stmt.footer or stmt.inline):
-            yield from _host_statements(stmt.body)
-        else:
-            yield stmt
-
-
 @iet_pass
-def instrument_time_loop(iet, region, timer, langbb, **kwargs):
+def instrument_time_loop(iet, loop, timer, langbb, **kwargs):
     """
-    Time the host code from the first stepping loop through the last.
+    Time the Operator's sole time loop.
     On asynchronous backends, wait for device work at both boundaries.
 
     For example, a CUDA Operator contains::
@@ -75,20 +55,26 @@ def instrument_time_loop(iet, region, timer, langbb, **kwargs):
     if not isinstance(iet, EntryFunction):
         return iet, {}
 
-    before, body, after = region
+    # Keep the loop attached to its parallel directives.
+    target = loop
+    for region in FindNodes((ParallelBlock, ParallelTree)).visit(iet):
+        if loop in FindNodes(Iteration).visit(region):
+            target = region
+            break
+
     wait = langbb.get('device-wait')
     sync = langbb.get('map-wait')
     if wait is not None:
         waits = [wait]
     elif sync is not None:
-        waits = [sync(q) for q in FindSymbols().visit(body)
+        waits = [sync(q) for q in FindSymbols().visit(target)
                  if isinstance(q, langbb.AsyncQueue)]
     else:
         waits = []
 
-    timed = TimedList(timer=timer, lname='time_loop', body=body + waits)
-    body = List(body=[*before, *waits, timed, *after])
-    piet = iet._rebuild(body=iet.body._rebuild(body=body))
+    timed = TimedList(timer=timer, lname='time_loop', body=[target, *waits])
+    body = List(body=[*waits, timed]) if waits else timed
+    piet = Transformer({target: body}).visit(iet)
     return piet, {'headers': _timer_headers()}
 
 
