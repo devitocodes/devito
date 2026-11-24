@@ -29,7 +29,6 @@ from devito.symbolics import (  # noqa
 )
 from devito.symbolics.unevaluation import Add as UnevalAdd
 from devito.symbolics.unevaluation import Mul as UnevalMul
-from devito.symbolics.unevaluation import OrderedAdd, OrderedMul
 from devito.tools import (
     CustomDtype, as_tuple, dtypes_vector_mapper, extract_dtype, frozendict
 )
@@ -486,6 +485,16 @@ def test_freeze_grouping(cls, lowered):
     assert unevaluate(frozen) is frozen
 
 
+def test_freeze_derivative():
+    grid = Grid(shape=(8, 8))
+
+    f = Function(name='f', grid=grid, space_order=4)
+
+    derivative = f.dx._evaluate(expand=False)
+
+    assert unevaluate(derivative) is derivative
+
+
 def test_freeze_equal_instances():
     a = Symbol.__xnew__(Symbol, 'equal_frozen_operand')
     b = Symbol.__xnew__(Symbol, 'equal_frozen_operand')
@@ -506,7 +515,7 @@ def test_lowered_integer_offset(dtype, offset, expected):
 
     expr = size + offset
     lowered = unevaluate(expr)
-    assert lowered.args == expr.args
+    assert lowered.args == (size, offset)
     assert ccode(lowered) == 'bx_size' + expected
 
     # Renaming preserves the tree, while printing remains canonical
@@ -1371,44 +1380,46 @@ class TestUxreplace:
         assert rebuilt.strides == (b,)
         assert expr.strides == (a,)
 
-    @pytest.mark.parametrize('op, separator', [(OrderedAdd, ' + '), (OrderedMul, '*')])
+    @pytest.mark.parametrize('op, separator', [(UnevalAdd, ' + '), (UnevalMul, '*')])
     @pytest.mark.parametrize('dtype', [np.float16, np.float32])
     def test_uxreplace_order(self, op, separator, dtype):
         a, b, c, z = [dSymbol(name=n, dtype=dtype) for n in 'abcz']
         expr = op(c, b, a)
-        assert ccode(expr) == separator.join(('c', 'b', 'a'))
+        assert expr.args == (c, b, a)
+        assert ccode(expr) == separator.join(('a', 'b', 'c'))
 
         rebuilt = uxreplace(expr, {a: z})
 
+        assert rebuilt.args == (c, b, z)
         assert ccode(rebuilt) == separator.join(('b', 'c', 'z'))
-        assert uxreplace(rebuilt, {z: a, b: z, c: b}).args == (a, b, z)
+        assert uxreplace(rebuilt, {z: a, b: z, c: b}).args == (b, z, a)
         assert uxreplace(expr, {z: a}) is expr
 
-    @pytest.mark.parametrize('op', [OrderedAdd, OrderedMul])
-    def test_uxreplace_reconstruction(self, op):
+    @pytest.mark.parametrize('op, result', [(UnevalAdd, 5), (UnevalMul, 6)])
+    def test_uxreplace_reconstruction(self, op, result):
         a, b, c, z = [dSymbol(name=n) for n in 'abcz']
         nested = op(b, c)
         expr = op(a, nested)
 
-        assert uxreplace(expr, {a: z}).args == (b, c, z)
-        assert uxreplace(op(a, b), {a: Number(2), b: Number(3)}).args == (2, 3)
+        assert uxreplace(expr, {a: z}).args == (z, nested)
+        assert uxreplace(op(a, b), {a: Number(2), b: Number(3)}) == result
 
-    @pytest.mark.parametrize('op', [OrderedAdd, OrderedMul])
+    @pytest.mark.parametrize('op', [UnevalAdd, UnevalMul])
     def test_uxreplace_compound_order(self, op):
-        a, b, c, z = [dSymbol(name=n) for n in 'abcz']
-        expr = op(a, b, c)
+        a, b, c, d, t, z = [dSymbol(name=n) for n in 'abcdtz']
+        expr = op(a, b, c, d)
 
-        rebuilt = uxreplace(expr, {expr: {b: z, c: None}})
+        rebuilt = uxreplace(expr, {expr: {c: t, d: None}, b: z})
 
-        assert rebuilt.args == (a, z)
+        assert rebuilt.args == (a, z, t)
 
-    def test_ordered_factorization(self):
+    def test_unevaluated_factorization(self):
         grid = Grid(shape=(8,))
 
         a, b, c, z, out, ref = [Function(name=n, grid=grid, space_order=0)
                                 for n in ('a', 'b', 'c', 'z', 'out', 'ref')]
 
-        eq = uxreplace(Eq(out, OrderedAdd(OrderedMul(a, b), OrderedMul(a, c))), {a: z})
+        eq = uxreplace(Eq(out, UnevalAdd(UnevalMul(a, b), UnevalMul(a, c))), {a: z})
         eq0 = Eq(ref, z*b + z*c)
 
         reference = Operator(eq0, opt='noop')

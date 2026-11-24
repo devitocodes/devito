@@ -5,7 +5,7 @@ __all__ = ['unevaluate']
 
 
 @cluster_pass(mode='all')
-def unevaluate(cluster):
+def unevaluate(cluster, **kwargs):
     exprs = [_unevaluate(e) for e in cluster.exprs]
 
     return cluster.rebuild(exprs=exprs)
