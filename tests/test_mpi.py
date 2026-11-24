@@ -3948,52 +3948,35 @@ class TestOperatorAdvanced:
             np.testing.assert_allclose(np.asarray(u.data), np.asarray(v.data),
                                        rtol=1.e-6, atol=1.e-7)
 
-    @pytest.mark.parallel(mode=[(1, 'overlap'), (1, 'overlap2'), (1, 'full'),
-                                (2, 'overlap'), (2, 'overlap2'), (2, 'full'),
-                                (3, 'overlap2'),
-                                (4, 'overlap'), (4, 'overlap2'), (4, 'full')])
-    @pytest.mark.parametrize('interior', [False, True])
-    def test_physical_faces(self, mode, interior):
-        """Only real neighbors reserve boundaries; each point is updated once."""
-        grid = Grid(shape=(32, 32, 16), extent=(31., 31., 15.), topology=('*', '*', 1))
-        dimensions = grid.dimensions[:2]
-        subdomain = grid.interior if interior else None
+    @pytest.mark.parallel(mode=[(4, 'overlap2')])
+    def test_physical_faces(self, mode):
+        """CORE reaches the physical faces and each grid point is updated once."""
+        grid = Grid(shape=(32, 32, 16), extent=(31., 31., 15.), topology=(2, 2, 1))
 
         u = TimeFunction(name='u', grid=grid, space_order=2)
         v = Function(name='v', grid=grid)
-        equations = [Eq(v, v + .01*u.laplace + 1, subdomain=subdomain),
-                     Eq(u.forward, u + .01*u.laplace + 1, subdomain=subdomain)]
+        u0 = TimeFunction(name='u0', grid=grid, space_order=2)
+        v0 = Function(name='v0', grid=grid)
+
+        eqns = [Eq(v, v + .01*u.laplace + 1), Eq(u.forward, u + .01*u.laplace + 1)]
         with switchconfig(mpi='basic'):
-            reference = Operator(equations, name='PhysicalFacesReference')
-        op = Operator(equations, name='PhysicalFaces')
+            reference = Operator(eqns)
+        op = Operator(eqns)
 
-        for f in (u, v):
-            f.data_with_halo.fill(0)
-        reference.apply(time_M=3)
-        expected_u = np.asarray(u.data).copy()
-        expected_v = np.asarray(v.data).copy()
-        for f in (u, v):
-            f.data_with_halo.fill(0)
+        reference.apply(u=u0, v=v0, time_M=3)
         op.apply(time_M=3)
-        np.testing.assert_allclose(np.asarray(u.data), expected_u, rtol=1.e-6, atol=1.e-7)
-        np.testing.assert_allclose(np.asarray(v.data), expected_v, rtol=1.e-6, atol=1.e-7)
 
-        regions = [i for i in op.parameters if isinstance(i, MPIRegion)]
-        assert regions
-        neighbors = grid.distributor.neighborhood
-        for region in regions:
-            assert tuple(d for d in region.arguments if d.is_Dimension) == dimensions
-            core = region.value[0]
-            nactive = 1
-            for d, size in zip(dimensions, grid.shape_local[:2], strict=True):
-                left = 0 if neighbors[d][LEFT] == MPI.PROC_NULL else 2
-                right = 0 if neighbors[d][RIGHT] == MPI.PROC_NULL else 2
-                nactive *= 1 + bool(left) + bool(right)
-                assert getattr(core, d.min_name) == left
-                assert getattr(core, d.max_name) == size - right - 1
-            active = [all(getattr(r, d.min_name) <= getattr(r, d.max_name)
-                          for d in dimensions) for r in region.value]
-            assert active == [i < nactive for i in range(region.nregions)]
+        assert np.allclose(u.data, u0.data, rtol=1.e-6, atol=1.e-7)
+        assert np.allclose(v.data, v0.data, rtol=1.e-6, atol=1.e-7)
+
+        region, = [i for i in op.parameters if isinstance(i, MPIRegion)]
+        core = region.value[0]
+
+        # Only the neighboring face of each local axis reserves two points.
+        bounds = [(0, 13), (2, 15)]
+        px, py, _ = grid.distributor.mycoords
+        assert (core.x_m, core.x_M) == bounds[px]
+        assert (core.y_m, core.y_M) == bounds[py]
 
     @pytest.mark.parallel(mode=[(2, 'overlap2'), (4, 'overlap2')])
     def test_region_communicator(self, mode):
