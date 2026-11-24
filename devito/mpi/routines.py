@@ -1392,6 +1392,11 @@ class MPIRegion(Region):
     def _resolve_peers(args):
         """
         Bind HasNeighbor to the neighbors of the runtime Grid.
+
+        Each face with a neighbor reserves an OWNED strip for work that
+        depends on the incoming halo. At an MPI.PROC_NULL face, CORE can
+        extend to the local boundary. This exposes more work to overlap
+        with communication and reduces the number of separate OWNED launches.
         """
         grid = getattr(args, 'grid', None)
         if grid is None:
