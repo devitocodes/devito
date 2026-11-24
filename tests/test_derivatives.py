@@ -4,7 +4,7 @@ from sympy import Float, Rational, Symbol, diff, nsimplify, simplify, sympify
 
 from conftest import assert_structure
 from devito import (
-    NODE, ConditionalDimension, Eq, Function, Grid, Inc, Operator, SubDomain,
+    NODE, ConditionalDimension, Dimension, Eq, Function, Grid, Inc, Operator, SubDomain,
     TensorFunction, TensorTimeFunction, TimeFunction, VectorFunction, centered, cos, curl,
     div, grad, laplace, left, right, sin
 )
@@ -647,6 +647,74 @@ class TestFD:
         inner = slice(2, -4)
         assert np.allclose(out.data[inner], degree*np.arange(11.)[inner]**(degree - 1),
                            rtol=1e-10, atol=1e-10)
+
+    def test_weights_per_dimension(self):
+        """
+        Weights given per Dimension apply along it only, the others interpolate,
+        and the derivative passes the dot test with its `.T`.
+        """
+        grid = Grid(shape=(21, 21), extent=(20., 20.), dtype=np.float64)
+        x, y = grid.dimensions
+        rng = np.random.default_rng(0)
+        f, go = (Function(name=n, grid=grid, space_order=4) for n in ('f', 'go'))
+        g, fo = (Function(name=n, grid=grid, space_order=4, staggered=y)
+                 for n in ('g', 'fo'))
+        inner = (slice(4, -6), slice(4, -6))
+        f.data[inner] = rng.standard_normal((11, 11))
+        g.data[inner] = rng.standard_normal((11, 11))
+
+        kwargs = {'weights': {x: (-1.5, 2., -.5)}, 'fd_indices': {x: (0, 1, 2)}}
+        derivative = f.diff(x, (y, 0), x0={y: y + y.spacing/2}, **kwargs)
+        read = {a.args for a in derivative.evaluate.atoms(type(f))}
+        assert {i for i, _ in read} == {x, x + x.spacing, x + 2*x.spacing}
+        assert {j for _, j in read} == {y + k*y.spacing for k in (-1, 0, 1, 2)}
+
+        transpose = g.diff(x, (y, 0), x0={y: y}, **kwargs).T
+        Operator([Eq(fo, derivative), Eq(go, transpose)]).apply()
+        forward = np.vdot(fo.data, g.data)
+        backward = np.vdot(f.data, go.data)
+        assert np.isclose(forward, backward, rtol=1e-12, atol=0)
+
+    def test_weights_call(self):
+        """Weights given per Dimension in a call add to those of the others."""
+        grid = Grid(shape=(5, 5))
+        x, y = grid.dimensions
+        f = Function(name='f', grid=grid, space_order=2)
+        derivative = f.diff(x, y, weights={x: (-1, 1)})(weights={y: (1, -1)})
+        assert derivative.weights == {x: (-1, 1), y: (1, -1)}
+
+    @pytest.mark.parametrize('staggered', [False, True])
+    def test_weights_varying(self, staggered):
+        """
+        Weights that vary along the Dimension are read at the point of each stencil,
+        and the derivative passes the dot test with its `.T`.
+        """
+        grid = Grid(shape=(16, 20), extent=(15., 19.), dtype=np.float64)
+        x, y = grid.dimensions
+        rng = np.random.default_rng(0)
+        offsets = (-.5, .5, 1.5) if staggered else (-1, 0, 1, 2)
+        p = Dimension(name='p')
+        weights = Function(name='w', grid=grid, dimensions=(y, p),
+                           shape=(20, len(offsets)), space_order=4, dtype=np.float64)
+        weights.data[:] = rng.standard_normal(weights.data.shape)
+        target = y if staggered else None
+        f, go = (Function(name=n, grid=grid, space_order=4) for n in ('f', 'go'))
+        g, fo = (Function(name=n, grid=grid, space_order=4, staggered=target)
+                 for n in ('g', 'fo'))
+        inner = (slice(4, -4), slice(4, -4))
+        f.data[inner] = rng.standard_normal((8, 12))
+        g.data[inner] = rng.standard_normal((8, 12))
+
+        kwargs = {'weights': {y: weights/y.spacing}, 'fd_indices': {y: offsets}}
+        at = y + y.spacing/2 if staggered else y
+        derivative = f.diff(y, x0={y: at}, **kwargs)
+        assert {w.args[0] for w in derivative.evaluate.atoms(type(weights))
+                if w.function is weights} == {y}
+
+        transpose = g.diff(y, x0={y: y}, **kwargs).T
+        Operator([Eq(fo, derivative), Eq(go, transpose)]).apply()
+        assert np.isclose(np.vdot(fo.data, g.data), np.vdot(f.data, go.data),
+                          rtol=1e-12, atol=0)
 
     @pytest.mark.parametrize('source, target, fd_indices, weights', [
         (False, False, (0, 1, 2), None),

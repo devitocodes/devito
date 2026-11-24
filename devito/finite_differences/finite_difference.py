@@ -1,4 +1,4 @@
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 from contextlib import suppress
 
 import numpy as np
@@ -32,7 +32,7 @@ _PRECISION = {np.float16: 9, np.float32: 9, np.float64: 20,
 
 @check_input
 def cross_derivative(expr, dims, fd_order, deriv_order, x0=None, side=None,
-                     fd_indices=None, **kwargs):
+                     fd_indices=None, weights=None, **kwargs):
     """
     Arbitrary-order cross derivative of a given expression.
 
@@ -60,6 +60,8 @@ def cross_derivative(expr, dims, fd_order, deriv_order, x0=None, side=None,
         otherwise an IndexSum is returned.
     fd_indices : dict of {Dimension: tuple of numbers}, optional
         The stencil points along each Dimension (see `generic_derivative`).
+    weights : tuple of numbers or dict of {Dimension: tuple of numbers}, optional
+        The weights along each Dimension (see `weights_along`).
 
     Returns
     -------
@@ -102,9 +104,22 @@ f(x + 2*h_x, y + 2*h_y)*g(x + 2*h_x, y + 2*h_y)/h_x)/h_y
     fd_indices = fd_indices or {}
     for d, fd, dim in zip(deriv_order, fd_order, dims, strict=True):
         expr = generic_derivative(expr, dim=dim, fd_order=fd, deriv_order=d, x0=x0,
-                                  side=side, fd_indices=fd_indices.get(dim), **kwargs)
+                                  side=side, fd_indices=fd_indices.get(dim),
+                                  weights=weights_along(weights, dim), **kwargs)
 
     return expr
+
+
+def weights_along(weights, dim):
+    """
+    Return the weights of a derivative along `dim`.
+
+    Weights given as a dict are per Dimension, and a Dimension it leaves out uses
+    Taylor weights. Weights given otherwise are used along every Dimension.
+    """
+    if isinstance(weights, Mapping):
+        return weights.get(dim)
+    return weights
 
 
 def indices_at(expr, dim):
@@ -247,9 +262,17 @@ def make_derivative(expr, dim, fd_order, deriv_order, side, matvec, x0, coeffici
     # Shift index due to staggering, if any
     indices = indices.shift(-(expr.indices_ref[dim] - dim))
 
+    # A weight that varies along `dim` is indexed by the point of the forward
+    # stencil, which the transpose reads
+    varying = any(sympify(w).has(dim) for w in weights)
+    if matvec == transpose and varying:
+        weights = [w.subs(dim, i) for w, i in zip(weights, indices, strict=True)]
+
     # The user may wish to restrict expansion to selected derivatives
     if callable(expand):
         expand = expand(dim)
+    # Weights that vary in space are not stencil coefficients
+    expand = expand or varying
 
     # With a `subdomain`, `expr` is treated as zero outside it: every stencil tap
     # is multiplied by the indicator of the point it reads, 1 if `subdomain`
@@ -261,7 +284,7 @@ def make_derivative(expr, dim, fd_order, deriv_order, side, matvec, x0, coeffici
     else:
         growth = {}
     # Expanded, a single tap is a product, which has no growth to carry
-    if growth and len(indices) == 1:
+    if growth and len(indices) == 1 and not varying:
         expand = False
 
     if not expand and indices.expr is not None:

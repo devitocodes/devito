@@ -14,7 +14,9 @@ from devito.types.utils import DimensionTuple
 from devito.warnings import warn
 
 from .differentiable import Add, Differentiable, Mul, diffify, interp_for_fd
-from .finite_difference import cross_derivative, generic_derivative, indices_at
+from .finite_difference import (
+    cross_derivative, generic_derivative, indices_at, weights_along
+)
 from .rsfd import d45
 from .tools import direct, transpose
 
@@ -56,6 +58,11 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
         multiple of the Dimension's spacing, e.g. `(-x.spacing, x.spacing)`. They
         replace the points given by `fd_order` and `side`. A tuple can only be
         given for a derivative along one Dimension.
+    weights : tuple, Differentiable or dict of {Dimension: weights}, optional
+        The finite-difference weights, per unit grid spacing, e.g. those of a
+        boundary closure, or a Function of them along a stencil Dimension, which
+        may vary in space and then includes the spacing. A dict gives them per
+        Dimension; the other Dimensions use Taylor weights.
 
     Examples
     --------
@@ -366,6 +373,9 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
             return None
         elif isinstance(weights, Differentiable):
             return weights
+        elif isinstance(weights, Mapping):
+            return frozendict({d: w if isinstance(w, Differentiable) else as_tuple(w)
+                               for d, w in weights.items()})
         else:
             return as_tuple(weights)
 
@@ -382,7 +392,9 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
         if method is not None:
             rkw['method'] = method
         if weights is not None:
-            rkw['weights'] = weights
+            # Weights per Dimension add to those of the other Dimensions
+            both = isinstance(weights, Mapping) and isinstance(self.weights, Mapping)
+            rkw['weights'] = {**self.weights, **weights} if both else weights
 
         if x0 is not None:
             x0 = self._process_x0(self.dims, x0=x0)
@@ -721,7 +733,8 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
         else:
             assert self.method == 'FD'
             res = generic_derivative(expr, self.dims[0], self.fd_order[0],
-                                     self.deriv_order[0], weights=self.weights,
+                                     self.deriv_order[0],
+                                     weights=weights_along(self.weights, self.dims[0]),
                                      side=self.side, matvec=self.transpose,
                                      x0=self.x0, expand=expand,
                                      subdomain=subdomain,
