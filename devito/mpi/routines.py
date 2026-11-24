@@ -1041,6 +1041,7 @@ mpi_registry = {
     'diag2': Diag2HaloExchangeBuilder,
     'overlap': OverlapHaloExchangeBuilder,
     'overlap2': Overlap2HaloExchangeBuilder,
+    'overlap3': Overlap2HaloExchangeBuilder,
     'full': FullHaloExchangeBuilder,
 }
 
