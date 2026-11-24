@@ -8,7 +8,6 @@ from devito.logger import perf
 from devito.logger import warning as _warning
 from devito.mpi.distributed import MPI, MPINeighborhood
 from devito.mpi.routines import MPIMsgEnriched
-from devito.operator.profiling import TimeLoopTimer
 from devito.parameters import configuration
 from devito.symbolics import normalize_args
 from devito.tools import filter_ordered, flatten, is_integer, prod
@@ -94,9 +93,8 @@ def autotune(operator, args, level, mode):
     timer = next((p for p in operator.parameters if isinstance(p, Timer)), None)
     if timer is None:
         return args, {}
-    # Older saved Operators can have a plain Timer with a time_loop field.
-    cls = TimeLoopTimer if 'time_loop' in timer.fields else Timer
-    timer = cls(timer.name, timer.fields)
+
+    timer = timer._rebuild()
     at_args.update(timer._arg_values())
 
     # Perform autotuning

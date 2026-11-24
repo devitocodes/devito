@@ -22,6 +22,7 @@ def instrument(graph, **kwargs):
 
     track_subsections(graph, **kwargs)
 
+    # The time loop, if any, has a special relevance when it gets to profiling
     time_loop = None
     if profiler._track_time_loop:
         body = graph.root.body.body
@@ -55,13 +56,14 @@ def instrument_time_loop(iet, time_loop, timer, langbb, **kwargs):
     if not isinstance(iet, EntryFunction):
         return iet, {}
 
-    # Keep the loop attached to its parallel directives.
+    # Keep the loop attached to its parallel directives
     target = time_loop
     for region in FindNodes((ParallelBlock, ParallelTree)).visit(iet):
         if time_loop in FindNodes(Iteration).visit(region):
             target = region
             break
 
+    # Synchronize before the START/STOP
     wait = langbb.get('device-wait')
     sync = langbb.get('map-wait')
     if wait is not None:
@@ -74,7 +76,9 @@ def instrument_time_loop(iet, time_loop, timer, langbb, **kwargs):
 
     timed = TimedList(timer=timer, lname='time_loop', body=[target, *waits])
     body = List(body=[*waits, timed]) if waits else timed
+
     piet = Transformer({target: body}).visit(iet)
+
     return piet, {'headers': _timer_headers()}
 
 
