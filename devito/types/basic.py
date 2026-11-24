@@ -1788,6 +1788,9 @@ class IndexedBase(sympy.IndexedBase, Basic, Pickable):
     __rargs__ = ('label', 'shape')
     __rkwargs__ = ('function',)
 
+    # Recreate process-local ctypes classes from the Function's dtype
+    __rignored__ = '_C_ctype'
+
     def __new__(cls, label, shape, function=None):
         # Make sure `label` is a devito.Symbol, not a sympy.Symbol
         if isinstance(label, str):
@@ -1798,12 +1801,6 @@ class IndexedBase(sympy.IndexedBase, Basic, Pickable):
         return obj
 
     func = Pickable._rebuild
-
-    def __getstate__(self):
-        state = dict(self.__dict__)
-        # Recreate process-local ctypes classes from the Function's dtype
-        state.pop('_C_ctype', None)
-        return state
 
     @sympy.cacheit
     def sort_key(self, order=None):

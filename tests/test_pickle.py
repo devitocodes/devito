@@ -25,7 +25,7 @@ from devito.symbolics import (
     as_long, indexify, pow_to_mul
 )
 from devito.symbolics.unevaluation import Mod
-from devito.tools import CustomDtype, EnrichedTuple, ctypes_to_cstr
+from devito.tools import CustomDtype, EnrichedTuple, Pickable, ctypes_to_cstr
 from devito.types import (
     Array, ComponentAccess, CustomDimension, DefaultDimension, DeviceID, FIndexed,
     Indirection, Lock, NPThreads, Pointer, PointerArray, PThreadArray, Region, Scalar,
@@ -75,6 +75,18 @@ class TestBasic:
 
         assert s0 == new_s0
         assert s1 == new_s1
+
+    @pytest.mark.parametrize('protocol', [0, pickle0.HIGHEST_PROTOCOL])
+    def test_ignored_state(self, pickle, protocol):
+        obj = Pickable()
+        obj.__rignored__ = ('cache',)
+        obj.cache = lambda: None
+        obj.value = 3
+
+        restored = pickle.loads(pickle.dumps(obj, protocol=protocol))
+
+        assert restored.value == obj.value
+        assert 'cache' not in restored.__dict__ and 'cache' in obj.__dict__
 
     def test_indexed_cached_ctype(self, pickle):
         grid = Grid(shape=(4, 4))

@@ -1,5 +1,7 @@
 from hashlib import sha1
 
+from devito.tools.utils import as_tuple
+
 __all__ = ['Pickable', 'Reconstructable', 'Signer', 'Singleton', 'Stamp', 'Tag']
 
 
@@ -170,6 +172,12 @@ class Pickable(Reconstructable):
     ``__reduce_ex__ = Pickable.__reduce_ex__`` depending on the MRO.
     """
 
+    __rignored__ = ()
+    """
+    Instance attributes omitted from pickling, as a name or tuple of names.
+    E.g., `__rignored__ = '_C_ctype'` discards a process-local cached type.
+    """
+
     @property
     def _pickle_rargs(self):
         """
@@ -216,6 +224,15 @@ class Pickable(Reconstructable):
 
     def __reduce_ex__(self, proto):
         ret = object.__reduce_ex__(self, proto)
+
+        if self.__rignored__:
+            state = ret[2] if len(ret) > 2 else None
+            if state is None:
+                state = self.__dict__
+            ignored = as_tuple(self.__rignored__)
+            state = {k: v for k, v in state.items() if k not in ignored}
+            ret = (*ret[:2], state, *ret[3:])
+
         reconstructor = self._pickle_reconstructor
         if reconstructor is None:
             return ret
