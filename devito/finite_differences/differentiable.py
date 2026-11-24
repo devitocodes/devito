@@ -1631,11 +1631,15 @@ def _(expr, x0, **kwargs):
     oa, ia = split(expr._args_diff,
                    lambda a: isinstance(a, sympy.Derivative) or test0(a))
     oa = oa + tuple(a for a in expr.args if a not in expr._args_diff)
+    if not ia:
+        return expr
 
-    # Interpolate the necessary args
+    # Interpolate the necessary args, along the Dimensions they have
+    iexpr = expr.func(*ia)
+    x0 = {d: i for d, i in x0.items() if d in iexpr.dimensions}
     d_dims = tuple((d, 0) for d in x0)
     fd_order = tuple(expr.interp_order for d in x0)
-    iexpr = expr.func(*ia).diff(*d_dims, fd_order=fd_order, x0=x0, **kwargs)
+    iexpr = iexpr.diff(*d_dims, fd_order=fd_order, x0=x0, **kwargs)
 
     return expr.func(iexpr, *oa)
 

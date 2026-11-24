@@ -1205,6 +1205,17 @@ class TestFD:
 
         assert np.allclose(v.data[so//2:-so//2], 2., rtol=0, atol=1e-10)
 
+    def test_interp_missing_dimension(self):
+        """A factor is interpolated to `x0` only along the Dimensions it has."""
+        grid = Grid(shape=(6, 6, 6))
+        x, y, z = grid.dimensions
+        h = Function(name='h', grid=grid, dimensions=(z,), shape=(6,), space_order=2)
+        f = TimeFunction(name='f', grid=grid, space_order=2, staggered=z)
+        x0 = {x: x, y: y, z: z + z.spacing/2}
+        derivative = (h*f).dx(x0=x0).evaluate
+        assert all(i.function is not h or i.indices[0] in (z, z + 1)
+                   for i in retrieve_indexed(derivative))
+
 
 class TestWeights:
 
