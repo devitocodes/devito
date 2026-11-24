@@ -13,10 +13,12 @@ from devito.types.dimension import Dimension
 from devito.types.utils import DimensionTuple
 from devito.warnings import warn
 
+from .closure import Closure
 from .differentiable import Add, Differentiable, Mul, diffify, interp_for_fd
 from .finite_difference import (
     cross_derivative, generic_derivative, indices_at, weights_along
 )
+from .interpolation import index, position
 from .rsfd import d45
 from .tools import direct, transpose
 
@@ -62,7 +64,8 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
         The finite-difference weights, per unit grid spacing, e.g. those of a
         boundary closure, or a Function of them along a stencil Dimension, which
         may vary in space and then includes the spacing. A dict gives them per
-        Dimension; the other Dimensions use Taylor weights.
+        Dimension, or a Closure, which gives them by where the points are; the
+        other Dimensions use Taylor weights.
 
     Examples
     --------
@@ -331,10 +334,7 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
             # Only given a value
             _x0 = kwargs.get('x0')
             assert len(dims) == 1 or _x0 is None
-            if _x0 is not None and _x0 is not dims[0]:
-                x0 = frozendict({dims[0]: _x0})
-            else:
-                x0 = frozendict({})
+            x0 = frozendict({} if _x0 is None else {dims[0]: _x0})
 
         return x0
 
@@ -374,8 +374,8 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
         elif isinstance(weights, Differentiable):
             return weights
         elif isinstance(weights, Mapping):
-            return frozendict({d: w if isinstance(w, Differentiable) else as_tuple(w)
-                               for d, w in weights.items()})
+            return frozendict({d: w if isinstance(w, (Differentiable, Closure))
+                               else as_tuple(w) for d, w in weights.items()})
         else:
             return as_tuple(weights)
 
@@ -603,6 +603,10 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
                     # e.g f.dx(x0={x: x + h_x/2}).subs({x: ix})
                     psubs[sd] = d
                     nx0[sd] = nx0.pop(d)._subs(d, sd)
+        # `x0` is an offset from where the argument is indexed, which differs from
+        # where its values are for a derivative (see `position`)
+        nx0 = {d: v - position(self.expr, d) + index(self.expr, d)
+               for d, v in nx0.items()}
         # A transpose is that of the derivative at the mirror image of the points it
         # writes at, along the Dimensions it differentiates
         if self.transpose == transpose:
@@ -643,8 +647,10 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
         True if the Derivative must be evaluated at the location of `func`, e.g.
         with `func` and the argument staggered apart.
         """
-        # No staggering, don't waste time
-        if not self.expr.staggered and not func.staggered:
+        # No staggering, don't waste time, unless the argument's values are away from
+        # where it is indexed, e.g. those of a derivative (see `position`)
+        if not self.expr.staggered and not func.staggered and \
+                all(position(self.expr, d) == index(self.expr, d) for d in self.dims):
             return False
         # If an x0 already exists or evaluating at the same function (i.e u = u.dx)
         # do not overwrite it
@@ -704,8 +710,20 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
         x0_interp = {d: v for d, v in self.x0.items()
                      if d not in x0_deriv and not d.is_Time}
 
-        if x0_interp and self.method == 'FD':
+        # Along a Dimension with a Closure, `expr` is interpolated with it
+        weights = self.weights if isinstance(self.weights, Mapping) else {}
+        closures = {d: w for d, w in weights.items()
+                    if d in x0_interp and isinstance(w, Closure)}
+        if closures and self.method == 'FD':
+            dims = tuple(x0_interp)
+            expr = expr.diff(*[(d, 0) for d in dims],
+                             fd_order=(expr.interp_order,)*len(dims),
+                             x0=x0_interp, weights=closures)
+        elif x0_interp and self.method == 'FD':
             expr = interp_for_fd(expr, x0_interp, **kwargs)
+
+        # The stencils of the Closures, from where the values of `expr` are
+        weights, fd_indices = self._closed(expr)
 
         # Step 2: Evaluate derivatives within expression
         with suppress(AttributeError):
@@ -734,17 +752,17 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
             assert self.method == 'FD'
             res = cross_derivative(expr, self.dims, self.fd_order, self.deriv_order,
                                    matvec=self.transpose, x0=x0_deriv, expand=expand,
-                                   side=self.side, weights=self.weights,
-                                   subdomain=subdomain, fd_indices=self.fd_indices)
+                                   side=self.side, weights=weights,
+                                   subdomain=subdomain, fd_indices=fd_indices)
         else:
             assert self.method == 'FD'
             res = generic_derivative(expr, self.dims[0], self.fd_order[0],
                                      self.deriv_order[0],
-                                     weights=weights_along(self.weights, self.dims[0]),
+                                     weights=weights_along(weights, self.dims[0]),
                                      side=self.side, matvec=self.transpose,
                                      x0=self.x0, expand=expand,
                                      subdomain=subdomain,
-                                     fd_indices=self.fd_indices.get(self.dims[0]))
+                                     fd_indices=fd_indices.get(self.dims[0]))
 
         # Step 4: Apply substitutions
         for e in self._ppsubs:
@@ -760,6 +778,37 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
             res = subdomain._restrict(res, exclude={d.root for d in self.dims})
 
         return res
+
+    def _closed(self, expr):
+        """
+        Return the weights and stencil points of the derivative of `expr`, with
+        those of each Closure along a Dimension, looked up from where the values of
+        `expr` are to where the derivative puts them, or for a transpose, for the
+        finite difference it transposes.
+        """
+        weights, fd_indices = self.weights, dict(self.fd_indices)
+        if not isinstance(weights, Mapping) or \
+                not any(isinstance(w, Closure) for w in weights.values()):
+            return weights, fd_indices
+
+        weights = dict(weights)
+        for d, order in zip(self.dims, self.deriv_order, strict=True):
+            if not isinstance(weights.get(d), Closure):
+                continue
+            # Along the Dimension that indexes `expr`, e.g. `x` for `xi` on a
+            # CurvilinearGrid. `x0` is an offset from where `expr` is indexed
+            dim = next((i for i in expr.dimensions if i.root is d.root), d)
+            indexed = index(expr, dim)
+            source = position(expr, dim)
+            target = sympy.sympify(self.x0.get(d, indexed)).subs(d, dim) - indexed + \
+                source
+            if self.transpose == transpose:
+                source, target = target, source
+            stencil = weights.pop(d).stencil(source, target, order)
+            if stencil is not None:
+                fd_indices[d], unit = stencil
+                weights[d] = unit/d.spacing**order
+        return frozendict(weights) or None, fd_indices
 
     def _eval_expand_nest(self, **hints):
         """

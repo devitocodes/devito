@@ -16,9 +16,9 @@ except ImportError:
     from sympy.core.basic import ordering_of_classes
 
 from devito.finite_differences.interpolation import (
-    interp_at, interp_mapper, post_x0_indices
+    index, interp_at, interp_mapper, position
 )
-from devito.finite_differences.tools import coeff_priority, make_shift_x0
+from devito.finite_differences.tools import coeff_priority, make_shift_x0, transpose
 from devito.logger import warning
 from devito.tools import (
     Pickable, Tag, as_tuple, extract_dtype, filter_ordered, flatten, frozendict,
@@ -772,12 +772,28 @@ class Mul(DifferentiableOp, sympy.Mul):
         node-centred quantity it is.
         """
         if isinstance(a, sympy.Derivative):
-            source = post_x0_indices(a, func)
-        elif isinstance(a, AbstractFunction) or not getattr(a, '_args_diff', ()):
-            source = a.indices_ref
-        else:
+            a = cls._x0_at(a, func)
+        elif not isinstance(a, AbstractFunction) and getattr(a, '_args_diff', ()):
             return any(cls._off_func(i, func) for i in a._args_diff)
+        source = {d: position(a, d) for d in a.dimensions}
         return bool(interp_mapper(source, func.indices_ref, a.dimensions))
+
+    @staticmethod
+    def _x0_at(deriv, func):
+        """
+        `deriv` with its values at `func`'s location along the Dimensions it
+        differentiates without an `x0` (see `position`).
+        """
+        x0 = {d: v for d, v in deriv.x0.items() if d in deriv.dims}
+        for d in deriv.dims:
+            if d not in func.indices_ref.getters or d in deriv.x0:
+                continue
+            # `x0` is an offset from where the argument is indexed, and a transpose
+            # writes at the mirror image of it
+            offset = position(deriv.expr, d) - index(deriv.expr, d)
+            target = func.indices_ref[d] - offset
+            x0[d] = 2*d - target if deriv.transpose == transpose else target
+        return deriv._rebuild(x0=x0)
 
     def _eval_at(self, func, interp_mode='direct', **kwargs):
         """
@@ -840,17 +856,11 @@ class Mul(DifferentiableOp, sympy.Mul):
         new_factors = list(other)
         for a in diff:
             if isinstance(a, sympy.Derivative):
-                source = post_x0_indices(a, func)
-                a = a._rebuild(x0={dim: func.indices_ref[dim] for dim in a.dims
-                                   if dim in func.indices_ref.getters})
-            else:
-                source = a.indices_ref
-            new_factors.append(interp_at(a, source, block_indices,
-                                         self.interp_order))
+                a = self._x0_at(a, func)
+            new_factors.append(interp_at(a, block_indices, self.interp_order))
 
         # Final I from block's location to func
-        return interp_at(self.func(*new_factors), block_indices,
-                         func.indices_ref, self.interp_order)
+        return interp_at(self.func(*new_factors), func.indices_ref, self.interp_order)
 
 
 class Pow(DifferentiableOp, sympy.Pow):

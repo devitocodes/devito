@@ -4,9 +4,9 @@ from sympy import Float, Rational, Symbol, diff, nsimplify, simplify, sympify
 
 from conftest import assert_structure
 from devito import (
-    NODE, ConditionalDimension, Dimension, Eq, Function, Grid, Inc, Operator, SubDomain,
-    TensorFunction, TensorTimeFunction, TimeFunction, VectorFunction, centered, cos, curl,
-    div, grad, laplace, left, right, sin
+    NODE, Closure, ConditionalDimension, Dimension, Eq, Function, Grid, Inc, Operator,
+    SubDomain, TensorFunction, TensorTimeFunction, TimeFunction, VectorFunction, centered,
+    cos, curl, div, grad, laplace, left, right, sin
 )
 from devito.finite_differences import Derivative, Differentiable, diffify
 from devito.finite_differences.differentiable import (
@@ -14,6 +14,7 @@ from devito.finite_differences.differentiable import (
     IndexSum, Weights, interp_for_fd
 )
 from devito.finite_differences.finite_difference import _PRECISION
+from devito.finite_differences.interpolation import interp_at
 from devito.ir import Cluster, SymbolRegistry
 from devito.passes.clusters.derivatives import _lower_index_derivatives
 from devito.symbolics import DefFunction, ListInitializer, indexify, retrieve_indexed
@@ -1263,6 +1264,106 @@ class TestWeights:
         assert weights._rebuild().coefficient_span == (span, start)
         if coeffs == expected:
             assert span is weights
+
+
+class TestClosure:
+
+    """A Closure gives the weights of a derivative by where its points are."""
+
+    n = 24
+    offsets = (-1.5, -0.5, 0.5, 1.5)
+
+    def closure(self, grid):
+        """
+        Return a Closure of the derivatives from the nodes to the midpoints and
+        back and of the interpolation from the midpoints to the nodes, with weights
+        that vary by row, and the matrix of each, by source, target and order,
+        along the first Dimension of `grid`.
+        """
+        x = grid.dimensions[0]
+        rng = np.random.default_rng(0)
+        stencils, matrices = {}, {}
+        for source, target, order in ((0, 1, 1), (1, 0, 1), (1, 0, 0)):
+            k = Dimension(name=f'k{source}{target}{order}')
+            w = Function(name=f'w{source}{target}{order}', grid=grid,
+                         dimensions=(x, k), shape=(self.n, len(self.offsets)),
+                         space_order=4, dtype=np.float64)
+            w.data[:] = rng.uniform(-1, 1, w.shape)
+            key = (Rational(source, 2), Rational(target, 2), order)
+            stencils[key] = (self.offsets, w)
+
+            # Row `i` is at `x_i + target/2`, and reads the point `j` of the source
+            matrix = np.zeros((self.n, self.n))
+            for i in range(self.n):
+                for c, o in enumerate(self.offsets):
+                    j = int(i + (target - source)/2 + o)
+                    if 0 <= j < self.n:
+                        matrix[i, j] = w.data[i, c]
+            matrices[(source, target, order)] = matrix
+        return Closure(x, stencils), matrices
+
+    def field(self, name, grid, staggered, seed=None):
+        """A Function, random away from the boundaries if `seed` is given."""
+        f = Function(name=name, grid=grid, space_order=4, dtype=np.float64,
+                     staggered=grid.dimensions[0] if staggered else None)
+        if seed is not None:
+            rng = np.random.default_rng(seed)
+            f.data[6:-6] = rng.uniform(-1, 1, f.data[6:-6].shape)
+        return f
+
+    @pytest.mark.parametrize('source, target', [(0, 1), (1, 0)])
+    def test_closure(self, source, target):
+        grid = Grid(shape=(self.n,), extent=(self.n - 1.,), dtype=np.float64)
+        x, = grid.dimensions
+        closure, matrices = self.closure(grid)
+        u, v = self.field('u', grid, source, 1), self.field('v', grid, target, 2)
+        out, back = self.field('out', grid, target), self.field('back', grid, source)
+
+        Operator([Eq(out, u.dx(weights={x: closure})),
+                  Eq(back, v.dx(weights={x: closure}).T)])()
+
+        assert np.allclose(out.data, matrices[(source, target, 1)] @ u.data,
+                           rtol=0, atol=1e-14)
+        assert np.isclose(np.dot(out.data, v.data), np.dot(u.data, back.data),
+                          rtol=1e-14, atol=0)
+
+    def test_closure_nested(self):
+        grid = Grid(shape=(self.n,), extent=(self.n - 1.,), dtype=np.float64)
+        x, = grid.dimensions
+        closure, matrices = self.closure(grid)
+        u, out = self.field('u', grid, False, 1), self.field('out', grid, False)
+
+        # The outer derivative reads the inner one at the midpoints
+        inner = u.dx(x0=x + x.spacing/2, weights={x: closure})
+        Operator(Eq(out, inner.dx(weights={x: closure})))()
+
+        expected = matrices[(1, 0, 1)] @ matrices[(0, 1, 1)] @ u.data
+        assert np.allclose(out.data, expected, rtol=0, atol=1e-13)
+
+    def test_closure_interpolation(self):
+        grid = Grid(shape=(self.n,), extent=(self.n - 1.,), dtype=np.float64)
+        x, = grid.dimensions
+        closure, matrices = self.closure(grid)
+        u, out = self.field('u', grid, False, 1), self.field('out', grid, False)
+
+        # Interpolated from the midpoints with the Closure of the derivative
+        inner = u.dx(x0=x + x.spacing/2, weights={x: closure})
+        Operator(Eq(out, interp_at(inner, out.indices_ref, 2)))()
+
+        expected = matrices[(1, 0, 0)] @ matrices[(0, 1, 1)] @ u.data
+        assert np.allclose(out.data, expected, rtol=0, atol=1e-13)
+
+    def test_closure_cross(self):
+        grid = Grid(shape=(self.n, 11), extent=(self.n - 1., 10.), dtype=np.float64)
+        closure, matrices = self.closure(grid)
+        u, out = self.field('u', grid, True, 1), self.field('out', grid, False)
+        held = self.field('held', grid, True)
+
+        # Along `y`, at the nodes, of `u` interpolated from the midpoints along `x`
+        Operator([Eq(held, u.dy), Eq(out, u.dy(weights={grid.dimensions[0]: closure}))])()
+
+        expected = matrices[(1, 0, 0)] @ held.data
+        assert np.allclose(out.data, expected, rtol=0, atol=1e-13)
 
 
 class TestTwoStageEvaluation:

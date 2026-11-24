@@ -1,3 +1,4 @@
+from .closure import *  # noqa
 from .differentiable import *  # noqa
 from .elementary import *  # noqa
 from .finite_difference import *  # noqa
