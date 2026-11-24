@@ -101,15 +101,17 @@ class TestBasic:
 
     @pytest.mark.parametrize('dtype_base,stars,expected', [
         (None, '*', 'void *'),
+        (np.float32, '*', 'float *'),
+        (np.float32, '**', 'float **'),
+        (np.float32, '***', 'float ***'),
         (ctypes.c_float, '*', 'float *'),
-        (ctypes.c_float, '**', 'float **'),
-        (ctypes.c_float, '***', 'float ***'),
         ('cufftHandle', '', 'cufftHandle'),
         (CustomDtype('float'), '*', 'float*'),
     ])
     def test_typed_pointer(self, pickle, dtype_base, stars, expected):
         p = Pointer(name='p', dtype_base=dtype_base, stars=stars,
                     liveness='eager', scope='shared')
+        assert p.dtype is p.dtype
 
         restored = pickle.loads(pickle.dumps(p))
         assert restored.name == p.name

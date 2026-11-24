@@ -1,4 +1,5 @@
 from ctypes import POINTER, c_double
+from functools import cached_property
 
 import numpy as np
 import sympy
@@ -9,7 +10,8 @@ except ImportError:
     # Moved in 1.13
     from sympy.core.basic import ordering_of_classes
 
-from devito.tools import CustomDtype, Pickable, as_tuple, frozendict
+from devito.tools import CustomDtype, Pickable, as_tuple, dtype_to_ctype, frozendict
+from devito.tools.dtypes_lowering import is_numpy_dtype
 from devito.types import Array, CompositeObject, Indexed, LocalObject, Symbol
 from devito.types.basic import IndexedData
 
@@ -205,10 +207,12 @@ class Pointer(LocalObject, sympy.Expr):
     A Pointer is defined by the pointee base type and its indirections.
 
     Unlike plain LocalObjects, Pointers can be used within arbitrary expressions.
+    Their dtype includes indirections so address arithmetic is typed as pointer
+    arithmetic. Pickling reconstructs it from `dtype_base` and `stars`.
 
     Examples
     --------
-    `Pointer('p', dtype_base=c_float, stars='**')` declares `float **p`.
+    `Pointer('p', dtype_base=np.float32, stars='**')` declares `float **p`.
     """
 
     __rkwargs__ = LocalObject.__rkwargs__ + ('dtype_base', 'stars')
@@ -223,10 +227,13 @@ class Pointer(LocalObject, sympy.Expr):
     def _hashable_content(self):
         return super()._hashable_content() + (self.stars,)
 
-    @property
+    @cached_property
     def dtype(self):
         ctype = self.dtype_base
+        if is_numpy_dtype(ctype):
+            ctype = dtype_to_ctype(ctype)
         if isinstance(ctype, CustomDtype):
+            # Keep the shared base type unchanged
             return CustomDtype(ctype.name, ctype.template, ctype.modifier + self.stars)
         for _ in self.stars:
             ctype = POINTER(ctype)
