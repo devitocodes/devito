@@ -1387,14 +1387,13 @@ class MPIRegion(Region):
         return len(self.regions)
 
     def _arg_values(self, args=None, **kwargs):
+        # Localize scalar controls such as SubDomain thicknesses.
         values = self._arg_defaults()
-
-        # Scalar controls still need runtime localization, e.g. SubDomain thicknesses
         for a in self.arguments:
             if not a.is_Dimension:
                 values.update(a._arg_values(args=args, **kwargs))
 
-        # Reserve the nominal width when the runtime topology is unknown.
+        # Match runtime neighbors to compiled dimensions by root name.
         dims = [d for d in self.arguments if d.is_Dimension]
         grid = getattr(args, 'grid', None)
         neighborhood = {}
@@ -1403,6 +1402,7 @@ class MPIRegion(Region):
             shifts = distributor._obj_neighborhood.neighborhood
             neighborhood = {d.root.name: shifts[d] for d in distributor.dimensions}
 
+        # Bind neighbor flags and retain nominal OWNED widths for unknown faces.
         peers = {}
         for d in dims:
             root = d.root
@@ -1412,6 +1412,7 @@ class MPIRegion(Region):
                     side not in neighbors or neighbors[side] != MPI.PROC_NULL
                 )
 
+        # Evaluate the symbolic bounds and scalar controls in each record.
         bounds = {**args, **values}
         names = self.fields
         records = []
@@ -1428,6 +1429,8 @@ class MPIRegion(Region):
         records[1:] = sorted(
             records[1:], key=lambda r: any(r[d.min_name] > r[d.max_name] for d in dims)
         )
+
+        # Pack the records in C struct field order.
         self.value[:] = [tuple(r.values()) for r in records]
         return values
 
