@@ -288,7 +288,7 @@ class HaloScheme:
         In this example, the "cumulative" OWNED size is (left=4, right=4), that is
         the max on each DataSide across all Functions, namely ``u`` and ``v``.
 
-        For a rank with neighbors on both sides, the bounds are:
+        The ``omapper`` will contain the following entries:
 
             [(((d, CORE, CENTER),), {d: (d_m + 4, d_M - 4)}),
              (((d, OWNED, LEFT),), {d: (d_m, min(d_m + 3, d_M))}),
@@ -370,13 +370,20 @@ class HaloScheme:
                   the max point is ``d_M = 1``, which implies that there is exactly one
                   point in this region, and this point is redundantly computed as it's
                   logically the same as that in the (OWNED, LEFT) region.
-
-        Notes
-        -----
-        Every rank uses the same region expressions. A face with a receive
-        neighbor reserves its OWNED strip. At a physical boundary the CORE
-        extends to the edge of the local domain.
         """
+        return self._make_omapper(self.owned_size)
+
+    @cached_property
+    def neighbor_omapper(self):
+        """Extend the CORE to the local domain edge at physical boundaries."""
+        owned_size = {
+            d: (left * HasNeighbor(d.root.symbolic_min),
+                right * HasNeighbor(d.root.symbolic_max))
+            for d, (left, right) in self.owned_size.items()
+        }
+        return self._make_omapper(owned_size)
+
+    def _make_omapper(self, owned_size):
         items = [((d, CENTER), (d, LEFT), (d, RIGHT))
                  for d in filter_sorted(self.dimensions)]
 
@@ -385,9 +392,7 @@ class HaloScheme:
             where = []
             mapper = {}
             for d, s in item:
-                osl, osr = self.owned_size[d]
-                osl *= HasNeighbor(d.root.symbolic_min)
-                osr *= HasNeighbor(d.root.symbolic_max)
+                osl, osr = owned_size[d]
 
                 # Handle SubDomain/SubDimensions to-honor offsets
                 nl = Max(0, *[i for i, _ in self.honored.get(d, [])])

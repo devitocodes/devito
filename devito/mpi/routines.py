@@ -6,7 +6,7 @@ from functools import reduce
 from itertools import product
 from operator import mul
 
-from sympy import Integer, Or
+from sympy import Basic, Integer, Or
 
 from devito.data import CENTER, HALO, LEFT, NOPAD, OWNED, RIGHT
 from devito.ir.equations import DummyEq, OpInc, OpMax, OpMin
@@ -43,6 +43,7 @@ class HaloExchangeBuilder:
                 **kwargs):
         obj = object.__new__(mpi_registry[mpimode])
 
+        obj._mpimode = mpimode
         obj.rcompile = rcompile
         obj.sregistry = sregistry
 
@@ -644,8 +645,10 @@ class OverlapHaloExchangeBuilder(DiagHaloExchangeBuilder):
             pname = mapper.get(Region.__pfields_setup__(arguments), f'region{key}')
 
         # Record zero is the CORE, followed by one record per OWNED region
-        regions = (hs.omapper.core,) + tuple(i for _, i in hs.omapper.owned)
-        return MPIRegion(f'reg{key}', pname, arguments, regions)
+        compact = self._mpimode == 'overlap3'
+        omapper = hs.halo_scheme.neighbor_omapper if compact else hs.omapper
+        regions = (omapper.core,) + tuple(i for _, i in omapper.owned)
+        return MPIRegion(f'reg{key}', pname, arguments, regions, compact=compact)
 
     def _make_msg(self, f, hse, key):
         # Only retain the halos required by the Diag scheme
@@ -936,12 +939,13 @@ class Overlap2HaloExchangeBuilder(OverlapHaloExchangeBuilder):
         record = IndexedPointer(region, dim + 1)
         iet = Uxreplace({callcompute.region: Byref(record)}).visit(callcompute)
 
-        # MPIRegion places empty OWNED records after all active ones.
-        empty = [FieldFromComposite(d.min_name, record) >
-                 FieldFromComposite(d.max_name, record)
-                 for d in region.arguments if d.is_Dimension]
-        if empty:
-            iet = [Conditional(Or(*empty), Break()), iet]
+        if region.compact:
+            # Empty OWNED records follow all active ones.
+            empty = [FieldFromComposite(d.min_name, record) >
+                     FieldFromComposite(d.max_name, record)
+                     for d in region.arguments if d.is_Dimension]
+            if empty:
+                iet = [Conditional(Or(*empty), Break()), iet]
 
         # Skip the CORE record, retaining a zero-based loop over OWNED regions
         iet = Iteration(iet, dim, region.nregions - 2)
@@ -1372,13 +1376,20 @@ class MPIMsgEnriched(MPIMsg):
 class MPIRegion(Region):
 
     """
-    Runtime records for the CORE, followed by nonempty then empty OWNED regions.
+    Runtime records for the CORE, followed by the OWNED regions. In compact
+    mode the empty OWNED regions follow the active ones.
     """
 
     __rargs__ = ('name', 'pname', 'arguments', 'regions')
+    __rkwargs__ = ('compact',)
 
-    def __init__(self, name, pname, arguments, regions):
+    def __init__(self, name, pname, arguments, regions, compact=None):
         self.regions = tuple(regions)
+        if compact is None:
+            # Older pickles encode compact regions only through their bounds.
+            compact = any(i.has(HasNeighbor) for r in self.regions
+                          for i in flatten(r.values()) if isinstance(i, Basic))
+        self.compact = compact
         super().__init__(name, pname, arguments)
 
     def __value_setup__(self, dtype, value):
@@ -1415,7 +1426,7 @@ class MPIRegion(Region):
 
     def _arg_values(self, args=None, **kwargs):
         values = self._arg_defaults()
-        peers = self._resolve_peers(args)
+        peers = self._resolve_peers(args) if self.compact else {}
 
         # Scalar controls still need runtime localization, e.g. SubDomain thicknesses
         for a in self.arguments:
@@ -1435,8 +1446,9 @@ class MPIRegion(Region):
 
             # Keep the first record (CORE) in place even when its bounds are empty
             row = tuple(fields.values())
-            if records and any(fields[d.symbolic_min] > fields[d.symbolic_max]
-                               for d in dimensions):
+            if self.compact and \
+               records and \
+               any(fields[d.symbolic_min] > fields[d.symbolic_max] for d in dimensions):
                 empty_owned.append(row)
             else:
                 records.append(row)

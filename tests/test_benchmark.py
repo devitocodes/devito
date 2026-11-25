@@ -1,5 +1,6 @@
 import os
 import sys
+from importlib import import_module
 from subprocess import check_call
 from unittest.mock import patch
 
@@ -201,7 +202,8 @@ class TestTimeLoopProfiling:
         def sections(iet, timer, **kwargs):
             return profiler.instrument(iet, timer), {}
 
-        with patch('devito.passes.iet.instrument.instrument_sections', sections):
+        instrumentation = import_module('devito.passes.iet.instrument')
+        with patch.object(instrumentation, 'instrument_sections', sections):
             instrument(graph, profiler=profiler, sregistry=SymbolRegistry(),
                        langbb=CTarget.langbb())
 

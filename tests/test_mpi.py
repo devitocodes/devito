@@ -3922,7 +3922,7 @@ class TestOperatorAdvanced:
         if grid.distributor.myrank == 1:
             assert region.value[0].x_m > region.value[0].x_M
 
-    @pytest.mark.parallel(mode=[(2, 'overlap2')])
+    @pytest.mark.parallel(mode=[(2, 'overlap2'), (2, 'overlap3')])
     def test_region_arguments(self, mode):
         """Packed regions preserve runtime overrides of distributed bounds."""
         grid = Grid(shape=(32, 64), extent=(31., 63.), topology=(1, 2))
@@ -3948,7 +3948,7 @@ class TestOperatorAdvanced:
             np.testing.assert_allclose(np.asarray(u.data), np.asarray(v.data),
                                        rtol=1.e-6, atol=1.e-7)
 
-    @pytest.mark.parallel(mode=[(4, 'overlap2')])
+    @pytest.mark.parallel(mode=[(4, 'overlap3')])
     def test_physical_faces(self, mode):
         """CORE reaches the physical faces and each grid point is updated once."""
         grid = Grid(shape=(32, 32, 16), extent=(31., 31., 15.), topology=(2, 2, 1))
@@ -3978,7 +3978,7 @@ class TestOperatorAdvanced:
         assert (core.x_m, core.x_M) == bounds[px]
         assert (core.y_m, core.y_M) == bounds[py]
 
-    @pytest.mark.parallel(mode=[(2, 'overlap2'), (4, 'overlap2')])
+    @pytest.mark.parallel(mode=[(2, 'overlap3'), (4, 'overlap3')])
     def test_region_communicator(self, mode):
         """Pickled COMM_SELF construction uses the runtime Grid's neighbors."""
         construction_grid = Grid(shape=(32, 32), extent=(31., 31.),
