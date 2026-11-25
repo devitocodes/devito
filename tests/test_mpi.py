@@ -3947,29 +3947,28 @@ class TestOperatorAdvanced:
             np.testing.assert_allclose(np.asarray(u.data), np.asarray(v.data),
                                        rtol=1.e-6, atol=1.e-7)
 
-    @pytest.mark.parallel(mode=[(1, 'overlap')])
+    @pytest.mark.parallel(mode=[(4, 'overlap')])
     def test_empty_owned_regions(self, mode):
-        grid = Grid(shape=(16, 16, 16))
+        grid = Grid(shape=(32, 32, 16), topology=(2, 2, 1))
         u = TimeFunction(name='u', grid=grid, space_order=2)
         op = Operator(Eq(u.forward, u.dx + u.dy + 1), name='EmptyOwned')
 
-        op.apply(time_M=0, y_m=4, y_M=7)
+        op.apply(time_M=0)
 
         region, = [p for p in op.parameters if isinstance(p, MPIRegion)]
         records = [(r.x_m, r.x_M, r.y_m, r.y_M) for r in region.value]
-        assert records == [
-            (2, 13, 6, 5),  # Empty CORE
-            (2, 13, 4, 5), (2, 13, 6, 7),
-            (0, 1, 4, 5), (0, 1, 6, 7),
-            (14, 15, 4, 5), (14, 15, 6, 7),
-            (0, 1, 6, 5), (14, 15, 6, 5)  # Empty OWNED
-        ]
 
-        expected = np.zeros(grid.shape, dtype=u.dtype)
-        expected[:, 4:8, :] = 1
-        np.testing.assert_array_equal(u.data[1], expected)
+        # Each rank has one receive neighbor per axis and three active OWNED rows.
+        px, py, _ = grid.distributor.mycoords
+        core = [(0, 13), (2, 15)]
+        edge = [(14, 15), (0, 1)]
+        assert len(records) == 9
+        assert records[:4] == [core[px] + core[py], core[px] + edge[py],
+                               edge[px] + core[py], edge[px] + edge[py]]
+        assert all(x_m > x_M or y_m > y_M for x_m, x_M, y_m, y_M in records[4:])
+        np.testing.assert_array_equal(u.data[1], 1)
 
-    @pytest.mark.parallel(mode=[(2, 'overlap2'), (4, 'overlap2')])
+    @pytest.mark.parallel(mode=[(2, 'overlap'), (2, 'overlap2'), (4, 'overlap2')])
     def test_region_communicator(self, mode):
         """Pickled COMM_SELF construction uses the runtime Grid's neighbors."""
         construction_grid = Grid(shape=(32, 32), extent=(31., 31.),

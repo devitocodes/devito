@@ -6,7 +6,7 @@ from functools import reduce
 from itertools import product
 from operator import mul
 
-from sympy import Function, Integer
+from sympy import Integer
 
 from devito.data import CENTER, HALO, LEFT, NOPAD, OWNED, RIGHT
 from devito.ir.equations import DummyEq, OpInc, OpMax, OpMin
@@ -16,6 +16,7 @@ from devito.ir.iet import (
     Return, Transformer, Uxreplace, make_efunc
 )
 from devito.mpi import MPI
+from devito.mpi.halo_scheme import HasNeighbor
 from devito.symbolics import (
     Byref, CondNe, FieldFromComposite, FieldFromPointer, IndexedPointer, Macro, cast,
     subs_op_args
@@ -817,16 +818,6 @@ class Overlap2HaloExchangeBuilder(OverlapHaloExchangeBuilder):
         remainder()
     """
 
-    def _make_region_obj(self, name, pname, arguments, scheme):
-        # At a physical boundary the CORE extends to the edge of the domain.
-        owned_size = {
-            d: (left * HasNeighbor(d.root.symbolic_min),
-                right * HasNeighbor(d.root.symbolic_max))
-            for d, (left, right) in scheme.owned_size.items()
-        }
-        omapper = scheme._make_omapper(owned_size)
-        return Overlap2Region.from_omapper(name, pname, arguments, omapper)
-
     def _make_msg(self, f, hse, key):
         # Only retain the halos required by the Diag scheme
         halos = sorted(i for i in hse.halos if isinstance(i.dim, tuple))
@@ -1409,17 +1400,24 @@ class MPIRegion(Region):
             if not a.is_Dimension:
                 values.update(a._arg_values(args=args, **kwargs))
 
-        records = self._arg_records(args, values)
-
-        # Keep CORE in slot zero and preserve the order within each OWNED group.
+        # Reserve the nominal width when the runtime topology is unknown.
         dims = [d for d in self.arguments if d.is_Dimension]
-        records[1:] = sorted(
-            records[1:], key=lambda r: any(r[d.min_name] > r[d.max_name] for d in dims)
-        )
-        self.value[:] = [tuple(r.values()) for r in records]
-        return values
+        grid = getattr(args, 'grid', None)
+        neighborhood = {}
+        if grid is not None:
+            distributor = grid.distributor
+            shifts = distributor._obj_neighborhood.neighborhood
+            neighborhood = {d.root.name: shifts[d] for d in distributor.dimensions}
 
-    def _arg_records(self, args, values, *, substitute=subs_op_args):
+        peers = {}
+        for d in dims:
+            root = d.root
+            neighbors = neighborhood.get(root.name, {})
+            for bound, side in ((root.symbolic_min, LEFT), (root.symbolic_max, RIGHT)):
+                peers[HasNeighbor(bound)] = int(
+                    side not in neighbors or neighbors[side] != MPI.PROC_NULL
+                )
+
         bounds = {**args, **values}
         names = self.fields
         records = []
@@ -1428,10 +1426,16 @@ class MPIRegion(Region):
             fields = flatten(region[a] for a in self.arguments)
             for name, value in zip(names, fields, strict=True):
                 with suppress(AttributeError):
-                    value = substitute(value, bounds)
+                    value = subs_op_args(value.xreplace(peers), bounds)
                 row[name] = value
             records.append(row)
-        return records
+
+        # Keep CORE in slot zero and preserve the order within each OWNED group.
+        records[1:] = sorted(
+            records[1:], key=lambda r: any(r[d.min_name] > r[d.max_name] for d in dims)
+        )
+        self.value[:] = [tuple(r.values()) for r in records]
+        return values
 
     def _arg_check(self, args, *_args, **kwargs):
         for a in self.arguments:
@@ -1439,40 +1443,8 @@ class MPIRegion(Region):
                 a._arg_check(args, **kwargs)
 
 
-class HasNeighbor(Function):
-
-    """One if the rank can receive across this Grid bound, zero otherwise."""
-
-    nargs = 1
-    is_integer = True
-    is_nonnegative = True
-
-
-class Overlap2Region(MPIRegion):
-
-    """Bind neighbor-dependent bounds using the runtime Grid."""
-
-    def _arg_records(self, args, values):
-        grid = getattr(args, 'grid', None)
-        neighborhood = {}
-        if grid is not None:
-            distributor = grid.distributor
-            shifts = distributor._obj_neighborhood.neighborhood
-            neighborhood = {d.root.name: shifts[d] for d in distributor.dimensions}
-
-        # Reserve the nominal width when the runtime topology is unknown.
-        peers = {}
-        for d in (i.root for i in self.arguments if i.is_Dimension):
-            neighbors = neighborhood.get(d.name, {})
-            for bound, side in ((d.symbolic_min, LEFT), (d.symbolic_max, RIGHT)):
-                peers[HasNeighbor(bound)] = int(
-                    side not in neighbors or neighbors[side] != MPI.PROC_NULL
-                )
-
-        def substitute(value, bounds):
-            return subs_op_args(value.xreplace(peers), bounds)
-
-        return super()._arg_records(args, values, substitute=substitute)
+# Region type name used by older Operator pickles.
+Overlap2Region = MPIRegion
 
 
 class ReductionBuilder:

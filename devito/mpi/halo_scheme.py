@@ -92,6 +92,15 @@ Halo = namedtuple('Halo', 'dim side')
 OMapper = namedtuple('OMapper', 'core owned')
 
 
+class HasNeighbor(sympy.Function):
+
+    """One if the rank can receive across this Grid bound, zero otherwise."""
+
+    nargs = 1
+    is_integer = True
+    is_nonnegative = True
+
+
 class HaloScheme:
 
     """
@@ -261,6 +270,8 @@ class HaloScheme:
 
         The computed OMapper takes into account:
 
+            * The receive neighbors on the runtime Grid. CORE extends to faces
+              with no neighbor.
             * The offsets induced by SubDomains/SubDimensions ("thickness");
             * Any data alignment requirement of the underlying expressions
               (`_alignment` attribute).
@@ -280,7 +291,7 @@ class HaloScheme:
         In this example, the "cumulative" OWNED size is (left=4, right=4), that is
         the max on each DataSide across all Functions, namely ``u`` and ``v``.
 
-        The ``omapper`` will contain the following entries:
+        For a rank with neighbors on both sides, the bounds are:
 
             [(((d, CORE, CENTER),), {d: (d_m + 4, d_M - 4)}),
              (((d, OWNED, LEFT),), {d: (d_m, min(d_m + 3, d_M))}),
@@ -363,9 +374,11 @@ class HaloScheme:
                   point in this region, and this point is redundantly computed as it's
                   logically the same as that in the (OWNED, LEFT) region.
         """
-        return self._make_omapper(self.owned_size)
-
-    def _make_omapper(self, owned_size):
+        owned_size = {
+            d: (left * HasNeighbor(d.root.symbolic_min),
+                right * HasNeighbor(d.root.symbolic_max))
+            for d, (left, right) in self.owned_size.items()
+        }
         items = [((d, CENTER), (d, LEFT), (d, RIGHT))
                  for d in filter_sorted(self.dimensions)]
 
