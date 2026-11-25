@@ -642,9 +642,9 @@ class OverlapHaloExchangeBuilder(DiagHaloExchangeBuilder):
             mapper = frozendict({r.pfields: r.pname for r in reversed(self.regions)})
             pname = mapper.get(Region.__pfields_setup__(arguments), f'region{key}')
 
-        return self._make_region_param(f'reg{key}', pname, arguments, hs.halo_scheme)
+        return self._make_region_obj(f'reg{key}', pname, arguments, hs.halo_scheme)
 
-    def _make_region_param(self, name, pname, arguments, scheme):
+    def _make_region_obj(self, name, pname, arguments, scheme):
         return MPIRegion.from_omapper(name, pname, arguments, scheme.omapper)
 
     def _make_msg(self, f, hse, key):
