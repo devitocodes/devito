@@ -1369,7 +1369,8 @@ class MPIMsgEnriched(MPIMsg):
 class MPIRegion(Region):
 
     """
-    Runtime records for the CORE, followed by the OWNED regions.
+    Runtime records for the CORE, followed by the OWNED regions. OWNED records
+    with an inverted bound are packed last.
     """
 
     __rargs__ = ('name', 'pname', 'arguments', 'regions')
@@ -1399,6 +1400,12 @@ class MPIRegion(Region):
                 values.update(a._arg_values(args=args, **kwargs))
 
         records = self._arg_records(args, values)
+
+        # Keep CORE in slot zero and preserve the order within each OWNED group.
+        dims = [d for d in self.arguments if d.is_Dimension]
+        records[1:] = sorted(
+            records[1:], key=lambda r: any(r[d.min_name] > r[d.max_name] for d in dims)
+        )
         self.value[:] = [tuple(r.values()) for r in records]
         return values
 

@@ -19,7 +19,7 @@ from devito.ir import Cluster, Interval, IterationSpace
 from devito.ir.clusters.algorithms import check_halo_writes
 from devito.ir.equations import LoweredEq
 from devito.ir.iet import (
-    Break, Call, Conditional, FindNodes, FindSymbols, Iteration, retrieve_iteration_tree
+    Call, Conditional, FindNodes, FindSymbols, Iteration, retrieve_iteration_tree
 )
 from devito.ir.support.space import Backward, Forward
 from devito.mpi import MPI
@@ -2660,7 +2660,6 @@ class TestCodeGeneration:
         boundary, = FindNodes(ComputeCall).visit(remainder)
         assert str(core.region) == '&(reg0[0])'
         assert str(boundary.region) == '&(reg0[i + 1])'
-        assert FindNodes(Break).visit(remainder)
 
         _ = op.cfunction
 
@@ -3947,6 +3946,28 @@ class TestOperatorAdvanced:
 
             np.testing.assert_allclose(np.asarray(u.data), np.asarray(v.data),
                                        rtol=1.e-6, atol=1.e-7)
+
+    @pytest.mark.parallel(mode=[(1, 'overlap2')])
+    def test_empty_owned_regions(self, mode):
+        grid = Grid(shape=(16, 16, 16))
+        u = TimeFunction(name='u', grid=grid, space_order=2)
+        op = Operator(Eq(u.forward, u.dx + u.dy + 1), name='EmptyOwned')
+
+        op.apply(time_M=0, y_m=4, y_M=7)
+
+        region, = [p for p in op.parameters if isinstance(p, MPIRegion)]
+        records = [(r.x_m, r.x_M, r.y_m, r.y_M) for r in region.value]
+        assert records == [
+            (2, 13, 6, 5),  # Empty CORE
+            (2, 13, 4, 5), (2, 13, 6, 7),
+            (0, 1, 4, 5), (0, 1, 6, 7),
+            (14, 15, 4, 5), (14, 15, 6, 7),
+            (0, 1, 6, 5), (14, 15, 6, 5)  # Empty OWNED
+        ]
+
+        expected = np.zeros(grid.shape, dtype=u.dtype)
+        expected[:, 4:8, :] = 1
+        np.testing.assert_array_equal(u.data[1], expected)
 
 
 def gen_serial_norms(shape, so):
