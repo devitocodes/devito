@@ -643,10 +643,9 @@ class OverlapHaloExchangeBuilder(DiagHaloExchangeBuilder):
             mapper = frozendict({r.pfields: r.pname for r in reversed(self.regions)})
             pname = mapper.get(Region.__pfields_setup__(arguments), f'region{key}')
 
-        return self._make_region_obj(f'reg{key}', pname, arguments, hs.halo_scheme)
-
-    def _make_region_obj(self, name, pname, arguments, scheme):
-        return MPIRegion.from_omapper(name, pname, arguments, scheme.omapper)
+        omapper = hs.omapper
+        regions = (omapper.core, *(r for _, r in omapper.owned))
+        return MPIRegion(f'reg{key}', pname, arguments, regions)
 
     def _make_msg(self, f, hse, key):
         # Only retain the halos required by the Diag scheme
@@ -1380,11 +1379,6 @@ class MPIRegion(Region):
         self.regions = tuple(regions)
         super().__init__(name, pname, arguments)
 
-    @classmethod
-    def from_omapper(cls, name, pname, arguments, omapper):
-        regions = (omapper.core, *(r for _, r in omapper.owned))
-        return cls(name, pname, arguments, regions)
-
     def __value_setup__(self, dtype, value):
         return (dtype._type_*self.nregions)()
 
@@ -1430,7 +1424,7 @@ class MPIRegion(Region):
                 row[name] = value
             records.append(row)
 
-        # Keep CORE in slot zero and preserve the order within each OWNED group.
+        # Keep CORE in slot zero and move empty OWNED records to the end.
         records[1:] = sorted(
             records[1:], key=lambda r: any(r[d.min_name] > r[d.max_name] for d in dims)
         )
@@ -1441,10 +1435,6 @@ class MPIRegion(Region):
         for a in self.arguments:
             if not a.is_Dimension:
                 a._arg_check(args, **kwargs)
-
-
-# Region type name used by older Operator pickles.
-Overlap2Region = MPIRegion
 
 
 class ReductionBuilder:
