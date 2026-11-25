@@ -3947,7 +3947,7 @@ class TestOperatorAdvanced:
             np.testing.assert_allclose(np.asarray(u.data), np.asarray(v.data),
                                        rtol=1.e-6, atol=1.e-7)
 
-    @pytest.mark.parallel(mode=[(1, 'overlap2')])
+    @pytest.mark.parallel(mode=[(1, 'overlap')])
     def test_empty_owned_regions(self, mode):
         grid = Grid(shape=(16, 16, 16))
         u = TimeFunction(name='u', grid=grid, space_order=2)
@@ -3968,6 +3968,37 @@ class TestOperatorAdvanced:
         expected = np.zeros(grid.shape, dtype=u.dtype)
         expected[:, 4:8, :] = 1
         np.testing.assert_array_equal(u.data[1], expected)
+
+    @pytest.mark.parallel(mode=[(2, 'overlap2'), (4, 'overlap2')])
+    def test_region_communicator(self, mode):
+        """Pickled COMM_SELF construction uses the runtime Grid's neighbors."""
+        construction_grid = Grid(shape=(32, 32), extent=(31., 31.),
+                                 topology=('*', '*'), comm=MPI.COMM_SELF)
+        u = TimeFunction(name='u', grid=construction_grid, space_order=2)
+        op = Operator(Eq(u.forward, u + .01*u.laplace + 1), name='RegionCommunicator')
+        _ = op.cfunction
+        op = pickle.loads(pickle.dumps(op))
+
+        grid = Grid(shape=(32, 32), extent=(31., 31.), topology=('*', '*'))
+        u = TimeFunction(name='u', grid=grid, space_order=2)
+        v = TimeFunction(name='v', grid=grid, space_order=2)
+        with switchconfig(mpi='basic'):
+            reference = Operator(Eq(v.forward, v + .01*v.laplace + 1))
+        for f in (u, v):
+            f.data_with_halo.fill(0)
+        reference.apply(time_M=3)
+        op.apply(u=u, time_M=3)
+        np.testing.assert_allclose(np.asarray(u.data), np.asarray(v.data),
+                                   rtol=1.e-6, atol=1.e-7)
+
+        region, = [i for i in op.parameters if isinstance(i, MPIRegion)]
+        core = region.value[0]
+        for d, size in zip(grid.dimensions, grid.shape_local, strict=True):
+            neighbors = grid.distributor.neighborhood[d]
+            left = 0 if neighbors[LEFT] == MPI.PROC_NULL else 2
+            right = 0 if neighbors[RIGHT] == MPI.PROC_NULL else 2
+            assert getattr(core, d.min_name) == left
+            assert getattr(core, d.max_name) == size - right - 1
 
 
 def gen_serial_norms(shape, so):

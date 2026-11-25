@@ -8,7 +8,7 @@ from conftest import assert_structure, opts_tiling
 from devito import (
     Border, Buffer, ConditionalDimension, Constant, Derivative, Eq, Function, Grid, Lt,
     Operator, SparseFunction, SparseTimeFunction, SubDimension, SubDomain, SubDomainSet,
-    TensorFunction, TimeFunction, VectorFunction, solve
+    TensorFunction, TimeFunction, VectorFunction, solve, switchconfig
 )
 from devito.exceptions import InvalidArgument
 from devito.ir import (
@@ -2517,7 +2517,15 @@ class TestSubDomainArguments:
         args = op.arguments(time_M=3, **bounds)
         records = args[compute.region.name]
 
-        # CORE, left OWNED and right OWNED thicknesses after rank localization
-        expected = ([(0, 0), (2, 0), (0, 0)],
-                    [(0, 0), (0, 0), (0, 3)])[grid.distributor.myrank]
-        assert [(r.y_ltkn0, r.y_rtkn0) for r in records] == expected
+        # CORE, neighbor-facing OWNED and empty physical-face OWNED.
+        expected = ([(0, 27, 2, 0), (28, 31, 0, 0), (0, -1, 2, 0)],
+                    [(4, 31, 0, 3), (0, 3, 0, 0), (32, 31, 0, 3)])
+        rank = grid.distributor.myrank
+        assert [(r.y_m, r.y_M, r.y_ltkn0, r.y_rtkn0) for r in records] == expected[rank]
+
+        v = u.func(name='v')
+        with switchconfig(mpi='basic'):
+            reference = Operator(eq)
+        reference.apply(u=v, time_M=3, **bounds)
+        op.apply(time_M=3, **bounds)
+        np.testing.assert_allclose(u.data._local, v.data._local, rtol=1.e-6, atol=1.e-7)
