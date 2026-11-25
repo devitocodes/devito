@@ -92,14 +92,6 @@ Halo = namedtuple('Halo', 'dim side')
 OMapper = namedtuple('OMapper', 'core owned')
 
 
-class HasNeighbor(sympy.Function):
-    """One if the rank can receive across this Grid bound, zero otherwise."""
-
-    nargs = 1
-    is_integer = True
-    is_nonnegative = True
-
-
 class HaloScheme:
 
     """
@@ -372,16 +364,6 @@ class HaloScheme:
                   logically the same as that in the (OWNED, LEFT) region.
         """
         return self._make_omapper(self.owned_size)
-
-    @cached_property
-    def neighbor_omapper(self):
-        """Extend the CORE to the local domain edge at physical boundaries."""
-        owned_size = {
-            d: (left * HasNeighbor(d.root.symbolic_min),
-                right * HasNeighbor(d.root.symbolic_max))
-            for d, (left, right) in self.owned_size.items()
-        }
-        return self._make_omapper(owned_size)
 
     def _make_omapper(self, owned_size):
         items = [((d, CENTER), (d, LEFT), (d, RIGHT))

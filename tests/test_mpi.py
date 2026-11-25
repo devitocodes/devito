@@ -3922,7 +3922,7 @@ class TestOperatorAdvanced:
         if grid.distributor.myrank == 1:
             assert region.value[0].x_m > region.value[0].x_M
 
-    @pytest.mark.parallel(mode=[(2, 'overlap2'), (2, 'overlap3')])
+    @pytest.mark.parallel(mode=[(2, 'overlap2')])
     def test_region_arguments(self, mode):
         """Packed regions preserve runtime overrides of distributed bounds."""
         grid = Grid(shape=(32, 64), extent=(31., 63.), topology=(1, 2))
@@ -3947,67 +3947,6 @@ class TestOperatorAdvanced:
 
             np.testing.assert_allclose(np.asarray(u.data), np.asarray(v.data),
                                        rtol=1.e-6, atol=1.e-7)
-
-    @pytest.mark.parallel(mode=[(4, 'overlap3')])
-    def test_physical_faces(self, mode):
-        """CORE reaches the physical faces and each grid point is updated once."""
-        grid = Grid(shape=(32, 32, 16), extent=(31., 31., 15.), topology=(2, 2, 1))
-
-        u = TimeFunction(name='u', grid=grid, space_order=2)
-        v = Function(name='v', grid=grid)
-        u0 = TimeFunction(name='u0', grid=grid, space_order=2)
-        v0 = Function(name='v0', grid=grid)
-
-        eqns = [Eq(v, v + .01*u.laplace + 1), Eq(u.forward, u + .01*u.laplace + 1)]
-        with switchconfig(mpi='basic'):
-            reference = Operator(eqns)
-        op = Operator(eqns)
-
-        reference.apply(u=u0, v=v0, time_M=3)
-        op.apply(time_M=3)
-
-        assert np.allclose(u.data, u0.data, rtol=1.e-6, atol=1.e-7)
-        assert np.allclose(v.data, v0.data, rtol=1.e-6, atol=1.e-7)
-
-        region, = [i for i in op.parameters if isinstance(i, MPIRegion)]
-        core = region.value[0]
-
-        # Only the neighboring face of each local axis reserves two points.
-        bounds = [(0, 13), (2, 15)]
-        px, py, _ = grid.distributor.mycoords
-        assert (core.x_m, core.x_M) == bounds[px]
-        assert (core.y_m, core.y_M) == bounds[py]
-
-    @pytest.mark.parallel(mode=[(2, 'overlap3'), (4, 'overlap3')])
-    def test_region_communicator(self, mode):
-        """Pickled COMM_SELF construction uses the runtime Grid's neighbors."""
-        construction_grid = Grid(shape=(32, 32), extent=(31., 31.),
-                                 topology=('*', '*'), comm=MPI.COMM_SELF)
-        u = TimeFunction(name='u', grid=construction_grid, space_order=2)
-        op = Operator(Eq(u.forward, u + .01*u.laplace + 1), name='RegionCommunicator')
-        _ = op.cfunction
-        op = pickle.loads(pickle.dumps(op))
-
-        grid = Grid(shape=(32, 32), extent=(31., 31.), topology=('*', '*'))
-        u = TimeFunction(name='u', grid=grid, space_order=2)
-        v = TimeFunction(name='v', grid=grid, space_order=2)
-        with switchconfig(mpi='basic'):
-            reference = Operator(Eq(v.forward, v + .01*v.laplace + 1))
-        for f in (u, v):
-            f.data_with_halo.fill(0)
-        reference.apply(time_M=3)
-        op.apply(u=u, time_M=3)
-        np.testing.assert_allclose(np.asarray(u.data), np.asarray(v.data),
-                                   rtol=1.e-6, atol=1.e-7)
-
-        region, = [i for i in op.parameters if isinstance(i, MPIRegion)]
-        core = region.value[0]
-        for d, size in zip(grid.dimensions, grid.shape_local, strict=True):
-            neighbors = grid.distributor.neighborhood[d]
-            left = 0 if neighbors[LEFT] == MPI.PROC_NULL else 2
-            right = 0 if neighbors[RIGHT] == MPI.PROC_NULL else 2
-            assert getattr(core, d.min_name) == left
-            assert getattr(core, d.max_name) == size - right - 1
 
 
 def gen_serial_norms(shape, so):

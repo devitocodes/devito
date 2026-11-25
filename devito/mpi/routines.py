@@ -6,17 +6,16 @@ from functools import reduce
 from itertools import product
 from operator import mul
 
-from sympy import Basic, Integer, Or
+from sympy import Integer
 
 from devito.data import CENTER, HALO, LEFT, NOPAD, OWNED, RIGHT
 from devito.ir.equations import DummyEq, OpInc, OpMax, OpMin
 from devito.ir.iet import (
-    AugmentedExpression, Break, Call, Callable, CommCallable, Conditional, ElementalCall,
+    AugmentedExpression, Call, Callable, CommCallable, Conditional, ElementalCall,
     ElementalFunction, Expression, ExpressionBundle, FindNodes, Iteration, List, Prodder,
     Return, Transformer, Uxreplace, make_efunc
 )
 from devito.mpi import MPI
-from devito.mpi.halo_scheme import HasNeighbor
 from devito.symbolics import (
     Byref, CondNe, FieldFromComposite, FieldFromPointer, IndexedPointer, Macro, cast,
     subs_op_args
@@ -43,7 +42,6 @@ class HaloExchangeBuilder:
                 **kwargs):
         obj = object.__new__(mpi_registry[mpimode])
 
-        obj._mpimode = mpimode
         obj.rcompile = rcompile
         obj.sregistry = sregistry
 
@@ -644,11 +642,10 @@ class OverlapHaloExchangeBuilder(DiagHaloExchangeBuilder):
             mapper = frozendict({r.pfields: r.pname for r in reversed(self.regions)})
             pname = mapper.get(Region.__pfields_setup__(arguments), f'region{key}')
 
-        # Record zero is the CORE, followed by one record per OWNED region
-        compact = self._mpimode == 'overlap3'
-        omapper = hs.halo_scheme.neighbor_omapper if compact else hs.omapper
-        regions = (omapper.core,) + tuple(i for _, i in omapper.owned)
-        return MPIRegion(f'reg{key}', pname, arguments, regions, compact=compact)
+        return self._make_region_param(f'reg{key}', pname, arguments, hs.halo_scheme)
+
+    def _make_region_param(self, name, pname, arguments, scheme):
+        return MPIRegion.from_omapper(name, pname, arguments, scheme.omapper)
 
     def _make_msg(self, f, hse, key):
         # Only retain the halos required by the Diag scheme
@@ -937,20 +934,16 @@ class Overlap2HaloExchangeBuilder(OverlapHaloExchangeBuilder):
 
         dim = Dimension(name='i')
         record = IndexedPointer(region, dim + 1)
-        iet = Uxreplace({callcompute.region: Byref(record)}).visit(callcompute)
-
-        if region.compact:
-            # Empty OWNED records follow all active ones.
-            empty = [FieldFromComposite(d.min_name, record) >
-                     FieldFromComposite(d.max_name, record)
-                     for d in region.arguments if d.is_Dimension]
-            if empty:
-                iet = [Conditional(Or(*empty), Break()), iet]
+        call = Uxreplace({callcompute.region: Byref(record)}).visit(callcompute)
+        body = self._make_remainder_body(call, region, record)
 
         # Skip the CORE record, retaining a zero-based loop over OWNED regions
-        iet = Iteration(iet, dim, region.nregions - 2)
+        iet = Iteration(body, dim, region.nregions - 2)
 
         return Remainder.make(f'remainder{key}', iet)
+
+    def _make_remainder_body(self, call, region, record):
+        return call
 
 
 class Diag2HaloExchangeBuilder(Overlap2HaloExchangeBuilder):
@@ -1376,21 +1369,19 @@ class MPIMsgEnriched(MPIMsg):
 class MPIRegion(Region):
 
     """
-    Runtime records for the CORE, followed by the OWNED regions. In compact
-    mode the empty OWNED regions follow the active ones.
+    Runtime records for the CORE, followed by the OWNED regions.
     """
 
     __rargs__ = ('name', 'pname', 'arguments', 'regions')
-    __rkwargs__ = ('compact',)
 
-    def __init__(self, name, pname, arguments, regions, compact=None):
+    def __init__(self, name, pname, arguments, regions):
         self.regions = tuple(regions)
-        if compact is None:
-            # Older pickles encode compact regions only through their bounds.
-            compact = any(i.has(HasNeighbor) for r in self.regions
-                          for i in flatten(r.values()) if isinstance(i, Basic))
-        self.compact = compact
         super().__init__(name, pname, arguments)
+
+    @classmethod
+    def from_omapper(cls, name, pname, arguments, omapper):
+        regions = (omapper.core, *(r for _, r in omapper.owned))
+        return cls(name, pname, arguments, regions)
 
     def __value_setup__(self, dtype, value):
         return (dtype._type_*self.nregions)()
@@ -1399,62 +1390,31 @@ class MPIRegion(Region):
     def nregions(self):
         return len(self.regions)
 
-    @staticmethod
-    def _resolve_peers(args):
-        """
-        Bind HasNeighbor to the neighbors of the runtime Grid.
-
-        Each face with a neighbor reserves an OWNED strip for work that
-        depends on the incoming halo. At an MPI.PROC_NULL face, CORE can
-        extend to the local boundary. This exposes more work to overlap
-        with communication and reduces the number of separate OWNED launches.
-        """
-        grid = getattr(args, 'grid', None)
-        if grid is None:
-            return {}
-
-        distributor = grid.distributor
-        neighborhood = distributor._obj_neighborhood.neighborhood
-
-        peers = {}
-        for d in distributor.dimensions:
-            left, right = neighborhood[d][LEFT], neighborhood[d][RIGHT]
-            peers[HasNeighbor(d.root.symbolic_min)] = int(left != MPI.PROC_NULL)
-            peers[HasNeighbor(d.root.symbolic_max)] = int(right != MPI.PROC_NULL)
-
-        return peers
-
     def _arg_values(self, args=None, **kwargs):
         values = self._arg_defaults()
-        peers = self._resolve_peers(args) if self.compact else {}
 
         # Scalar controls still need runtime localization, e.g. SubDomain thicknesses
         for a in self.arguments:
             if not a.is_Dimension:
                 values.update(a._arg_values(args=args, **kwargs))
-        args = {**args, **values}
 
-        dimensions = [a for a in self.arguments if a.is_Dimension]
-        records, empty_owned = [], []
-        for mapper in self.regions:
-            fields = {}
-            data = flatten(mapper[a] for a in self.arguments)
-            for symbol, value in zip(self.symbols, data, strict=True):
-                with suppress(AttributeError):
-                    value = subs_op_args(value.xreplace(peers), args)
-                fields[symbol] = value
-
-            # Keep the first record (CORE) in place even when its bounds are empty
-            row = tuple(fields.values())
-            if self.compact and \
-               records and \
-               any(fields[d.symbolic_min] > fields[d.symbolic_max] for d in dimensions):
-                empty_owned.append(row)
-            else:
-                records.append(row)
-
-        self.value[:] = records + empty_owned
+        records = self._arg_records(args, values)
+        self.value[:] = [tuple(r.values()) for r in records]
         return values
+
+    def _arg_records(self, args, values, *, substitute=subs_op_args):
+        bounds = {**args, **values}
+        names = self.fields
+        records = []
+        for region in self.regions:
+            row = {}
+            fields = flatten(region[a] for a in self.arguments)
+            for name, value in zip(names, fields, strict=True):
+                with suppress(AttributeError):
+                    value = substitute(value, bounds)
+                row[name] = value
+            records.append(row)
+        return records
 
     def _arg_check(self, args, *_args, **kwargs):
         for a in self.arguments:
