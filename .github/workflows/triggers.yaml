@@ -41,3 +41,5 @@ jobs:
         token: ${{ secrets.PRO_SUBMODULE }}
         repository: devitocodespro/devitopro
         event-type: update-submodule
+        # Temporary whilst the CvxCompress repo points at AMD's fork:
+        client-payload: '{"submodule": "submodules/devito"}'

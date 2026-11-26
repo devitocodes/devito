@@ -17,7 +17,7 @@ from devito.types import (
 )
 from devito.types.array import Array
 from devito.types.basic import AbstractFunction
-from devito.types.dimension import MultiSubDimension, Thickness
+from devito.types.dimension import MultiSubDimension, RankOffset, Thickness
 
 __all__ = ['concretize_subdims', 'dimension_sort', 'lower_exprs']
 
@@ -156,12 +156,17 @@ def _lower_exprs(expressions, subs):
         # Add dimensions map to the mapper in case dimensions are used
         # as an expression, i.e. Eq(u, x, subdomain=xleft)
         mapper.update(dimension_map)
-        # Dimensions used as an expression are global indices, unlike loop indices
-        mapper.update(_make_global_index_map(expr, dimension_map))
-        # Add the user-supplied substitutions
-        mapper.update(subs)
-        # Apply mapper to expression
-        processed.append(uxreplace(expr, mapper))
+        # Apply mapper and the user-supplied substitutions to expression
+        lowered = uxreplace(expr, {**mapper, **subs})
+
+        # Dimensions used as an expression are global indices, unlike loop indices.
+        # They only apply to the operands, not to metadata such as the implicit_dims
+        global_map = _make_global_index_map(lowered, dimension_map)
+        if global_map:
+            mapper = {**mapper, **global_map, **subs}
+            lowered = lowered._rebuild(*[uxreplace(i, mapper) for i in expr.args])
+
+        processed.append(lowered)
 
     if isinstance(expressions, Iterable):
         return processed
@@ -206,17 +211,20 @@ def _make_dimension_map(expr):
 
 def _make_global_index_map(expr, dimension_map):
     """
-    Map the Dimensions of a distributed Grid to the global indices they stand for
-    when used as an expression, i.e. Eq(u, x + y) -> Eq(u[x, y], x + io_x + y + io_y).
-    Dimensions indexing an Indexed are unaffected as the Indexed is replaced as a whole.
+    Map the Dimensions of a Grid to the global indices they stand for when used
+    as an expression in the lowered `expr`, i.e. Eq(u[x, y], x + y) maps `x` to
+    `x + io_x` and `y` to `y + io_y`. As Indexeds are leaves, their indices are
+    not expressions, and neither is the metadata, e.g. the axes of a transform.
     """
     if not isinstance(expr, Eq):
         return {}
 
+    values = retrieve_dimensions(expr, mode='unique')
     grids = {f.grid.root for f in retrieve_functions(expr) if f.grid is not None}
     return {d: dimension_map.get(d, d) + o
-            for grid in grids if grid.distributor.is_parallel
-            for d, o in zip(grid.dimensions, grid.origin_isymbols, strict=True)}
+            for grid in grids
+            for d, o in zip(grid.dimensions, grid.origin_isymbols, strict=True)
+            if dimension_map.get(d, d) in values}
 
 
 def concretize_subdims(exprs, **kwargs):
@@ -286,6 +294,12 @@ def _(tkn, mapper, rebuilt, sregistry):
         return
 
     mapper[tkn] = tkn._rebuild(name=sregistry.make_name(prefix=tkn.name))
+
+
+@_concretize_subdims.register(RankOffset)
+def _(tkn, mapper, rebuilt, sregistry):
+    """A RankOffset belongs to the Grid, not to a SubDimension, so it is kept as is."""
+    return
 
 
 @_concretize_subdims.register(SubDimension)

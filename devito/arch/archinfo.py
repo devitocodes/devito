@@ -16,6 +16,7 @@ import psutil
 from packaging.version import InvalidVersion, parse
 
 from devito import configuration
+from devito.exceptions import DevitoError
 from devito.logger import warning
 from devito.tools import all_equal, as_tuple, memoized_func
 
@@ -520,6 +521,29 @@ def get_visible_devices():
 
 
 @memoized_func
+def get_pci_device_ids(vendor):
+    """Map PCI bus addresses to the device IDs used by the memory queries."""
+    if vendor == 'NVIDIA':
+        cmd = ['nvidia-smi', '--query-gpu=pci.bus_id', '--format=csv,noheader']
+        lines = run(cmd, capture_output=True, text=True, check=True).stdout.splitlines()
+        devices = enumerate(lines)
+    else:
+        cmd = ['rocm-smi', '--showbus', '--json']
+        output = run(cmd, capture_output=True, text=True, check=True).stdout
+        devices = (
+            (int(card.removeprefix('card')), info['PCI Bus'])
+            for card, info in json.loads(output).items() if 'PCI Bus' in info
+        )
+
+    return {pci_bus_key(bus): deviceid for deviceid, bus in devices}
+
+
+def pci_bus_key(bus):
+    """Normalize PCI addresses for comparison across tools and runtimes."""
+    return bus.strip().lower().lstrip('0')
+
+
+@memoized_func
 def get_nvidia_cc():
     libnames = ('libcuda.so', 'libcuda.dylib', 'cuda.dll')
     for libname in libnames:
@@ -573,10 +597,14 @@ def get_cuda_version():
     cuda_version = None
     try:
         out = run(nvc_version_command, capture_output=True, text=True)
-    except (FileNotFoundError, CalledProcessError):
-        pass
+    except (FileNotFoundError, CalledProcessError) as e:
+        out = None
+        raise DevitoError(
+            'Could not find or execute `nvcc` ensure that it is on the PATH or '
+            'that CUDA_HOME or CUDA_ROOT environment variables are set correctly'
+        ) from e
     finally:
-        if out.returncode == 0:
+        if out is not None and out.returncode == 0:
             start = out.stdout.find('release')
             start = out.stdout.find(',', start) + 1
             stop = out.stdout.find('\n', start)
@@ -660,6 +688,53 @@ def load_cudart():
         raise RuntimeError("Unable to find CUDA runtime library `libcudart`")
 
     return ctypes.CDLL(libname)
+
+
+def get_gpu_runtime_queries(platform, language):
+    """Return the runtime queries for device count, ordinal, and PCI address."""
+    queries = None
+    if isinstance(platform, NvidiaDevice) and language in ('cuda', 'openacc'):
+        try:
+            runtime = load_cudart()
+        except RuntimeError:
+            runtime = ctypes.CDLL('libcudart.so')
+        queries = (
+            runtime.cudaGetDeviceCount,
+            runtime.cudaGetDevice,
+            runtime.cudaDeviceGetPCIBusId,
+        )
+    elif isinstance(platform, AmdDevice) and language == 'hip':
+        runtime = ctypes.CDLL('libamdhip64.so')
+        queries = (
+            runtime.hipGetDeviceCount,
+            runtime.hipGetDevice,
+            runtime.hipDeviceGetPCIBusId,
+        )
+
+    return queries
+
+
+def default_gpu_deviceid(language, rank, get_count, get_device):
+    """Return the runtime ordinal used when no explicit device is requested."""
+    value = ctypes.c_int()
+    if rank is not None:
+        status = get_count(ctypes.byref(value))
+        count = value.value
+        deviceid = rank % count if status == 0 and count > 0 else None
+    elif language == 'openacc':
+        # NVC uses CUDA device numbering but has its own default
+        try:
+            acc = ctypes.CDLL('libacchost.so')
+            acc_device_nvidia = 5
+            deviceid = acc.acc_get_device_num(acc_device_nvidia)
+        except (AttributeError, OSError):
+            # The OpenACC runtime may need a generated operator to load
+            deviceid = int(os.environ.get('ACC_DEVICE_NUM', '0'))
+    else:
+        status = get_device(ctypes.byref(value))
+        deviceid = value.value if status == 0 else None
+
+    return deviceid
 
 
 @memoized_func
@@ -1075,11 +1150,7 @@ class Device(Platform):
 
     @cached_property
     def numa_domains(self):
-        info = get_gpu_info()
-        try:
-            return info['ncards']
-        except KeyError:
-            return None
+        return (get_gpu_info() or {}).get('ncards')
 
     @cached_property
     def memtotal(self):
@@ -1093,11 +1164,41 @@ class Device(Platform):
         """
         The amount of memory currently available on device.
         """
-        info = get_gpu_info()
-        try:
-            return info['mem.free'](deviceid)
-        except (AttributeError, KeyError):
-            return None
+        info = get_gpu_info() or {}
+        available = None
+        with suppress(AttributeError, KeyError):
+            available = info['mem.free'](deviceid)
+
+        return available
+
+    def runtime_pci_bus_id(self, language, deviceid, rank):
+        """Get the PCI address of the GPU selected by the generated operator."""
+        bus_id = None
+        with suppress(AttributeError, OSError, ValueError):
+            queries = get_gpu_runtime_queries(self, language)
+            if queries is not None:
+                get_count, get_device, get_bus_id = queries
+                deviceid = (
+                    default_gpu_deviceid(language, rank, get_count, get_device)
+                    if deviceid == -1 else deviceid
+                )
+                bus = ctypes.create_string_buffer(32)
+                status = (
+                    get_bus_id(bus, len(bus), int(deviceid))
+                    if deviceid is not None else None
+                )
+                bus_id = bus.value.decode('ascii') if status == 0 else None
+
+        return bus_id
+
+    def management_deviceid(self, bus):
+        """Return the memory-query device ID for a PCI address."""
+        vendor = 'NVIDIA' if isinstance(self, NvidiaDevice) else 'AMD'
+        deviceid = None
+        with suppress(CalledProcessError, OSError, ValueError):
+            deviceid = get_pci_device_ids(vendor).get(pci_bus_key(bus))
+
+        return deviceid
 
     def limits(self, compiler=None, language=None):
         return {

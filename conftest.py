@@ -47,7 +47,7 @@ def skipif(items, whole_module=False):
         # Miscellaneous
         'chkpnt'
     })
-    accepted.update({'noadvisor', 'nodevice', 'noomp'})
+    accepted.update({'noadvisor', 'nodevice', 'noomp', 'noacc'})
     unknown = sorted(set(items) - accepted)
     if unknown:
         raise ValueError(f"Illegal skipif argument(s) `{unknown}`")
@@ -101,6 +101,10 @@ def skipif(items, whole_module=False):
         # Slip if not using openmp
         if i == 'noomp' and 'openmp' not in configuration['language']:
             skipit = "Must use openmp"
+            break
+        # Skip if not using OpenACC
+        if i == 'noacc' and configuration['language'] != 'openacc':
+            skipit = "Must use OpenACC"
             break
         # Skip if it won't run on Arm
         if i == 'cpu64-arm' and isinstance(configuration['platform'], Arm):

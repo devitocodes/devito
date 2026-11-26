@@ -127,7 +127,7 @@ def autotune(operator, args, level, mode):
 
             # Drop run if not at least one block per thread
             if not configuration['develop-mode'] and \
-                    nblocks_per_thread.subs(normalize_args(at_args)) < 1:
+                    nblocks_per_thread.subs(normalize_args({**args, **at_args})) < 1:
                 continue
 
             # Run the Operator

@@ -475,7 +475,8 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
     def halo(self):
         """
         None if the argument is read everywhere, 0 if it is treated as zero
-        outside the SubDomain of the equation the Derivative belongs to.
+        outside the SubDomain of the equation the Derivative belongs to, within
+        the Grid. The halo past an edge of the Grid is read as with None.
         """
         return self._halo
 
