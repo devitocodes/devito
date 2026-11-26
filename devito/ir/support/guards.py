@@ -279,6 +279,14 @@ class Guards(frozendict):
     construction of a new object, leaving self intact.
     """
 
+    def __init__(self, *args, **kwargs):
+        mapper = dict(*args, **kwargs)
+
+        # A guard that reduces to `true` is pointless, hence never set
+        mapper = {d: v for d, v in mapper.items() if v != true}
+
+        super().__init__(mapper)
+
     def get(self, d, v=true):
         return super().get(d, v)
 

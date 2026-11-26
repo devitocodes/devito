@@ -89,6 +89,13 @@ class CPrinter(BasePrinter, C99CodePrinter):
     def _print_ImaginaryUnit(self, expr):
         return '_Complex_I'
 
+    # C99 has no `true`/`false` without `stdbool.h`, which is never included
+    def _print_BooleanTrue(self, expr):
+        return '1'
+
+    def _print_BooleanFalse(self, expr):
+        return '0'
+
     def _print_ListInitializer(self, expr):
         li = super()._print_ListInitializer(expr)
         if expr.dtype:
