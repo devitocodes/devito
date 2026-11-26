@@ -6,7 +6,7 @@ from sympy import Expr, Not, S
 
 from devito.ir.iet import (
     Break, Call, Conditional, DummyExpr, EntryFunction, FindNodes, FindSymbols, Iteration,
-    KernelLaunch, List, Return, Transformer, make_callable
+    KernelLaunch, List, MacroStatement, Return, Transformer, make_callable
 )
 from devito.mpi.distributed import MPICommObject
 from devito.passes.iet.engine import iet_pass
@@ -134,9 +134,9 @@ def _check_launch(iet, definition=None, options=None, **kwargs):
     if options['mpi'] and \
        isinstance(iet, EntryFunction) and \
        any(isinstance(i, MPICommObject) for i in iet.parameters):
-        check = [List(body=c.Statement('CHECK_LAUNCH_RETURN'))]
+        check = [MacroStatement('CHECK_LAUNCH_RETURN')]
     else:
-        check = [List(body=c.Statement('CHECK_LAUNCH'))]
+        check = [MacroStatement('CHECK_LAUNCH')]
 
     mapper = {}
     for i in iterations:

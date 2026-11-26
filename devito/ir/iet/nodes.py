@@ -49,6 +49,7 @@ __all__ = [
     'Lambda',
     'List',
     'ListMajor',
+    'MacroStatement',
     'MetaCall',
     'MultiTraversable',
     'Node',
@@ -1012,20 +1013,20 @@ class TimedList(List):
         self._name = lname
         self._timer = timer
 
-        super().__init__(header=c.Line(f'START({lname})'),
+        super().__init__(header=MacroStatement(f'START({lname})'),
                          body=body,
-                         footer=c.Line(f'STOP({lname},{timer.name})'))
+                         footer=MacroStatement(f'STOP({lname},{timer.name})'))
 
     @classmethod
     def _start_timer_header(cls):
         return ('START(S)', ('struct timeval start_ ## S , end_ ## S ; '
-                             'gettimeofday(&start_ ## S , NULL);'))
+                             'gettimeofday(&start_ ## S , NULL)'))
 
     @classmethod
     def _stop_timer_header(cls):
         return ('STOP(S,T)', ('gettimeofday(&end_ ## S, NULL); T->S += (double)'
                               '(end_ ## S .tv_sec-start_ ## S.tv_sec)+(double)'
-                              '(end_ ## S .tv_usec-start_ ## S .tv_usec)/1000000;'))
+                              '(end_ ## S .tv_usec-start_ ## S .tv_usec)/1000000'))
 
     @property
     def name(self):
@@ -1329,6 +1330,25 @@ class Prodder(Call):
     @property
     def periodic(self):
         return self._periodic
+
+
+class MacroStatement(ExprStmt, Node):
+
+    """
+    A standalone macro invocation, such as ``MY_MACRO;``.
+
+    Parameters
+    ----------
+    name : str
+        The macro name or complete invocation (including any arguments),
+        without a trailing semicolon.
+    """
+
+    def __init__(self, name):
+        self.name = name
+
+    def __repr__(self):
+        return f"<MacroStatement({self.name})>"
 
 
 class Using(Node):
