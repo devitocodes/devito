@@ -35,7 +35,6 @@ jobs:
               --memory="${AVAILABLE_MEM}"
               --memory-swap="${AVAILABLE_MEM}"
               --gpus "device=${CUDA_VISIBLE_DEVICES}"
-              --env CUDA_VISIBLE_DEVICES=0
               --env OMP_NUM_THREADS=4
               --env PYTEST_XDIST_AUTO_NUM_WORKERS=${PYTEST_XDIST_AUTO_NUM_WORKERS}
             test: 'tests/test_gpu_openacc.py tests/test_gpu_common.py'
@@ -64,7 +63,6 @@ jobs:
               --memory="${AVAILABLE_MEM}"
               --memory-swap="${AVAILABLE_MEM}"
               --gpus "device=${CUDA_VISIBLE_DEVICES}"
-              --env CUDA_VISIBLE_DEVICES=0
               --env OMP_NUM_THREADS=4
               --env PYTEST_XDIST_AUTO_NUM_WORKERS=${PYTEST_XDIST_AUTO_NUM_WORKERS}
             test: 'tests/test_gpu_openacc.py tests/test_gpu_common.py'
@@ -96,7 +94,6 @@ jobs:
               --ipc=host
               --group-add video --group-add $(getent group render | cut -d: -f3)
               --cap-add=SYS_PTRACE --security-opt seccomp=unconfined
-              --env HIP_VISIBLE_DEVICES=0
               --env OMP_NUM_THREADS=4
               --env PYTEST_XDIST_AUTO_NUM_WORKERS=${PYTEST_XDIST_AUTO_NUM_WORKERS}
             test: 'tests/test_gpu_openmp.py'
@@ -303,7 +300,6 @@ jobs:
               --memory="${AVAILABLE_MEM}"
               --memory-swap="${AVAILABLE_MEM}"
               --gpus "device=${CUDA_VISIBLE_DEVICES}"
-              --env CUDA_VISIBLE_DEVICES=0
               --env OMP_NUM_THREADS=4
               --env PYTEST_XDIST_AUTO_NUM_WORKERS=${PYTEST_XDIST_AUTO_NUM_WORKERS}
             test: 'tests/test_gpu_openacc.py tests/test_gpu_common.py'
@@ -314,7 +310,6 @@ jobs:
               --memory="${AVAILABLE_MEM}"
               --memory-swap="${AVAILABLE_MEM}"
               --gpus "device=${CUDA_VISIBLE_DEVICES}"
-              --env CUDA_VISIBLE_DEVICES=0
               --env OMP_NUM_THREADS=4
               --env PYTEST_XDIST_AUTO_NUM_WORKERS=${PYTEST_XDIST_AUTO_NUM_WORKERS}
             test: 'tests/test_gpu_openacc.py tests/test_gpu_common.py'
