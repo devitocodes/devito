@@ -9,9 +9,9 @@ from sympy import Symbol
 from devito import (
     MPI, ConditionalDimension, Constant, Dimension, Eq, Function, Grid, IncrDimension,
     Min, Operator, PrecomputedSparseTimeFunction, SparseFunction, SteppingDimension,
-    SubDimension, SubDomain, TimeDimension, TimeFunction, floor, solve
+    SubDimension, SubDomain, TimeDimension, TimeFunction, ceiling, floor, solve
 )
-from devito.data import LEFT, OWNED
+from devito.data import LEFT
 from devito.finite_differences.tools import centered, direct, left, right, transpose
 from devito.ir import (
     Backward, Forward, GuardBound, GuardBoundNext, GuardFactor, GuardOverflow
@@ -28,7 +28,7 @@ from devito.symbolics.unevaluation import Mod
 from devito.tools import EnrichedTuple
 from devito.types import (
     Array, ComponentAccess, CustomDimension, DefaultDimension, DeviceID, FIndexed,
-    Indirection, Lock, NPThreads, PointerArray, PThreadArray, Scalar, SharedData
+    Indirection, Lock, NPThreads, PointerArray, PThreadArray, Region, Scalar, SharedData
 )
 from devito.types import Symbol as dSymbol
 from devito.types import TempFunction, ThreadID, Timer
@@ -905,14 +905,15 @@ class TestOperator:
 
         assert str(op) == str(new_op)
 
-    def test_elemental(self, pickle):
+    @pytest.mark.parametrize('func', [ceiling, floor])
+    def test_elemental(self, pickle, func):
         """
         Tests that elementary functions don't get reconstructed differently.
         """
         grid = Grid(shape=(4, 4))
         f = Function(name='f', grid=grid)
 
-        op = Operator(Eq(f, floor(f + 0.5)))
+        op = Operator(Eq(f, func(f + 0.5)))
 
         pkl_op = pickle.dumps(op)
         new_op = pickle.loads(pkl_op)
@@ -933,6 +934,10 @@ class TestOperator:
         assert obj.name == new_obj.name
         assert obj.pname == new_obj.pname
         assert obj.pfields == new_obj.pfields
+
+        obj = obj._rebuild(name='nbsd')
+        new_obj = pickle.loads(pickle.dumps(obj))
+        assert new_obj.name == 'nbsd'
 
         # Communicator
         obj = grid.distributor._obj_comm
@@ -1009,29 +1014,34 @@ class TestOperator:
         # Region
         x_m, x_M = x.symbolic_min, x.symbolic_max
         y_m, y_M = y.symbolic_min, y.symbolic_max
-        obj = MPIRegion('reg', 1, [y, x],
-                        [(((x, OWNED, LEFT),), {x: (x_m, Min(x_M, x_m))}),
-                         (((y, OWNED, LEFT),), {y: (y_m, Min(y_M, y_m))})])
+        obj = MPIRegion('reg1', 'region1', [y, x],
+                        [{x: (x_m, x_M), y: (y_m, y_M)},
+                         {x: (x_m, Min(x_M, x_m)), y: (y_m, y_M)}])
         pkl_obj = pickle.dumps(obj)
         new_obj = pickle.loads(pkl_obj)
-        assert obj.prefix == new_obj.prefix
-        assert obj.key == new_obj.key
         assert obj.name == new_obj.name
-        assert len(new_obj.arguments) == 2
-        assert all(
-            d0.name == d1.name for d0, d1 in zip(
-                obj.arguments, new_obj.arguments, strict=True
-            )
-        )
-        assert all(new_obj.arguments[i] is new_obj.owned[i][0][0][0]  # `x` and `y`
-                   for i in range(2))
-        assert new_obj.owned[0][0][0][1] is new_obj.owned[1][0][0][1]  # `OWNED`
-        assert new_obj.owned[0][0][0][2] is new_obj.owned[1][0][0][2]  # `LEFT`
-        for n, i in enumerate(new_obj.owned):
-            d, v = list(i[1].items())[0]
-            assert d is new_obj.arguments[n]
-            assert v[0] is d.symbolic_min
-            assert v[1] == Min(d.symbolic_max, d.symbolic_min)
+        assert obj.pname == new_obj.pname
+        assert obj.pfields == new_obj.pfields
+        assert new_obj.nregions == 2
+        assert [d.name for d in obj.arguments] == [d.name for d in new_obj.arguments]
+        for mapper in new_obj.regions:
+            assert set(mapper) == set(new_obj.arguments)
+            for d, values in mapper.items():
+                assert values[0] is d.symbolic_min
+        new_obj._arg_values(args={'x_m': 2, 'x_M': 10, 'y_m': 3, 'y_M': 12})
+        assert new_obj.value[0].x_M == 10
+        assert new_obj.value[1].x_M == 2
+        assert new_obj.value[0].y_M == new_obj.value[1].y_M == 12
+
+    def test_region(self, pickle):
+        x = Dimension(name='x')
+        scale = dSymbol(name='scale', dtype=np.float64)
+        obj = Region('region', 'region_t', (x, scale))
+        new_obj = pickle.loads(pickle.dumps(obj))
+        assert new_obj.pfields == (('scale', ctypes.c_double),
+                                   ('x_m', ctypes.c_int), ('x_M', ctypes.c_int))
+        assert new_obj.arguments[1].symbolic_min is new_obj.symbols[1]
+        assert new_obj.arguments[1].symbolic_max is new_obj.symbols[2]
 
     @pytest.mark.parallel(mode=[(1, 'basic'), (1, 'full')])
     def test_mpi_operator(self, pickle, mode):

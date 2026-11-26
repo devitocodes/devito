@@ -43,7 +43,7 @@ from devito.tools import (
     split, timed_pass, timed_region
 )
 from devito.types import Buffer, Evaluable, device_layer, disk_layer, host_layer
-from devito.types.dimension import SubDimension, Thickness
+from devito.types.dimension import SubDimension, SubsamplingOffset, Thickness
 from devito.warnings import warn
 
 __all__ = ['Operator']
@@ -293,6 +293,8 @@ class Operator(Callable):
 
         expressions = as_tuple(expressions)
 
+        kwargs['sregistry'].reserve(expressions)
+
         # Enable recursive lowering
         # This may be used by a compilation pass that constructs a new
         # expression for which a partial or complete lowering is desired
@@ -413,6 +415,11 @@ class Operator(Callable):
         # Operation count before specialization
         init_ops = sum(estimate_cost(c.exprs) for c in clusters if c.is_dense)
 
+        # Strengthen factor-based ConditionalDimension guards into strided
+        # iteration. Before specialization, so that blocking tiles the swapped
+        # Dimensions
+        clusters = subsampling(clusters)
+
         clusters = cls._specialize_clusters(clusters, **kwargs)
 
         # Operation count after specialization
@@ -422,11 +429,6 @@ class Operator(Callable):
 
         # Generate implicit Clusters from higher level abstractions
         clusters = generate_implicit(clusters)
-
-        # Strengthen factor-based ConditionalDimension guards into strided
-        # iteration. Before `lower_index_derivatives` so that the Dimension
-        # swap is seen by everything downstream
-        clusters = subsampling(clusters)
 
         # Lower all remaining high order symbolic objects
         clusters = lower_local_sums(clusters, **kwargs)
@@ -478,6 +480,11 @@ class Operator(Callable):
         return graph
 
     @classmethod
+    def _finalize_iet(cls, graph, **kwargs):
+        """Backend hook after lowering, before macro and signature extraction."""
+        return graph
+
+    @classmethod
     @timed_pass(name='lowering.uIET')
     def _lower_uiet(cls, stree, profiler=None, **kwargs):
         """
@@ -520,14 +527,16 @@ class Operator(Callable):
         # specialization further Sections may be introduced
         cls._Target.instrument(graph, **kwargs)
 
-        # Extract the necessary macros from the symbolic objects
-        generate_macros(graph, **kwargs)
-
         # Target-specific lowering
         lower_dtypes(graph, **kwargs)
 
         # Target-independent optimizations
         minimize_symbols(graph)
+
+        graph = cls._finalize_iet(graph, **kwargs)
+
+        # Extract macros only after the symbolic objects have their final names
+        generate_macros(graph, **kwargs)
 
         # Finalize helper signatures after all IET transformations have settled.
         finalize_args(graph)
@@ -680,20 +689,24 @@ class Operator(Callable):
 
         # An ArgumentsMap carries additional metadata that may be used by
         # the subsequent phases of the arguments processing
-        args = kwargs['args'] = ArgumentsMap(args, grid, self)
+        args = kwargs['args'] = ArgumentsMap(args, grid, self, discretizations)
 
         if estimate_memory:
             # No need to do anything more if only checking the memory
             return args
 
+        # Process the symbols localized by MPI. A SubDimension's thicknesses are
+        # needed even when they only bound another Dimension, e.g. a subsampled one
+        localized = OrderedSet(*[p for p in self.parameters
+                                 if isinstance(p, (SubsamplingOffset, Thickness))])
+        localized.update(t for d in toposort if isinstance(d, SubDimension)
+                         for t in d.thickness)
+        for p in localized:
+            args.update(p._arg_values(grid=grid, **kwargs))
+
         # Process Dimensions
         for d in reversed(toposort):
             args.update(d._arg_values(self._dspace[d], grid, **kwargs))
-
-        # Process Thicknesses
-        for p in self.parameters:
-            if isinstance(p, Thickness):
-                args.update(p._arg_values(grid=grid, **kwargs))
 
         # Process Objects
         for o in self.objects:
@@ -1342,11 +1355,12 @@ IRs = namedtuple('IRs', 'expressions clusters stree uiet iet')
 
 class ArgumentsMap(dict):
 
-    def __init__(self, args, grid, op):
+    def __init__(self, args, grid, op, discretizations=()):
         super().__init__(args)
 
         self.grid = grid
         self.op = op
+        self.discretizations = tuple(discretizations)
 
     @property
     def comm(self):
@@ -1437,35 +1451,44 @@ class ArgumentsMap(dict):
 
     @cached_property
     def _physical_deviceid(self):
+        """Return the device ID used by the platform's memory query."""
+        deviceid = None
         if isinstance(self.platform, Device):
-            # Get the physical device ID (as CUDA_VISIBLE_DEVICES may be set)
             logical_deviceid = self.get('deviceid', -1)
-            visible_device_var, visible_devices = get_visible_devices()
-            if logical_deviceid < 0:
-                rank = self.comm.Get_rank() if self.comm != MPI.COMM_NULL else 0
-                if visible_devices is None:
-                    logical_deviceid = rank
-                else:
-                    logical_deviceid = rank % len(visible_devices)
-            if visible_devices is None:
-                return logical_deviceid
-            elif len(visible_devices) == 1:
-                # Only one visible device, it's clearly the one we want
-                return visible_devices[0]
-            elif logical_deviceid <= len(visible_devices):
-                # Map the logical device ID to the physical one
-                return visible_devices[logical_deviceid]
-            else:
-                # Logical device ID is out of bounds, likely from oversubscription
-                # Print a warning and map modulo the number of visible devices
-                deviceid = visible_devices[logical_deviceid % len(visible_devices)]
-                warning(f"Logical device ID {logical_deviceid} is out of bounds "
-                        f"for {len(visible_devices)} visible devices"
-                        f" in {visible_device_var}."
-                        f"Mapping to device ID {deviceid} instead.")
-                return visible_devices[logical_deviceid % len(visible_devices)]
-        else:
-            return None
+            rank = (
+                self.comm.Get_rank()
+                if self.options['mpi'] and self.comm != MPI.COMM_NULL else None
+            )
+            bus = self.platform.runtime_pci_bus_id(self.language, logical_deviceid, rank)
+            deviceid = (
+                self.platform.management_deviceid(bus)
+                if bus is not None else self.fallback_deviceid(logical_deviceid, rank)
+            )
+
+        return deviceid
+
+    def fallback_deviceid(self, logical_deviceid, rank):
+        """Resolve a device ID from a visibility mask or the management device count."""
+        visible_device_var, visible_devices = get_visible_devices()
+        visible_count = len(visible_devices) if visible_devices is not None else 0
+        if logical_deviceid == -1 and rank is None:
+            logical_deviceid = 0
+        elif logical_deviceid == -1:
+            count = visible_count or self.platform.numa_domains
+            logical_deviceid = rank % count if count else rank
+
+        deviceid = (
+            visible_devices[logical_deviceid % visible_count]
+            if visible_count else logical_deviceid
+        )
+        if visible_count > 1 and logical_deviceid >= visible_count:
+            warning(
+                f"Logical device ID {logical_deviceid} is out of bounds "
+                f"for {visible_count} visible devices in {visible_device_var}. "
+                f"Mapping to device ID {deviceid} instead."
+            )
+
+        return deviceid
 
     @cached_property
     def nbytes_avail_mapper(self):
@@ -1481,8 +1504,11 @@ class ArgumentsMap(dict):
 
         # The amount of space available on the device
         if isinstance(self.platform, Device):
-            mapper[device_layer] = \
-                self.platform.memavail(deviceid=self._physical_deviceid)
+            deviceid = self._physical_deviceid
+            mapper[device_layer] = (
+                self.platform.memavail(deviceid=deviceid)
+                if deviceid is not None else None
+            )
 
         # The amount of space available on the host
         try:
@@ -1492,11 +1518,9 @@ class ArgumentsMap(dict):
         mapper[host_layer] = int(ANYCPU.memavail() / nproc)
 
         for layer in (host_layer, device_layer):
-            with suppress(KeyError):
-                # Since might not have this layer in the mapper
-                mapper[layer] -= self.nbytes_consumed_operator.get(layer, 0)
-
-        mapper = {k: int(v) for k, v in mapper.items()}
+            if mapper.get(layer) is not None:
+                consumed = self.nbytes_consumed_operator.get(layer, 0)
+                mapper[layer] = int(mapper[layer] - consumed)
 
         return mapper
 

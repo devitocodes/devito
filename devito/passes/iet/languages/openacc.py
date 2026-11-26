@@ -2,8 +2,8 @@ import numpy as np
 
 from devito.arch import AMDGPUX, NVIDIAX
 from devito.ir import (
-    Block, BusyWaitCall, Call, DeviceCall, DummyExpr, EntryFunction, FindSymbols, List,
-    ParallelTree, Pragma, Return, make_callable
+    Block, BusyWaitCall, Call, Conditional, DeviceCall, DummyExpr, EntryFunction,
+    FindSymbols, List, ParallelTree, Pragma, Return, make_callable
 )
 from devito.passes import is_on_device, needs_transfer
 from devito.passes.iet.definitions import DeviceAwareDataManager
@@ -226,7 +226,8 @@ class DeviceAccDataManager(DeviceAwareDataManager):
             return iet, {}
 
         symbols = FindSymbols('basics').visit(iet)
-        functions = [f for f in symbols if needs_transfer(f, self.gpu_fit)]
+        functions = [f for f in FindSymbols().visit(iet)
+                     if needs_transfer(f, self.gpu_fit)]
 
         efuncs = []
         calls = []
@@ -248,7 +249,9 @@ class DeviceAccDataManager(DeviceAwareDataManager):
 
             ret = Return(ctdp)
 
-            body = List(body=[init, dpf, castf, ret])
+            # Empty allocations have no present device address to discover.
+            nbytes = FieldFromPointer(f._C_field_nbytes, f._C_symbol)
+            body = List(body=[init, Conditional(nbytes > 0, dpf), castf, ret])
 
             name = self.sregistry.make_name(prefix='map_device_ptr')
             efuncs.append(make_callable(name, body, retval=hp))

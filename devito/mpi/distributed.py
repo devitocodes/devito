@@ -12,10 +12,11 @@ from sympy import Interval, factorint
 from devito.data import CENTER, LEFT, RIGHT, Decomposition
 from devito.parameters import configuration
 from devito.tools import (
-    EnrichedTuple, as_tuple, ctypes_to_cstr, filter_ordered, frozendict
+    EnrichedTuple, as_tuple, ctypes_to_cstr, filter_ordered, frozendict, is_integer,
+    memoized_meth
 )
 from devito.types import CompositeObject, Constant, Object
-from devito.types.utils import DimensionTuple
+from devito.types.utils import DimensionTuple, GlobalLocal
 
 # Do not prematurely initialize MPI
 # This allows launching a Devito program from within another Python program
@@ -68,6 +69,7 @@ __all__ = [
     'Distributor',
     'SparseDistributor',
     'SubDistributor',
+    'SubGridDistributor',
     'devito_mpi_finalize',
     'devito_mpi_init',
 ]
@@ -212,6 +214,28 @@ class AbstractDistributor(ABC):
         """This rank is empty"""
         return any(d.loc_empty for d in self.decomposition)
 
+    @memoized_meth
+    def subsample(self, dimensions):
+        """
+        The Distributor of the ConditionalDimensions in `dimensions` subsampling
+        those of `self`, or `self` if there are none.
+        """
+        if not self.is_parallel:
+            return self
+
+        subsampled = {d.parent: d for d in dimensions
+                      if d.is_Conditional and d.parent in self.dimensions
+                      and is_integer(d.factor)}
+        if not subsampled:
+            return self
+
+        return SubGridDistributor(
+            self,
+            tuple(subsampled.get(d, d) for d in self.dimensions),
+            tuple(subsampled[d].factor if d in subsampled else 1
+                  for d in self.dimensions)
+        )
+
 
 class DenseDistributor(AbstractDistributor):
 
@@ -300,6 +324,13 @@ class DenseDistributor(AbstractDistributor):
         return tuple(ret)
 
     @cached_property
+    def size_map(self):
+        """Map between Dimensions and their global/local size."""
+        return frozendict({d: GlobalLocal(g, l)
+                           for d, g, l in zip(self.dimensions, self.glb_shape,
+                                              self.shape, strict=True)})
+
+    @cached_property
     def _obj_comm(self):
         """An Object representing the MPI communicator."""
         return MPICommObject(self.comm)
@@ -375,10 +406,15 @@ class Distributor(DenseDistributor):
             self._comm = MPI.COMM_NULL
             self._topology = tuple(1 for _ in range(len(shape)))
 
-        # The domain decomposition
+        self.__decomposition_setup__()
+
+    def __decomposition_setup__(self):
+        """
+        Set up the domain decomposition.
+        """
         self._decomposition = [
             Decomposition(np.array_split(range(i), j), c)
-            for i, j, c in zip(shape, self.topology, self.mycoords, strict=True)
+            for i, j, c in zip(self.glb_shape, self.topology, self.mycoords, strict=True)
         ]
 
     @cached_property
@@ -483,6 +519,53 @@ class Distributor(DenseDistributor):
     def _rebuild(self, shape=None, dimensions=None, comm=None):
         return Distributor(shape or self.shape, dimensions or self.dimensions,
                            comm or self.comm)
+
+
+class SubGridDistributor(Distributor):
+
+    """
+    Decompose a subsampling of a parent Distributor's domain, e.g. a SubGrid, over
+    the parent's MPI processes: a rank owns the subsampled points on its parent
+    points.
+
+    Parameters
+    ----------
+    parent : Distributor
+        The Distributor of the subsampled domain.
+    dimensions : tuple of Dimensions
+        The decomposed Dimensions, one per parent Dimension.
+    factors : tuple of ints
+        The subsampling factor along each Dimension.
+    """
+
+    def __init__(self, parent, dimensions, factors):
+        shape = tuple((n + f - 1)//f
+                      for n, f in zip(parent.glb_shape, factors, strict=True))
+        AbstractDistributor.__init__(self, shape, dimensions)
+
+        self._parent = parent
+        self._factors = tuple(factors)
+
+        # Same processes and topology as the parent, hence the same communicator
+        self._comm = parent.comm
+        self._topology = parent.topology
+
+        self.__decomposition_setup__()
+
+    def __decomposition_setup__(self):
+        """
+        Set up the decomposition, aligned with that of the parent Distributor.
+        """
+        self._decomposition = [
+            Decomposition([d[d % f == 0] // f for d in dec], c)
+            for dec, f, c in zip(self.parent.decomposition, self._factors,
+                                 self.mycoords, strict=True)
+        ]
+
+    @property
+    def parent(self):
+        """The parent distributor of this SubGridDistributor."""
+        return self._parent
 
 
 class SubDistributor(DenseDistributor):
@@ -706,6 +789,14 @@ class SubDistributor(DenseDistributor):
         return ret
 
     @cached_property
+    def _obj_neighborhood(self):
+        # The neighborhood is determined by the SubDomain thicknesses, hence the
+        # name. E.g., `nb_x0_7` for `{x: ('middle', 0, 7), y: y}`
+        name = ''.join(f'_{d.root.name}{d.ltkn.value}_{d.rtkn.value}'
+                       for d in self.dimensions if d.is_Sub)
+        return MPINeighborhood(self.neighborhood, name=f'nb{name}')
+
+    @cached_property
     def rank_populated(self):
         """Constant symbol for a switch indicating that data is allocated on this rank"""
         return Constant(name=f'rank_populated_{self._subdomain_name}', dtype=np.int8,
@@ -852,14 +943,15 @@ class MPICommObject(Object):
 class MPINeighborhood(CompositeObject):
 
     __rargs__ = ('neighborhood',)
+    __rkwargs__ = ('name',)
 
-    def __init__(self, neighborhood):
+    def __init__(self, neighborhood, name='nb'):
         self._neighborhood = neighborhood
 
         self._entries = [i for i in neighborhood if isinstance(i, tuple)]
 
         fields = [(''.join(j.name[0] for j in i), c_int) for i in self.entries]
-        super().__init__('nb', 'neighborhood', fields)
+        super().__init__(name, 'neighborhood', fields)
 
     @property
     def entries(self):
@@ -894,12 +986,11 @@ class MPINeighborhood(CompositeObject):
         return values
 
     def _arg_values(self, *args, **kwargs):
-        grid = kwargs.get('grid')
-        # Update `nb` based on object attached to `grid`
-        if grid is not None:
-            return grid.distributor._obj_neighborhood._arg_defaults()
-        else:
-            return self._arg_defaults()
+        # Use `nb` as provided by the (possibly overriding) Grid or SubDomain.
+        # E.g., an override may be defined on a new Grid
+        if self.name in kwargs.get('args', {}):
+            return {}
+        return self._arg_defaults()
 
 
 class CustomTopology(DimensionTuple):

@@ -6,8 +6,8 @@ from sympy import And, sin, tan
 
 from conftest import assert_structure, opts_tiling
 from devito import (
-    Border, Buffer, ConditionalDimension, Constant, Eq, Function, Grid, Lt, Operator,
-    SparseFunction, SparseTimeFunction, SubDimension, SubDomain, SubDomainSet,
+    Border, Buffer, ConditionalDimension, Constant, Derivative, Eq, Function, Grid, Lt,
+    Operator, SparseFunction, SparseTimeFunction, SubDimension, SubDomain, SubDomainSet,
     TensorFunction, TimeFunction, VectorFunction, solve
 )
 from devito.exceptions import InvalidArgument
@@ -46,7 +46,7 @@ class TestSubDomains:
             # _lower_exprs expects a SymbolRegistry, so create one
             expr = Operator._lower_exprs([eq0], options={},
                                          sregistry=SymbolRegistry())[0]
-        assert str(expr.rhs) == 'ix*f[ix + 1, iy + 1] + iy'
+        assert str(expr.rhs) == 'iy + io_y + (ix + io_x)*f[ix + 1, iy + 1]'
 
     def test_multiple_middle(self):
         """
@@ -283,7 +283,7 @@ class TestSubDomains:
             # _lower_exprs expects a SymbolRegistry, so create one
             expr = Operator._lower_exprs([eq0], options={},
                                          sregistry=SymbolRegistry())[0]
-        assert str(expr.rhs) == 'ix*f[ix + 1, iy + 1] + iy'
+        assert str(expr.rhs) == 'iy + io_y + (ix + io_x)*f[ix + 1, iy + 1]'
 
     @pytest.mark.parallel(mode=2)
     def test_halo_subdomain(self, mode):
@@ -1626,6 +1626,40 @@ class TestSubDomainFunctions:
         assert np.all(np.isclose(fdx.data[:], gdx.data[2:-2, 3:-1]))
         assert np.all(np.isclose(fdy.data[:], gdy.data[2:-2, 3:-1]))
 
+    @pytest.mark.parametrize('s_o', [2, 4])
+    @pytest.mark.parametrize('axis', [0, 1])
+    def test_derivatives_staggered(self, s_o, axis):
+        """
+        Derivatives of Functions on SubDomains can be evaluated at points staggered
+        along the derivative Dimension
+        """
+
+        class Middle(SubDomain):
+
+            name = 'middle'
+
+            def define(self, dimensions):
+                x, y = dimensions
+                return {x: ('middle', 2, 2), y: ('middle', 3, 1)}
+
+        grid = Grid(shape=(10, 10), extent=(9., 9.))
+        d = grid.dimensions[axis]
+        mid = Middle(grid=grid)
+
+        f = Function(name='f', grid=mid, space_order=s_o)
+        g = Function(name='g', grid=grid, space_order=s_o)
+        fd, gd = (Function(name=i, grid=grid, staggered=d) for i in ('fd', 'gd'))
+
+        f.data[:] = np.random.default_rng(0).random(f.shape)
+        g.data[2:-2, 3:-1] = f.data
+
+        Operator([Eq(fd, Derivative(f, d), subdomain=mid),
+                  Eq(gd, Derivative(g, d), subdomain=mid)])()
+
+        # Same stencil, so bitwise identical
+        assert np.any(fd.data != 0)
+        assert np.all(fd.data == gd.data)
+
     def test_operator_shortcuts(self):
         """
         Test that shortcuts for Laplacian, divergence, etc all work with Functions
@@ -1817,6 +1851,81 @@ class TestSubDomainFunctionsParallel:
         assert np.all(h.data == h_check[slices])
         assert np.all(i.data == i_check)
 
+    @pytest.mark.parallel(mode=[(2, 'basic'), (2, 'diag'), (2, 'diag2')])
+    @pytest.mark.parametrize('time_dependent', [False, True])
+    def test_halo_empty_neighbor_mpi(self, mode, time_dependent):
+        """
+        Check that halo exchanges of Functions on SubDomains skip neighboring
+        ranks holding none of the SubDomain, also alongside Grid Functions.
+        The time-dependent case exercises the halo exchanges built within the
+        time loop.
+        """
+        grid = Grid(shape=(11, 11), extent=(10., 10.), topology=(2, 1))
+        # Only held by rank 0
+        reduced_domain = ReducedDomain(('middle', 0, 7), None, grid=grid)
+
+        if time_dependent:
+            f = TimeFunction(name='f', grid=reduced_domain, space_order=2)
+            g = TimeFunction(name='g', grid=grid, space_order=2)
+        else:
+            f = Function(name='f', grid=reduced_domain, space_order=2)
+            g = Function(name='g', grid=grid, space_order=2)
+        fx = Function(name='fx', grid=grid)
+        gx = Function(name='gx', grid=grid)
+
+        # Sentinel, as nothing should be exchanged into the halo of `f`
+        f.data_with_halo[:] = -1
+
+        if time_dependent:
+            eqns = [Eq(f.forward, 1), Eq(g.forward, 1),
+                    Eq(fx, f.forward.dx, subdomain=reduced_domain),
+                    Eq(gx, g.forward.dx)]
+            # Two timesteps, so that both time buffers are written
+            Operator(eqns).apply(time_M=1)
+        else:
+            Operator([Eq(f, 1), Eq(g, 1),
+                      Eq(fx, f.dx, subdomain=reduced_domain), Eq(gx, g.dx)]).apply()
+
+        assert (np.count_nonzero(f.data_with_halo == -1) ==
+                f.data_with_halo.size - f.data.size)
+        assert np.all(gx.data[1:-1] == 0)
+
+    @pytest.mark.parallel(mode=[
+        (2, 'basic'), (2, 'diag'), (2, 'diag2'),
+        # The overlap builders (overlap, overlap2, full) key the CORE/OWNED
+        # regions on the user-level SubDimensions of `u` rather than the
+        # concretized ones in the IET, and override the SubDomain thickness
+        # symbols, which double as index offsets into `u`. Compilation fails
+        # with `ValueError: x_m + x_ltkn is not in list`; fixed separately
+        pytest.param((2, 'full'), marks=pytest.mark.xfail(
+            reason="comp/comm overlap broken for Functions on SubDomains"
+        ))
+    ])
+    def test_halo_empty_neighbor_timeloop_mpi(self, mode):
+        """
+        As `test_halo_empty_neighbor_mpi`, but with the halo exchange within the
+        time loop, hence overlappable, such that the diag2 and full modes are
+        used rather than falling back to basic.
+        """
+        grid = Grid(shape=(11, 11), extent=(10., 10.), topology=(2, 1))
+        # Only held by rank 0
+        reduced_domain = ReducedDomain(('middle', 0, 7), None, grid=grid)
+
+        u = TimeFunction(name='u', grid=reduced_domain, space_order=2)
+        v = TimeFunction(name='v', grid=grid, space_order=2)
+
+        # Sentinel, as nothing should be exchanged into the halo of `u`
+        u.data_with_halo[:] = -1
+
+        Operator([Eq(u.forward, u.dx + 1, subdomain=reduced_domain),
+                  Eq(v.forward, v.dx + 1)]).apply(time_M=1)
+
+        # Rank-local view, as distributed Data rejects boolean masks
+        data = np.asarray(u.data_with_halo)
+        halo = np.ones(data.shape, dtype=bool)
+        halo[u._mask_domain] = False
+        assert np.all(data[halo] == -1)
+
     def set_indices(data):
         """
         Set up individual indices for indexing/slicing check.
@@ -2007,14 +2116,14 @@ class TestSubDomainFunctionsParallel:
                 return {x: ('left', 2), y: y, z: z}
 
         sd1 = SD1(grid=grid)
-        f = TimeFunction(name='f', grid=grid, time_order=1, space_order=2,
-                         staggered=(x,))
+        f = TimeFunction(name='f', grid=grid, time_order=1, space_order=2)
         g = TimeFunction(name='g', grid=sd1, time_order=1, space_order=2,
                          staggered=(x,))
 
         eq = Eq(g, g + f.dx)
         eqe = eq.evaluate
-        assert eqe.rhs == g + f.dx(x0=x).evaluate._subs(x, g.dimensions[1])
+        x0 = x + x.spacing/2
+        assert eqe.rhs == g + f.dx(x0=x0).evaluate._subs(x, g.dimensions[1])
 
 
 class TestSubDomainArguments:
@@ -2403,3 +2512,37 @@ class TestSubDomainArguments:
                 assert np.all(g.data[:8] == 1)
                 assert np.all(g.data[8:-8] == 0)
                 assert np.all(g.data[-8:] == 2)
+
+    @pytest.mark.parallel(mode=[(2, 'overlap2')])
+    @pytest.mark.parametrize('bounds', [{}, {'x_m': 2, 'x_M': 29}])
+    def test_region_arguments(self, mode, bounds):
+        """Packed regions preserve localized thicknesses and their validation."""
+        class CoreY(SubDomain):
+            name = 'core_y'
+
+            def define(self, dimensions):
+                x, y = dimensions
+                return {x: x, y: ('middle', 2, 3)}
+
+        grid = Grid(shape=(32, 64), extent=(31., 63.), topology=(1, 2))
+        region = CoreY(grid=grid)
+
+        u = TimeFunction(name='u', grid=grid, space_order=4)
+
+        eq = Eq(u.forward, u + .01*u.laplace + .125, subdomain=region)
+        op = Operator(eq, name='SubDomainRegionArguments',
+                      opt=('advanced', {'blockinner': True}))
+
+        compute = op._func_table['compute0'].root
+        assert compute.region.fields == ['y_m', 'y_M', 'y_ltkn0', 'y_rtkn0']
+
+        with pytest.raises(InvalidArgument, match='Cannot override SubDimension'):
+            op.arguments(y_ltkn0=4)
+
+        args = op.arguments(time_M=3, **bounds)
+        records = args[compute.region.name]
+
+        # CORE, left OWNED and right OWNED thicknesses after rank localization
+        expected = ([(0, 0), (2, 0), (0, 0)],
+                    [(0, 0), (0, 0), (0, 3)])[grid.distributor.myrank]
+        assert [(r.y_ltkn0, r.y_rtkn0) for r in records] == expected

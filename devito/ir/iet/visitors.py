@@ -18,10 +18,11 @@ from sympy.core.function import Application
 from devito.exceptions import CompilationError
 from devito.ir.cgen.printer import get_printer
 from devito.ir.iet.nodes import (
-    BlankLine, Call, Definition, Expression, ExpressionBundle, Iteration, Lambda,
+    BlankLine, Call, Definition, DoIf, Expression, ExpressionBundle, Iteration, Lambda,
     ListMajor, Node, Section, _same_as_before
 )
 from devito.ir.support.space import Backward
+from devito.ir.support.utils import IMask
 from devito.symbolics import (
     FieldFromComposite, FieldFromPointer, ListInitializer, uxreplace
 )
@@ -1252,6 +1253,11 @@ class FindApplications(LazyVisitor[ApplicationType, set[ApplicationType], None])
     def visit_Expression(self, o: Expression, **kwargs) -> Iterator[ApplicationType]:
         yield from o.expr.find(self.match)
 
+    def visit_DoIf(self, o: DoIf, **kwargs) -> Iterator[ApplicationType]:
+        yield from self._visit(o.children)
+        with suppress(AttributeError):
+            yield from o.condition.find(self.match)
+
     def visit_Iteration(self, o: Iteration, **kwargs) -> Iterator[ApplicationType]:
         yield from self._visit(o.children)
         yield from o.symbolic_min.find(self.match)
@@ -1506,7 +1512,8 @@ class Uxreplace(Transformer):
     def visit_Dereference(self, o):
         pointee = self.mapper.get(o.pointee, o.pointee)
         pointer = self.mapper.get(o.pointer, o.pointer)
-        return reuse_if_unchanged(o, pointee=pointee, pointer=pointer)
+        offset = uxreplace(o.offset, self.mapper)
+        return reuse_if_unchanged(o, pointee=pointee, pointer=pointer, offset=offset)
 
     def visit_Pragma(self, o):
         arguments = [uxreplace(i, self.mapper) for i in o.arguments]
@@ -1528,6 +1535,14 @@ class Uxreplace(Transformer):
                               uxreplace(j, self.mapper)))
             except TypeError:
                 imask.append(uxreplace(v, self.mapper))
+
+        if isinstance(o.imask, IMask):
+            # Snapshot metadata determines the payload size of compressed transfers
+            metadata = {k: uxreplace(v, self.mapper)
+                        for k, v in o.imask.__dict__.items() if k != 'getters'}
+            getters = [uxreplace(d, self.mapper) for d in o.imask.getters]
+            imask = o.imask._rebuild(*imask, getters=getters, **metadata)
+
         return reuse_if_unchanged(o, function=function, imask=imask,
                                   arguments=arguments)
 

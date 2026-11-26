@@ -258,7 +258,7 @@ class Dimension(ArgProvider):
         """Tuple of argument names introduced by the Dimension."""
         return (self.name, self.size_name, self.max_name, self.min_name)
 
-    def _arg_defaults(self, _min=None, size=None, alias=None):
+    def _arg_defaults(self, _min=None, size=None, alias=None, **kwargs):
         """
         A map of default argument values defined by the Dimension.
 
@@ -271,6 +271,8 @@ class Dimension(ArgProvider):
         alias : Dimension, optional
             To get the min/max/size names under which to store values. Use
             self's if None.
+        grid : Grid, optional
+            The Grid of the data-carrying object, if any.
         """
         dim = alias or self
         return {dim.min_name: _min or 0,
@@ -436,7 +438,7 @@ class DefaultDimension(Dimension, DataSymbol):
     def symbolic_size(self):
         return sympy.Number(self._default_value)
 
-    def _arg_defaults(self, _min=None, size=None, alias=None):
+    def _arg_defaults(self, _min=None, size=None, alias=None, **kwargs):
         dim = alias or self
         size = size or dim._default_value
         return {dim.min_name: _min or 0, dim.size_name: size,
@@ -566,6 +568,7 @@ class Thickness(DataSymbol):
     __rkwargs__ = DataSymbol.__rkwargs__ + ('root', 'side', 'local', 'value', 'separated')
 
     def __new__(cls, *args, root=None, side=None, local=False, separated=False, **kwargs):
+        kwargs.setdefault('nonnegative', True)
         newobj = super().__new__(cls, *args, **kwargs)
         newobj._root = root
         newobj._side = side
@@ -625,6 +628,31 @@ class Thickness(DataSymbol):
         mpi_raise(error, InvalidArgument, comm=comm)
 
 
+class RankOffset(Thickness):
+    """
+    The number of points of `root` owned by the MPI ranks before (`side=LEFT`)
+    or after (`side=RIGHT`) this one, that is the offset of this rank from that
+    edge of the Grid. Zero without domain decomposition.
+    """
+
+    def _arg_values(self, grid=None, **kwargs):
+        root = self.root
+        if grid is not None:
+            root = next((d for d in grid.dimensions if d.name == root.name), root)
+
+        if grid is None or not grid.is_distributed(root):
+            return {self.name: 0}
+
+        dec = grid.distributor.decomposition[root]
+        if dec.loc_empty:
+            # No iterations run on an empty rank
+            return {self.name: 0}
+        elif self.side == LEFT:
+            return {self.name: dec.loc_abs_min - dec.glb_min}
+        else:
+            return {self.name: dec.glb_max - dec.loc_abs_max}
+
+
 class AbstractSubDimension(DerivedDimension):
 
     """
@@ -670,11 +698,9 @@ class AbstractSubDimension(DerivedDimension):
 
     @memoized_meth
     def _symbolic_thickness(self, **kwargs):
-        kwargs = {'dtype': np.int32, 'is_const': True, 'nonnegative': True,
-                  'separated': self.separated}
-
         names = [f"{self.parent.name}_{s}tkn" for s in ('l', 'r')]
-        return SubDimensionThickness(*[Thickness(name=n, **kwargs) for n in names])
+        return SubDimensionThickness(*[Thickness(name=n, separated=self.separated)
+                                       for n in names])
 
     @cached_property
     def symbolic_min(self):
@@ -800,9 +826,7 @@ class SubDimension(AbstractSubDimension):
 
     @memoized_meth
     def _symbolic_thickness(self, thickness=None):
-        kwargs = {'dtype': np.int32, 'is_const': True, 'nonnegative': True,
-                  'root': self.root, 'local': self.local,
-                  'separated': self.separated}
+        kwargs = {'root': self.root, 'local': self.local, 'separated': self.separated}
 
         names = [f"{self.parent.name}_{s}tkn" for s in ('l', 'r')]
         sides = [LEFT, RIGHT]
@@ -942,6 +966,59 @@ class SubsamplingFactor(Scalar):
     pass
 
 
+class SubsamplingOffset(DataSymbol):
+
+    """
+    The local index of the first subsampled point on an MPI rank.
+
+    Subsampling is defined on global indices, but a rank need not start on a
+    subsampled point. E.g., with `factor=2` and two ranks:
+
+        global      0  1  2 ... 10 | 11 12 13 14 ... 20
+        local       0  1  2 ... 10 |  0  1  2  3 ...  9
+        subsampled  *  .  * ...  * |  .  *  .  * ...  *
+        offset      0              |     1
+
+    In local indices, `parent = factor*subsampled + offset`.
+    """
+
+    __rkwargs__ = DataSymbol.__rkwargs__ + ('root', 'factor')
+
+    def __new__(cls, *args, root=None, factor=None, **kwargs):
+        newobj = super().__new__(cls, *args, **kwargs)
+        newobj._root = root
+        newobj._factor = factor
+
+        return newobj
+
+    def __init_finalize__(self, *args, **kwargs):
+        kwargs.setdefault('dtype', np.int32)
+        kwargs.setdefault('is_const', True)
+        kwargs.setdefault('nonnegative', True)
+        super().__init_finalize__(*args, **kwargs)
+
+    @property
+    def root(self):
+        return self._root
+
+    @property
+    def factor(self):
+        return self._factor
+
+    def _arg_values(self, grid=None, **kwargs):
+        if grid is None:
+            return {self.name: 0}
+
+        # Runtime arguments bind by name, even when different spacing dtypes
+        # make the compiled and runtime Grid Dimensions distinct symbols
+        grid = grid.root
+        root = next((d for d in grid.dimensions if d.name == self.root.name), None)
+        if root is None:
+            return {self.name: 0}
+
+        return {self.name: -grid.origin_ioffset[root] % self.factor}
+
+
 class ConditionalDimension(DerivedDimension):
 
     """
@@ -971,6 +1048,10 @@ class ConditionalDimension(DerivedDimension):
         lowering for example combining Function's ConditionalDimension with
         an Equation's implicit_dim. All Dimensions within an equation
         must have `Or` relation for the final combined condition to be Or.
+    offset : SubsamplingOffset, optional
+        The intercept of the map onto the parent Dimension, that is
+        ``parent = factor*self + offset``. Defaults to a SubsamplingOffset when
+        subsampling a space Dimension, and to 0 otherwise.
 
     Examples
     --------
@@ -1065,10 +1146,10 @@ class ConditionalDimension(DerivedDimension):
     STRICT = 'strict'
 
     __rkwargs__ = DerivedDimension.__rkwargs__ + \
-        ('factor', 'condition', 'indirect', 'relation')
+        ('factor', 'condition', 'indirect', 'relation', 'offset')
 
     def __init_finalize__(self, name, parent=None, factor=None, condition=None,
-                          indirect=False, relation=sympy.And, **kwargs):
+                          indirect=False, relation=sympy.And, offset=None, **kwargs):
         # `parent=None` degenerates to a ConditionalDimension outside of
         # any iteration space
         if parent is None:
@@ -1087,9 +1168,19 @@ class ConditionalDimension(DerivedDimension):
         else:
             raise ValueError("factor must be an integer")
 
+        self._offset = self.__offset_setup__(offset)
         self._condition = condition
         self._indirect = indirect
         self._relation = relation
+
+    def __offset_setup__(self, offset=None):
+        if offset is not None:
+            return offset
+        # A space Dimension is subsampled on its global indices
+        if not self.is_Space or not is_integer(self._factor):
+            return 0
+        return SubsamplingOffset(name=f'{self.name}o', root=self.root,
+                                 factor=self._factor)
 
     @property
     def is_Injective(self):
@@ -1137,6 +1228,10 @@ class ConditionalDimension(DerivedDimension):
             )
 
     @property
+    def offset(self):
+        return self._offset
+
+    @property
     def condition(self):
         return self._condition
 
@@ -1167,24 +1262,35 @@ class ConditionalDimension(DerivedDimension):
         if isinstance(fact, Constant):
             fact = fact.data
 
+        # The runtime values, those already processed (e.g. rank-local) first
+        runtime = {**kwargs, **args}
+
         vals = {}
+        offset = runtime.get(self.offset.name, 0) if self.offset else 0
+
+        # The parent's bounds, e.g. including a SubDimension's thickness
+        bounds = (self.parent.symbolic_min, self.parent.symbolic_max)
+        values = {s: runtime[s.name] for b in bounds for s in b.free_symbols
+                  if runtime.get(s.name) is not None}
+        parent_min, parent_max = (b.subs(values) for b in bounds)
 
         # The first subsampled point at or after the parent's min...
         with suppress(KeyError, TypeError):
-            vals[self.min_name] = math.ceil(kwargs.get(self.parent.min_name) / fact)
+            vals[self.min_name] = math.ceil((int(parent_min) - offset) / fact)
 
         # ...and the last one at or before its max. Note `floor` rather than
         # `ceil`: with e.g. `factor=3` and `x_M=11` the last subsampled point
         # is `x=9`, hence index 3, while `ceil(11/3) == 4` would overshoot the
         # Function by one
         with suppress(KeyError, TypeError):
-            vals[self.max_name] = kwargs.get(self.parent.max_name) // fact
+            vals[self.max_name] = (int(parent_max) - offset) // fact
+            vals[self.max_name] = min(vals[self.max_name], runtime[self.max_name])
 
         vals[self.symbolic_factor.name] = fact
 
         return vals
 
-    def _arg_defaults(self, _min=None, size=None, alias=None):
+    def _arg_defaults(self, _min=None, size=None, alias=None, grid=None, **kwargs):
         defaults = super()._arg_defaults(_min=_min, size=size, alias=alias)
 
         # We can also add the parent's default endpoint. Note that exactly
@@ -1206,9 +1312,11 @@ class ConditionalDimension(DerivedDimension):
                     raise ValueError(f"Incompatible size for ConditionalDimension "
                                      f"{self.name}: {size} < {size0}")
             else:
-                # Given a factor the last time index is factor*(size - 1)
-                # The maximum allowed value is then factor*size - 1
-                defaults[dim.parent.max_name] = range(d0, d0 + factor*size)
+                # Given a factor the last index is factor*(size - 1) + offset
+                # The maximum allowed value is then factor*size - 1 + offset
+                offset = dim.offset and dim.offset._arg_values(grid=grid)[dim.offset.name]
+                stop = d0 + factor*size + offset
+                defaults[dim.parent.max_name] = range(d0, stop)
 
         return defaults
 

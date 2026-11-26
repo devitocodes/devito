@@ -8,16 +8,19 @@ import sympy
 from devito import (  # noqa
     Dimension, Eq, Function, Grid, Operator, TimeFunction, switchconfig
 )
-from devito.ir import SymbolRegistry
+from devito.data import FULL
+from devito.ir import IMask, SymbolRegistry
 from devito.ir.iet import (
     Call, Callable, CGen, Conditional, Definition, Dereference, DeviceCall, DummyExpr,
-    ElementalFunction, FindNodes, FindSymbols, Iteration, KernelLaunch, Lambda, List,
-    Switch, Transformer, filter_iterations, make_callable, make_efunc,
-    retrieve_iteration_tree
+    ElementalFunction, FindApplications, FindNodes, FindSymbols, Iteration, KernelLaunch,
+    Lambda, List, Switch, Transformer, Uxreplace, filter_iterations, make_callable,
+    make_efunc, retrieve_iteration_tree
 )
 from devito.ir.iet.visitors import sorted_efuncs
+from devito.ir.support import GuardExpr
 from devito.passes.iet.engine import Graph, reuse_efuncs
 from devito.passes.iet.languages.C import CDataManager
+from devito.passes.iet.parpragma import PragmaTransfer
 from devito.symbolics import (
     FLOAT, Byref, Class, FieldFromComposite, InlineIf, ListInitializer, Macro, SizeOf,
     String
@@ -28,6 +31,24 @@ from devito.types import (
     Array, Bundle, CustomDimension, LocalObject, Pointer, Symbol, Temp
 )
 from devito.types.misc import FunctionMap
+
+
+def test_guard_expr_parameters():
+    y = Dimension(name='y')
+    thickness = Symbol(name='thickness')
+    flag = GuardExpr('is_writer', initvalue=y >= y.symbolic_min + thickness)
+    body = Iteration(Conditional(flag, List()), y, (y.symbolic_min, y.symbolic_max, 1))
+
+    efunc = make_efunc('compute', body)
+    assert set(efunc.parameters) == {y.symbolic_min, y.symbolic_max, thickness}
+    assert FindApplications(GuardExpr).visit(efunc) == {flag}
+    assert FindApplications(GuardExpr).visit(Conditional(True, body)) == {flag}
+
+    # The predicate becomes explicit at lowering; no high-level flag remains
+    symbol = Symbol(name=flag.name, dtype=flag.dtype)
+    lowered = Uxreplace({flag: symbol}).visit(body)
+    lowered = List(body=(DummyExpr(symbol, flag.initvalue), lowered))
+    assert not FindApplications(GuardExpr).visit(lowered)
 
 
 @pytest.fixture
@@ -118,6 +139,41 @@ def test_nested_calls_cgen():
     code = CGen().visit(call)
 
     assert str(code) == 'foo(bar());'
+
+
+def test_uxreplace_dereference_offset():
+    d = CustomDimension(name='d', symbolic_size=4)
+    array = Array(name='a0', dimensions=(d,), shape=(4,), scope='shared')
+    pointer = Pointer(name='sm7')
+    old, new = Symbol(name='off7'), Symbol(name='off0')
+    node = Dereference(array, pointer, offset=old + 32)
+
+    replaced = Uxreplace({old: new}).visit(node)
+
+    assert replaced.offset == new + 32
+    assert replaced.pointee is array
+    assert replaced.pointer is pointer
+
+
+@pytest.mark.parametrize('as_range', [False, True])
+def test_uxreplace_transfer_mask(as_range):
+    x, y = Grid(shape=(4, 4)).dimensions
+    array = Array(name='a', dimensions=(x, y), shape=(4, 4))
+    renamed = array._rebuild(name='b')
+    old, new = Symbol(name='slot9'), Symbol(name='slot0')
+    section = (old, 1) if as_range else old
+    imask = IMask(section, FULL, getters=(x, y), function=array,
+                  findex=old + 1, mode='out')
+    node = PragmaTransfer('#pragma acc update self(%s%s)', array, imask=imask)
+
+    replaced = Uxreplace({old: new, array: renamed}).visit(node)
+
+    assert isinstance(replaced.imask, IMask)
+    assert replaced.imask[x] == ((new, 1) if as_range else new)
+    assert replaced.imask[y] is FULL
+    assert replaced.function is replaced.imask.function is renamed
+    assert replaced.imask.findex == new + 1
+    assert replaced.imask.mode == 'out'
 
 
 @pytest.mark.parametrize('mode,expected', [
@@ -542,14 +598,17 @@ def test_codegen_quality0():
     assert foo1.parameters[0] is a
 
 
-def test_reuse_efuncs_natural_numbering():
+@pytest.mark.parametrize('copy_symbols', [False, True])
+def test_reuse_efuncs_natural_numbering(copy_symbols):
 
-    def make_foo(name, start):
+    def make_foo(name, start, copies=False):
         pointers = [Pointer(name=f'p{i}') for i in range(start, start + 3)]
-        return make_callable(name, Call('bar', pointers))
+        aliases = [p._rebuild() for p in pointers] if copies else pointers
+        return make_callable(name, List(body=[Call('bar', pointers),
+                                              Call('bar', aliases)]))
 
     foo0 = make_foo('foo0', 0)
-    foo1 = make_foo('foo1', 9)
+    foo1 = make_foo('foo1', 9, copies=copy_symbols)
 
     root = make_callable('root', List(body=[
         Call(foo0.name, foo0.parameters),
@@ -562,6 +621,21 @@ def test_reuse_efuncs_natural_numbering():
     assert set(efuncs) == {'root', 'foo0'}
     calls = FindNodes(Call).visit(efuncs[root.name])
     assert [i.name for i in calls] == ['foo0', 'foo0']
+
+
+@pytest.mark.parametrize('shared', [False, True])
+def test_reuse_efuncs_constant_arrays(shared):
+    d = Dimension(name='d')
+    a = Array(name='a', dimensions=d, shape=(2,), scope='constant',
+              initvalue=(1, 2))
+    b = a if shared else a._rebuild(name='b')
+    foo0 = make_callable('foo0', Call('consume', (a,)))
+    foo1 = make_callable('foo1', Call('consume', (b,)))
+    root = make_callable('root', List(body=[Call('foo0'), Call('foo1')]))
+    efuncs = reuse_efuncs(root, {i.name: i for i in (root, foo0, foo1)})
+
+    assert len(efuncs) == (2 if shared else 3)
+    assert FindNodes(Call).visit(efuncs['foo0'])[0].arguments == (a,)
 
 
 def test_sorted_efuncs_natural_numbering():

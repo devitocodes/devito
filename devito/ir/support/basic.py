@@ -1008,14 +1008,14 @@ class Scope(CacheInstances):
             if accesses:
                 writes[f] = accesses
 
-        return cls((), rules=is_cross, reads=reads.items(), writes=writes.items())
+        return cls((), rules=is_cross, reads=reads, writes=writes)
 
     @classmethod
     def _preprocess_args(cls, exprs: Expr | Iterable[Expr],
                          **kwargs) -> tuple[tuple, dict]:
         for i in ('reads', 'writes'):
             with suppress(KeyError):
-                kwargs[i] = tuple(kwargs[i])
+                kwargs[i] = tuple((k, as_tuple(v)) for k, v in dict(kwargs[i]).items())
 
         return (as_tuple(exprs),), kwargs
 
@@ -1024,11 +1024,12 @@ class Scope(CacheInstances):
                  reads=None, writes=None) -> None:
         """
         A Scope enables data dependence analysis on a totally ordered sequence
-        of expressions.
+        of expressions. `reads` and `writes`, mappers from objects to
+        TimedAccesses, are accesses performed on top of those in `exprs`.
         """
         self.exprs = exprs
-        self._reads = dict(reads) if reads is not None else None
-        self._writes = dict(writes) if writes is not None else None
+        self._reads = dict(reads or ())
+        self._writes = dict(writes or ())
 
         # A set of rules to drive the collection of dependencies
         self.rules: tuple[Scope.Rule] = as_tuple(rules)  # type: ignore[assignment]
@@ -1067,10 +1068,8 @@ class Scope(CacheInstances):
         """
         Create a mapper from functions to write accesses.
         """
-        if self._writes is not None:
-            return self._writes
-
-        return as_mapper(self.writes_gen(), key=lambda i: i.function)
+        return as_mapper(chain(self.writes_gen(), *self._writes.values()),
+                         key=lambda i: i.function)
 
     @cached_property
     def writes_tensor(self):
@@ -1209,10 +1208,8 @@ class Scope(CacheInstances):
         """
         Create a mapper from functions to read accesses.
         """
-        if self._reads is not None:
-            return self._reads
-
-        return as_mapper(self.reads_gen(), key=lambda i: i.function)
+        return as_mapper(chain(self.reads_gen(), *self._reads.values()),
+                         key=lambda i: i.function)
 
     @cached_property
     def read_only(self):

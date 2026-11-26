@@ -307,15 +307,35 @@ class AbstractSparseFunction(DiscreteFunction):
         """
         max_shape = np.array(self.grid.shape).reshape(1, self.grid.dim)
         minmax = lambda arr: np.minimum(max_shape, np.maximum(0, arr))
-        return np.stack([minmax(self._coords_indices + s) for s in self._point_support],
-                        axis=2)
+        return np.stack([minmax(index + s) for index in self.interpolator._support_indices
+                         for s in self._point_support], axis=2)
 
     @property
     def _dist_datamap(self):
         """
         Mapper ``M : MPI rank -> required sparse data``.
         """
-        return self.grid.distributor.glb_to_rank(self._support) or {}
+        # `_point_increments` is a tensor product: [-r+1, r], or [0, 0] for nearest
+        lower, upper = min(1 - self.r, 0), self.r
+
+        # Optimization: avoid enumerating the stencil (e.g. 512 points for r=4 in 3D).
+        # Keep each staggering's box separate: their union may have gaps.
+        bounds = [(np.clip(index + lower, 0, self.grid.shape),
+                   np.clip(index + upper, 0, self.grid.shape))
+                  for index in self.interpolator._support_indices]
+        ret = {}
+        for rank, ranges in enumerate(self.grid.distributor.all_ranges):
+            if any(not r for r in ranges):
+                continue
+            mins = np.array([r[0] for r in ranges])
+            maxs = np.array([r[-1] for r in ranges])
+            mask = np.zeros(self.npoint, dtype=bool)
+            for low, high in bounds:
+                # Match every axis of a box; any used staggering can qualify
+                mask |= ((low <= maxs) & (high >= mins)).all(axis=1)
+            if mask.any():
+                ret[rank] = np.flatnonzero(mask).tolist()
+        return ret
 
     @property
     def npoint(self):
@@ -1004,10 +1024,11 @@ class SparseFunction(AbstractSparseFunction):
         return tuple(mapper.get(d) for d in self.dimensions)
 
     def _arg_defaults(self, alias=None, estimate_memory=False):
+        key = alias or self
+        self.interpolator._shifts_used.update(key.interpolator._shifts_used)
         defaults = super()._arg_defaults(alias=alias, estimate_memory=estimate_memory)
         if estimate_memory:
             return defaults
-        key = alias or self
         coords = defaults.get(key.coordinates.name, self.coordinates.data)
         defaults.update(key.interpolator._arg_defaults(coords=coords,
                                                        sfunc=self))

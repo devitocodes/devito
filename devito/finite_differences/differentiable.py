@@ -7,7 +7,7 @@ import sympy
 from sympy.core.add import _addsort
 from sympy.core.decorators import call_highest_priority
 from sympy.core.evalf import evalf_table
-from sympy.core.mul import _keep_coeff, _mulsort
+from sympy.core.mul import _mulsort
 
 try:
     from sympy.core.core import ordering_of_classes
@@ -22,7 +22,7 @@ from devito.finite_differences.tools import coeff_priority, make_shift_x0
 from devito.logger import warning
 from devito.tools import (
     Pickable, Tag, as_tuple, extract_dtype, filter_ordered, flatten, frozendict,
-    infer_dtype, is_integer, is_number, memoized_func, split
+    infer_dtype, infer_dtype_from_args, is_integer, is_number, memoized_func, split
 )
 from devito.types import Array, DimensionTuple, Evaluable, StencilDimension
 from devito.types.basic import AbstractFunction, Indexed
@@ -591,6 +591,11 @@ class DifferentiableOp(Differentiable):
 
         return obj
 
+    @cached_property
+    def dtype(self):
+        # Typed operands may carry vector types or casts absent from `_functions`
+        return infer_dtype_from_args(self.args)
+
     def subs(self, *args, **kwargs):
         return self.func(
             *[getattr(a, 'subs', lambda x: a)(*args, **kwargs)  # noqa: B023
@@ -723,7 +728,8 @@ class Mul(DifferentiableOp, sympy.Mul):
             if a.is_Rational:
                 r, b = b.as_coeff_Mul()
                 if r is sympy.S.One and type(b) is Add:
-                    return Add(*[_keep_coeff(a, bi) for bi in b.args], evaluate=False)
+                    return Add(*[cls(a, bi, evaluate=False) for bi in b.args],
+                               evaluate=False)
         except (AttributeError, ValueError):
             pass
 
@@ -898,7 +904,7 @@ class RealComplexPart(ComplexPart):
 
     @cached_property
     def dtype(self):
-        dtype = extract_dtype(self)
+        dtype = extract_dtype(self.args[0])
         return dtype(0).real.__class__
 
 
@@ -1320,6 +1326,10 @@ class IndexDerivative(IndexSum):
     @cached_property
     def pivot(self):
         return self.base.subs({d: 0 for d in self.dimensions})
+
+    @cached_property
+    def dtype(self):
+        return extract_dtype(self.expr)
 
     @property
     def weights(self):

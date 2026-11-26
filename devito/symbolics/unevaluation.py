@@ -1,7 +1,7 @@
 import sympy
 from sympy import sympify
 
-__all__ = ['Add', 'Mod', 'Mul', 'Pow']
+__all__ = ['Add', 'Mod', 'Mul', 'Pow', 'ceiling', 'floor']
 
 
 class UnevaluableMixin:
@@ -38,3 +38,11 @@ class Pow(sympy.Pow, UnevaluableMixin):
             return sympy.S.One
         else:
             return cls.__base__.__new__(cls, base, exp, evaluate=False, **kwargs)
+
+
+class ceiling(sympy.ceiling, UnevaluableMixin):
+    __new__ = UnevaluableMixin.__new__
+
+
+class floor(sympy.floor, UnevaluableMixin):
+    __new__ = UnevaluableMixin.__new__

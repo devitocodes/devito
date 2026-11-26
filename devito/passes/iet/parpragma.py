@@ -17,7 +17,7 @@ from devito.passes.iet.engine import iet_pass
 from devito.passes.iet.langbase import (
     DeviceAwareMixin, LangBB, LangTransformer, ShmTransformer, make_sections_from_imask
 )
-from devito.symbolics import INT, as_long
+from devito.symbolics import INT, FieldFromPointer, as_long
 from devito.tools import as_tuple, flatten, is_integer, prod
 from devito.types import Symbol
 
@@ -589,14 +589,13 @@ class PragmaDeviceAwareTransformer(DeviceAwareMixin, PragmaShmTransformer):
         if not parregion.is_Affine or any(i.dim.is_AbstractSub for i in tree):
             cond.extend([i.symbolic_size > 0 for i in tree])
 
-        # SparseFunctions may occasionally degenerate to zero-size arrays. In such
-        # a case, a copy-in produces a `nil` pointer on the device. To fire up a
-        # parallel loop we must ensure none of the SparseFunction pointers are `nil`
+        # SparseFunctions and Functions on SubDomains may have empty storage.
+        # A zero-size copy-in gives no device pointer for a `present` clause
         symbols = FindSymbols().visit(parregion)
-        sfs = [i for i in symbols if i.is_SparseFunction]
-        if sfs:
-            size = [prod(f._C_get_field(FULL, d).size for d in f.dimensions) for f in sfs]
-            cond.extend([i > 0 for i in size])
+        functions = [f for f in symbols if f.is_SparseFunction or
+                     (f.is_AbstractFunction and f._is_on_subdomain)]
+        nbytes = [FieldFromPointer(f._C_field_nbytes, f._C_symbol) for f in functions]
+        cond.extend([i > 0 for i in nbytes])
 
         # Drop dynamically evaluated conditions (e.g. because the `symbolic_size`
         # is an integer value rather than a symbol). This avoids ugly and

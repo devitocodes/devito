@@ -308,7 +308,7 @@ class Fusion(Queue):
             for n1, cg1 in enumerate(cgroups[n+1:], start=n+1):
                 fenced = fenced or cg1.scope.has_barrier
 
-                hazard = _fusion_hazards(cg0.scope, cg1.scope, prefix)
+                hazard = _fusion_hazards(cg0.sync_scope, cg1.sync_scope, prefix)
                 if not (hazard or fenced):
                     continue
 

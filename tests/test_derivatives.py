@@ -14,7 +14,11 @@ from devito.finite_differences.differentiable import (
     IndexSum, Weights, interp_for_fd
 )
 from devito.finite_differences.finite_difference import _PRECISION
-from devito.symbolics import indexify, retrieve_indexed
+from devito.ir import Cluster, SymbolRegistry
+from devito.passes.clusters.derivatives import _lower_index_derivatives
+from devito.symbolics import DefFunction, ListInitializer, indexify, retrieve_indexed
+from devito.tools import dtypes_vector_mapper
+from devito.types import Array, Temp
 from devito.types.dimension import StencilDimension
 from devito.types.grid import DerivedSubDomain
 from devito.warnings import DevitoWarning
@@ -1191,6 +1195,56 @@ class TestTwoStageEvaluation:
         assert IndexDerivative(vi0*w, {x: i},
                                properties=idxder1.properties) == vi1
 
+    @pytest.mark.parametrize('width', [1, 2])
+    @pytest.mark.parametrize('reuse', [False, True])
+    def test_index_derivative_vector(self, width, reuse):
+        grid = Grid((10,))
+        x, = grid.dimensions
+        i = StencilDimension('i', 0, 2)
+        dtype = dtypes_vector_mapper[np.float32, width]
+        v = Temp(name='v', dtype=dtype)
+        w = Weights(name='w', dimensions=i, initvalue=[-1., 0., 1.])
+        ideriv = IndexDerivative(w[i]*v, {x: i})
+
+        assert ideriv._rebuild() == ideriv
+        assert ideriv.dtype == dtype
+        replacement = Temp(name='replacement', dtype=np.float64)
+        assert ideriv.xreplace({v: replacement}).dtype == np.float64
+
+        if reuse:
+            out = Temp(name='out', dtype=dtype)
+        else:
+            out = Array(name='out', dimensions=(x,), shape=(10,), dtype=dtype)[x]
+
+        # Exercise the generic reduction lowering without a vector-arithmetic backend
+        clusters, _, _ = _lower_index_derivatives(
+            [Cluster(Eq(out, ideriv))], sregistry=SymbolRegistry(), subs={}
+        )
+        init = clusters[0].exprs[0]
+        increment = clusters[1].exprs[0]
+        assert init.lhs.dtype == dtype
+        expected = 0 if width == 1 else ListInitializer(0, 0)
+        assert init.rhs == expected
+        assert increment.lhs == init.lhs
+        assert (init.lhs == out) == reuse
+
+    def test_index_derivative_incompatible_reuse(self):
+        grid = Grid((10,))
+        x, = grid.dimensions
+        i = StencilDimension('i', 0, 2)
+        v = Temp(name='v', dtype=np.float32)
+        out = Temp(name='out', dtype=dtypes_vector_mapper[np.float32, 2])
+        w = Weights(name='w', dimensions=i, initvalue=[-1., 0., 1.])
+        ideriv = IndexDerivative(w[i]*v, {x: i})
+
+        # A vector result cannot be reused for a scalar reduction in one component
+        expr = Eq(out, DefFunction('pack', (ideriv, 0)))
+        clusters, _, _ = _lower_index_derivatives(
+            [Cluster(expr)], sregistry=SymbolRegistry(), subs={}
+        )
+        init = clusters[0].exprs[0]
+        assert init.lhs != out and init.lhs.dtype == np.float32
+
     def test_dx2(self):
         grid = Grid(shape=(4, 4))
 
@@ -1807,7 +1861,7 @@ class TestHaloZero:
 
         assert self.dot_test(grid, subdomain, 'dy', 8, opt=opt) < 1e-12
 
-    @pytest.mark.parametrize('deriv', ['dx', 'dy'])
+    @pytest.mark.parametrize('deriv', ['dx', 'dy', 'dxdy'])
     def test_adjoint_2d(self, deriv):
         grid = Grid(shape=(20, 22), extent=(19., 21.), dtype=np.float64)
         subdomain = Region('s', {'x': ('left', 6), 'y': ('middle', 4, 5)}, grid=grid)
@@ -1834,6 +1888,59 @@ class TestHaloZero:
         assert np.linalg.norm(ref.data) > 0
         assert np.allclose(out.data, ref.data, rtol=1e-12, atol=1e-12)
 
+    @pytest.mark.parametrize('region, inside', [
+        (('left', 6), slice(None, 6)), (('right', 6), slice(18, None)),
+        (('middle', 0, 6), slice(None, 18)), (('middle', 6, 0), slice(6, None)),
+        (('left', 24), slice(None)), (('right', 24), slice(None))
+    ])
+    @pytest.mark.parametrize('transpose', [False, True])
+    def test_grid_edge(self, region, inside, transpose):
+        """
+        The halo past an edge of the Grid is read as without `halo=0`, e.g. as
+        written by a mirror, while the argument is still zero past the other bound.
+        """
+        grid = Grid(shape=(24,), extent=(23.,), dtype=np.float64)
+        subdomain = Region('s', {'x': region}, grid=grid)
+        kwargs = {'grid': grid, 'space_order': 4, 'dtype': np.float64}
+        g = Function(name='g', **kwargs)
+        g_zero = Function(name='g_zero', **kwargs)
+        out = Function(name='out', **kwargs)
+        ref = Function(name='ref', **kwargs)
+
+        # Non-zero everywhere, halo included. The reference keeps only S and the
+        # halo past the Grid edge it touches
+        g.data_with_halo[:] = np.random.default_rng(2).normal(size=g.shape_with_halo)
+        h = g._size_halo[grid.dimensions[0]].left
+        kept = slice(None if inside.start is None else inside.start + h,
+                     None if inside.stop is None else inside.stop + h)
+        g_zero.data_with_halo[kept] = g.data_with_halo[kept]
+
+        deriv, deriv_ref = g.dx(halo=0), g_zero.dx
+        if transpose:
+            deriv, deriv_ref = deriv.T, deriv_ref.T
+        # The reference everywhere, as the `halo=0` derivative extends past S
+        Operator([Eq(out, deriv, subdomain=subdomain), Eq(ref, deriv_ref)]).apply()
+
+        assert np.linalg.norm(ref.data) > 0
+        assert np.allclose(out.data, ref.data, rtol=1e-12, atol=1e-12)
+
+    @pytest.mark.parametrize('region', [('left', 0), ('right', 0), ('middle', 0, 24),
+                                        ('middle', 24, 0)])
+    @pytest.mark.parametrize('transpose', [False, True])
+    def test_empty_subdomain(self, region, transpose):
+        """An empty SubDomain does not read the halo past the Grid edges"""
+        grid = Grid(shape=(24,), extent=(23.,), dtype=np.float64)
+        subdomain = Region('s', {'x': region}, grid=grid)
+        kwargs = {'grid': grid, 'space_order': 4, 'dtype': np.float64}
+        g = Function(name='g', **kwargs)
+        out = Function(name='out', **kwargs)
+        g.data_with_halo[:] = np.random.default_rng(2).normal(size=g.shape_with_halo)
+
+        deriv = g.dx(halo=0).T if transpose else g.dx(halo=0)
+        Operator(Eq(out, deriv, subdomain=subdomain)).apply()
+
+        assert np.all(out.data == 0)
+
     def test_default_unchanged(self):
         """
         Without `halo=0`, `.T` in a SubDomain equation is the full-grid transpose
@@ -1841,7 +1948,7 @@ class TestHaloZero:
         """
         grid = Grid(shape=(24,), extent=(23.,), dtype=np.float64)
         subdomain = Region('s', {'x': ('middle', 7, 9)}, grid=grid)
-        kwargs = {'grid': grid, 'space_order': 4, 'dtype': np.float64}
+        kwargs = {'grid': grid, 'space_order': 4}
         g_bar = Function(name='g_bar', **kwargs)
         ref = Function(name='ref', **kwargs)
         out_bar = Function(name='out_bar', **kwargs)
@@ -1873,7 +1980,7 @@ class TestHaloZero:
     def test_no_subdomain(self):
         """Without a SubDomain, halo=0 has no effect."""
         grid = Grid(shape=(16,), extent=(15.,), dtype=np.float64)
-        kwargs = {'grid': grid, 'space_order': 4, 'dtype': np.float64}
+        kwargs = {'grid': grid, 'space_order': 4}
         f = Function(name='f', **kwargs)
         g = Function(name='g', **kwargs)
         ref = Function(name='ref', **kwargs)
@@ -1912,7 +2019,7 @@ class TestHaloZero:
         """
         grid = Grid(shape=(24,), extent=(23.,), dtype=np.float64)
         subdomain = Region('s', {'x': ('middle', 7, 9)}, grid=grid)
-        kwargs = {'grid': grid, 'space_order': 4, 'dtype': np.float64}
+        kwargs = {'grid': grid, 'space_order': 4}
         f, g, c, out, ref = (Function(name=n, **kwargs)
                              for n in ('f', 'g', 'c', 'out', 'ref'))
         rng = np.random.default_rng(8)
@@ -1933,7 +2040,7 @@ class TestHaloZero:
         """
         grid = Grid(shape=(24,), extent=(23.,), dtype=np.float64)
         subdomain = Region('s', {'x': ('middle', 7, 9)}, grid=grid)
-        kwargs = {'grid': grid, 'space_order': 4, 'dtype': np.float64}
+        kwargs = {'grid': grid, 'space_order': 4}
         f, g, c, d, out = (Function(name=n, **kwargs)
                            for n in ('f', 'g', 'c', 'd', 'out'))
         rng = np.random.default_rng(9)
@@ -1954,7 +2061,7 @@ class TestHaloZero:
         """
         grid = Grid(shape=(12, 14), extent=(11., 13.), dtype=np.float64)
         subdomain = Region('s', {'x': ('left', 5)}, grid=grid)
-        kwargs = {'grid': grid, 'space_order': 4, 'dtype': np.float64}
+        kwargs = {'grid': grid, 'space_order': 4}
         f = Function(name='f', **kwargs)
         c = VectorFunction(name='c', staggered=(None, None), **kwargs)
         w = VectorFunction(name='w', staggered=(None, None), **kwargs)
@@ -1980,7 +2087,7 @@ class TestHaloZero:
         grid = Grid(shape=(14, 16), extent=(13., 15.), dtype=np.float64)
         x, y = grid.dimensions
         subdomain = Region('s', {'x': ('left', 5), 'y': ('middle', 4, 5)}, grid=grid)
-        kwargs = {'grid': grid, 'space_order': 4, 'dtype': np.float64}
+        kwargs = {'grid': grid, 'space_order': 4}
         p = Function(name='p', **kwargs)
         p_bar = Function(name='p_bar', **kwargs)
         v = VectorFunction(name='v', **kwargs)
@@ -2003,7 +2110,7 @@ class TestHaloZero:
         """halo=0 along a Dimension the SubDomain spans has no effect."""
         grid = Grid(shape=(12, 14), extent=(11., 13.), dtype=np.float64)
         subdomain = Region('s', {'x': ('left', 5)}, grid=grid)
-        kwargs = {'grid': grid, 'space_order': 4, 'dtype': np.float64}
+        kwargs = {'grid': grid, 'space_order': 4}
         f = Function(name='f', **kwargs)
         g = Function(name='g', **kwargs)
         ref = Function(name='ref', **kwargs)

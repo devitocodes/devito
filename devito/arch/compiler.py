@@ -5,7 +5,7 @@ from contextlib import suppress
 from functools import partial
 from hashlib import sha1
 from itertools import filterfalse
-from os import environ, makedirs, path
+from os import environ, path
 from subprocess import DEVNULL, PIPE, CalledProcessError, check_call, check_output, run
 
 import numpy.ctypeslib as npct
@@ -346,9 +346,10 @@ class Compiler(GCCToolchain, Signer):
             debug(f"{self}: `{sofile.name}` was not saved in `{self.get_jit_dir()}`"
                   " as it already exists")
         else:
-            makedirs(self.get_jit_dir(), exist_ok=True)
-            with open(str(sofile), 'wb') as f:
-                f.write(binary)
+            # MPI ranks may restore the same Operator concurrently. Publish
+            # only a complete binary: dlopen of a visible partial ELF can
+            # raise SIGBUS rather than a recoverable loader exception.
+            atomic_write(sofile, binary, mode='wb', overwrite=False)
             debug(f"{self}: `{sofile.name}` successfully saved in `{self.get_jit_dir()}`")
 
     def make(self, loc, args):

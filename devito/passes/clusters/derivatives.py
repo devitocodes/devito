@@ -6,9 +6,10 @@ from sympy import S
 from devito.finite_differences import IndexDerivative, Weights
 from devito.ir import Backward, Forward, Interval, IterationSpace, Queue
 from devito.passes.clusters.fusion import fuse
-from devito.symbolics import BasicWrapperMixin, reuse_if_untouched, search, uxreplace
-from devito.symbolics.inspection import sympy_dtype
-from devito.tools import infer_dtype, timed_pass
+from devito.symbolics import (
+    BasicWrapperMixin, ListInitializer, reuse_if_untouched, search, uxreplace
+)
+from devito.tools import dtype_len, extract_dtype, infer_dtype, timed_pass
 from devito.types import Eq, Inc, Indexed, Symbol, Temp
 
 __all__ = ['lower_index_derivatives']
@@ -173,19 +174,22 @@ def _(expr, c, ispace, weights, reusables, mapper, **kwargs):
 
     # The temporary that will hold the result of the IndexDerivative computation
     # NOTE: created before recursing so that we ultimately get a sound ordering
-    dtype = sympy_dtype(ideriv)
-    try:
-        s = reusables.pop()
-        assert np.can_cast(s.dtype, dtype)
-    except KeyError:
+    dtype = ideriv.dtype
+    s = next((s for s in reusables if np.can_cast(s.dtype, dtype)), None)
+    if s is None:
         name = sregistry.make_name(prefix='r')
         s = Temp(name=name, dtype=dtype)
+    else:
+        reusables.remove(s)
 
     # Go inside `expr` and recursively lower any nested IndexDerivatives
     expr, processed = _core(expr, c, ispace1, weights, reusables, mapper, **kwargs)
 
     # Finally inject the lowered IndexDerivative
     if init is not None:
+        # Broadcast scalar initializers; folded centre terms may already be vectors
+        if (n := dtype_len(dtype)) > 1 and dtype_len(extract_dtype(init)) == 1:
+            init = ListInitializer(*([init]*n))
         expr0 = Eq(s, init)
         processed.insert(0, c.rebuild(exprs=expr0, ispace=ispace))
 

@@ -1,5 +1,4 @@
 import math
-from collections import namedtuple
 from functools import cached_property
 from itertools import product
 
@@ -11,21 +10,18 @@ from devito.data import CENTER, LEFT, RIGHT
 from devito.deprecations import deprecations
 from devito.finite_differences.elementary import Max, Min
 from devito.logger import warning
-from devito.mpi import MPI, Distributor, SubDistributor
-from devito.tools import ReducerMap, as_tuple, frozendict, is_integer
+from devito.mpi import MPI, Distributor, SubDistributor, SubGridDistributor
+from devito.tools import ReducerMap, as_fp64_decimal, as_tuple, frozendict, is_integer
 from devito.types.args import ArgProvider
 from devito.types.basic import Scalar
 from devito.types.dense import Function
 from devito.types.dimension import (
-    ConditionalDimension, DefaultDimension, Dimension, MultiSubDimension, SpaceDimension,
-    Spacing, SteppingDimension, SubDimension, TimeDimension
+    ConditionalDimension, DefaultDimension, Dimension, MultiSubDimension, RankOffset,
+    SpaceDimension, Spacing, SteppingDimension, SubDimension, TimeDimension
 )
-from devito.types.utils import DimensionTuple
+from devito.types.utils import DimensionTuple, GlobalLocal
 
 __all__ = ['Border', 'Grid', 'SubDomain', 'SubDomainSet', 'SubGrid']
-
-
-GlobalLocal = namedtuple('GlobalLocal', 'glb loc')
 
 
 class CartesianDiscretization:
@@ -193,7 +189,7 @@ class Grid(CartesianDiscretization, ArgProvider):
                 self._topology = None
         else:
             self._topology = None
-        self._distributor = Distributor(shape, dimensions, comm, self._topology)
+        self._distributor = self.__distributor_setup__(shape, dimensions, comm)
 
         # The physical extent and grid spacing
         if spacing is not None:
@@ -212,6 +208,8 @@ class Grid(CartesianDiscretization, ArgProvider):
         self._origin_symbols = tuple(Scalar(name=f'o_{d.name}', dtype=dtype,
                                             is_const=True)
                                      for d in self.dimensions)
+        self._origin_isymbols = tuple(RankOffset(name=f'io_{d.name}', side=LEFT, root=d)
+                                      for d in self.dimensions)
 
         # Sanity check
         assert (self.dim == len(self.origin) == len(self.extent) == len(self.spacing))
@@ -252,6 +250,11 @@ class Grid(CartesianDiscretization, ArgProvider):
         """Physical coordinates of the domain origin."""
         return self._origin
 
+    @cached_property
+    def _origin_fp64(self):
+        """Origin in fp64, preserving the grid's decimal values."""
+        return np.array([as_fp64_decimal(o) for o in self.origin])
+
     @property
     def origin_symbols(self):
         """Symbols representing the grid origin in each SpaceDimension."""
@@ -263,9 +266,19 @@ class Grid(CartesianDiscretization, ArgProvider):
         return dict(zip(self.origin_symbols, self.origin, strict=True))
 
     @property
+    def origin_isymbols(self):
+        """Symbols representing the global index of the rank's first grid point."""
+        return self._origin_isymbols
+
+    @property
+    def origin_imap(self):
+        """Map between index origin symbols and their values."""
+        return dict(zip(self.origin_isymbols, self.origin_ioffset, strict=True))
+
+    @property
     def origin_ioffset(self):
         """Offset index of the local (per-process) origin from the domain origin."""
-        grid_origin = [min(i) for i in self.distributor.glb_numb]
+        grid_origin = [i.start for i in self.distributor.glb_slices.values()]
         assert len(grid_origin) == len(self.spacing)
         return DimensionTuple(*grid_origin, getters=self.dimensions)
 
@@ -312,6 +325,11 @@ class Grid(CartesianDiscretization, ArgProvider):
             return self._spacing
         spacing = (np.array(self.extent) / (np.array(self.shape) - 1)).astype(self.dtype)
         return as_tuple(spacing)
+
+    @cached_property
+    def _spacing_fp64(self):
+        """Spacing in fp64, preserving the grid's decimal values."""
+        return np.array([as_fp64_decimal(h) for h in self.spacing])
 
     @cached_property
     def spacing_symbols(self):
@@ -402,10 +420,10 @@ class Grid(CartesianDiscretization, ArgProvider):
         args.update({k.name: v for k, v in self.origin_map.items()})
 
         # MPI-related objects
-        if self.distributor.is_parallel:
+        if self.distributor.comm:
             distributor = self.distributor
             args[distributor._obj_comm.name] = distributor._obj_comm.value
-            args[distributor._obj_neighborhood.name] = distributor._obj_neighborhood.value
+            args.update(distributor._obj_neighborhood._arg_defaults())
 
         return args
 
@@ -416,6 +434,9 @@ class Grid(CartesianDiscretization, ArgProvider):
         values.update({i: kwargs[i] for i in self._arg_names if i in kwargs})
 
         return values
+
+    def __distributor_setup__(self, shape, dimensions, comm):
+        return Distributor(shape, dimensions, comm, self._topology)
 
     def __getstate__(self):
         state = self.__dict__.copy()
@@ -509,8 +530,7 @@ class SubGrid(Grid):
             )
 
         dimensions = tuple(
-            d if f == 1 else ConditionalDimension(f'{d.name}{name}', parent=d,
-                                                  factor=f)
+            d if f == 1 else ConditionalDimension(f'{d.name}{name}', parent=d, factor=f)
             for d, f in zip(parent.dimensions, factors, strict=True)
         )
 
@@ -536,6 +556,9 @@ class SubGrid(Grid):
         # SubGrid coarsens space only, so a TimeFunction on it must step over
         # the very same buffer indices as one on the parent
         self._stepping_dim = parent.stepping_dim
+
+    def __distributor_setup__(self, shape, dimensions, comm):
+        return SubGridDistributor(self.parent.distributor, dimensions, self._factors)
 
     @classmethod
     def __factors_setup__(cls, parent, factor):
@@ -721,11 +744,17 @@ class AbstractSubDomain(CartesianDiscretization):
 
     def _arg_values(self, **kwargs):
         try:
-            return self.grid._arg_values(**kwargs)
+            values = self.grid._arg_values(**kwargs)
         except AttributeError as e:
             raise AttributeError(
                 f'{self} is not attached to a Grid and has no _arg_values'
             ) from e
+
+        # The SubDomain neighborhood, used by the Functions defined on it
+        if self.distributor.comm:
+            values.update(self.distributor._obj_neighborhood._arg_values(**kwargs))
+
+        return values
 
 
 class SubDomain(AbstractSubDomain):
@@ -902,7 +931,11 @@ class SubDomain(AbstractSubDomain):
         """
         1 if the point `offset` points away from the current one along `dim` lies
         in this SubDomain, 0 otherwise, computed without branching. Always 1 if
-        this SubDomain spans all of `dim`.
+        this SubDomain spans all of `dim`. As `dim` used as a value is a global
+        index, the test is against the global bounds, which may lie beyond this
+        rank. A bound on an edge of the Grid is not tested, so that the halo past
+        it is read as it would be without this SubDomain, e.g. as written by a
+        mirror.
 
         Parameters
         ----------
@@ -915,8 +948,23 @@ class SubDomain(AbstractSubDomain):
         if not maybe_subdim.is_Sub:
             return sympy.S.One
         point = dim + offset
-        return (Max(0, Min(1, point - maybe_subdim.symbolic_min + 1)) *
-                Max(0, Min(1, maybe_subdim.symbolic_max - point + 1)))
+
+        # The points between this SubDomain and each Grid edge
+        n = self.grid.shape[self.grid.dimensions.index(dim)]
+        lgap, rgap = (i.value for i in maybe_subdim.thickness)
+        if maybe_subdim.is_left:
+            lgap, rgap = 0, n - lgap
+        elif maybe_subdim.is_right:
+            lgap, rgap = n - rgap, 0
+        # Both bounds of an empty SubDomain are tested, so no point is in it
+        empty = lgap + rgap >= n
+
+        indicator = sympy.S.One
+        if lgap > 0 or empty:
+            indicator *= Max(0, Min(1, point - lgap + 1))
+        if rgap > 0 or empty:
+            indicator *= Max(0, Min(1, n - rgap - point))
+        return indicator
 
     def _restrict(self, expr, exclude=()):
         """

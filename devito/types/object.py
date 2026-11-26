@@ -1,5 +1,6 @@
 from contextlib import suppress
 from ctypes import byref
+from functools import cached_property
 
 import sympy
 
@@ -9,7 +10,7 @@ from devito.types.basic import Basic, LocalType
 from devito.types.caching import Uncached
 from devito.types.utils import CtypesFactory
 
-__all__ = ['CompositeObject', 'LocalObject', 'Object']
+__all__ = ['CompositeObject', 'LocalObject', 'Object', 'Region']
 
 
 class AbstractObject(Basic, sympy.Basic, Pickable):
@@ -155,6 +156,40 @@ class CompositeObject(Object):
     @property
     def fields(self):
         return [i for i, _ in self.pfields]
+
+
+class Region(CompositeObject):
+
+    """
+    Bounds and scalar controls for an elemental iteration space.
+    """
+
+    __rargs__ = ('name', 'pname', 'arguments')
+
+    def __init__(self, name, pname, arguments):
+        # Sorting for deterministic code generation
+        self.arguments = tuple(sorted(arguments, key=lambda i: i.name))
+
+        super().__init__(name, pname, self.__pfields_setup__(self.arguments))
+
+    @classmethod
+    def __pfields_setup__(cls, arguments):
+        return tuple((i.name, i._C_ctype) for i in cls.__symbols_setup__(arguments))
+
+    @classmethod
+    def __symbols_setup__(cls, arguments):
+        symbols = []
+        for i in sorted(arguments, key=lambda i: i.name):
+            if i.is_Dimension:
+                symbols.extend((i.symbolic_min, i.symbolic_max))
+            else:
+                symbols.append(i)
+
+        return tuple(symbols)
+
+    @cached_property
+    def symbols(self):
+        return self.__symbols_setup__(self.arguments)
 
 
 class LocalObject(AbstractObject, LocalType):
