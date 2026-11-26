@@ -1451,35 +1451,44 @@ class ArgumentsMap(dict):
 
     @cached_property
     def _physical_deviceid(self):
+        """Return the device ID used by the platform's memory query."""
+        deviceid = None
         if isinstance(self.platform, Device):
-            # Get the physical device ID (as CUDA_VISIBLE_DEVICES may be set)
             logical_deviceid = self.get('deviceid', -1)
-            visible_device_var, visible_devices = get_visible_devices()
-            if logical_deviceid < 0:
-                rank = self.comm.Get_rank() if self.comm != MPI.COMM_NULL else 0
-                if visible_devices is None:
-                    logical_deviceid = rank
-                else:
-                    logical_deviceid = rank % len(visible_devices)
-            if visible_devices is None:
-                return logical_deviceid
-            elif len(visible_devices) == 1:
-                # Only one visible device, it's clearly the one we want
-                return visible_devices[0]
-            elif logical_deviceid <= len(visible_devices):
-                # Map the logical device ID to the physical one
-                return visible_devices[logical_deviceid]
-            else:
-                # Logical device ID is out of bounds, likely from oversubscription
-                # Print a warning and map modulo the number of visible devices
-                deviceid = visible_devices[logical_deviceid % len(visible_devices)]
-                warning(f"Logical device ID {logical_deviceid} is out of bounds "
-                        f"for {len(visible_devices)} visible devices"
-                        f" in {visible_device_var}."
-                        f"Mapping to device ID {deviceid} instead.")
-                return visible_devices[logical_deviceid % len(visible_devices)]
-        else:
-            return None
+            rank = (
+                self.comm.Get_rank()
+                if self.options['mpi'] and self.comm != MPI.COMM_NULL else None
+            )
+            bus = self.platform.runtime_pci_bus_id(self.language, logical_deviceid, rank)
+            deviceid = (
+                self.platform.management_deviceid(bus)
+                if bus is not None else self.fallback_deviceid(logical_deviceid, rank)
+            )
+
+        return deviceid
+
+    def fallback_deviceid(self, logical_deviceid, rank):
+        """Resolve a device ID from a visibility mask or the management device count."""
+        visible_device_var, visible_devices = get_visible_devices()
+        visible_count = len(visible_devices) if visible_devices is not None else 0
+        if logical_deviceid == -1 and rank is None:
+            logical_deviceid = 0
+        elif logical_deviceid == -1:
+            count = visible_count or self.platform.numa_domains
+            logical_deviceid = rank % count if count else rank
+
+        deviceid = (
+            visible_devices[logical_deviceid % visible_count]
+            if visible_count else logical_deviceid
+        )
+        if visible_count > 1 and logical_deviceid >= visible_count:
+            warning(
+                f"Logical device ID {logical_deviceid} is out of bounds "
+                f"for {visible_count} visible devices in {visible_device_var}. "
+                f"Mapping to device ID {deviceid} instead."
+            )
+
+        return deviceid
 
     @cached_property
     def nbytes_avail_mapper(self):
@@ -1495,8 +1504,11 @@ class ArgumentsMap(dict):
 
         # The amount of space available on the device
         if isinstance(self.platform, Device):
-            mapper[device_layer] = \
-                self.platform.memavail(deviceid=self._physical_deviceid)
+            deviceid = self._physical_deviceid
+            mapper[device_layer] = (
+                self.platform.memavail(deviceid=deviceid)
+                if deviceid is not None else None
+            )
 
         # The amount of space available on the host
         try:
@@ -1506,11 +1518,9 @@ class ArgumentsMap(dict):
         mapper[host_layer] = int(ANYCPU.memavail() / nproc)
 
         for layer in (host_layer, device_layer):
-            with suppress(KeyError):
-                # Since might not have this layer in the mapper
-                mapper[layer] -= self.nbytes_consumed_operator.get(layer, 0)
-
-        mapper = {k: int(v) for k, v in mapper.items()}
+            if mapper.get(layer) is not None:
+                consumed = self.nbytes_consumed_operator.get(layer, 0)
+                mapper[layer] = int(mapper[layer] - consumed)
 
         return mapper
 
