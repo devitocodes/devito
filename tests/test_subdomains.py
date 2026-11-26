@@ -6,9 +6,9 @@ from sympy import sin, tan
 
 from conftest import assert_structure, opts_tiling
 from devito import (
-    Border, Buffer, ConditionalDimension, Constant, Derivative, Eq, Function, Grid, Lt,
-    Operator, SparseFunction, SparseTimeFunction, SubDimension, SubDomain, SubDomainSet,
-    TensorFunction, TimeFunction, VectorFunction, solve
+    Border, Buffer, ConditionalDimension, Constant, Derivative, Eq, Function, Grid, Gt,
+    Lt, Operator, SparseFunction, SparseTimeFunction, SubDimension, SubDomain,
+    SubDomainSet, TensorFunction, TimeFunction, VectorFunction, solve
 )
 from devito.exceptions import InvalidArgument
 from devito.ir import (
@@ -1231,6 +1231,27 @@ class TestSubDomain_w_condition:
 
         op.apply()
 
+        assert_structure(op, ['xy'], 'xy')
+
+    def test_condition_w_subdomain_v3(self):
+        """
+        Test an implicit ConditionalDimension defined over the Grid Dimensions,
+        with a condition on a Function, used in an Eq with a SubDomain.
+        """
+        grid = Grid(shape=(6, 6))
+        x, y = grid.dimensions
+
+        u = Function(name='u', grid=grid)
+        u.data[:] = np.arange(36).reshape(6, 6) % 2
+        expected = u.data.copy()
+        expected[1:-1, 1:-1][expected[1:-1, 1:-1] > 0] = 7
+
+        ci = ConditionalDimension(name='ci', parent=y, condition=Gt(u, 0))
+
+        op = Operator(Eq(u, 7, implicit_dims=ci, subdomain=grid.interior))
+        op.apply()
+
+        assert np.all(u.data == expected)
         assert_structure(op, ['xy'], 'xy')
 
 
