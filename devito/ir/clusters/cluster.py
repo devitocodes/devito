@@ -156,6 +156,11 @@ class EqBlock(CacheInstances):
         return tuple(s for e in self.exprs for s in e.local_sums)
 
     @cached_property
+    def local_scatters(self):
+        """The sparse contributions on indexed updates in this cluster."""
+        return tuple(s for e in self.exprs for s in e.local_scatters)
+
+    @cached_property
     def scope(self):
         return Scope(self.exprs)
 
@@ -693,6 +698,10 @@ class ClusterGroup(tuple):
     @cached_property
     def local_sums(self):
         return tuple(s for c in self for s in c.local_sums)
+
+    @cached_property
+    def local_scatters(self):
+        return tuple(s for c in self for s in c.local_scatters)
 
     @cached_property
     def scope(self):

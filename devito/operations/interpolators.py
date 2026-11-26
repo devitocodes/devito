@@ -11,7 +11,7 @@ try:
 except ImportError:
     from numpy import i0
 
-from devito.finite_differences.differentiable import LocalSum, Mul
+from devito.finite_differences.differentiable import LocalScatter, LocalSum, Mul
 from devito.finite_differences.elementary import floor
 from devito.logger import warning
 from devito.symbolics import INT, retrieve_function_carriers, retrieve_functions
@@ -607,10 +607,11 @@ class WeightedInterpolator(GenericInterpolator):
             # Move all temporaries inside inner loop to improve parallelism
             # Can only be done for inject as interpolation needs a summing temp
             # that wouldn't allow collapsing
+            support = ()
             with suppress(AttributeError):
-                implicit_dims = implicit_dims + tuple(r.parent for r in
-                                                      self._rdim(subdomain=subdomain,
-                                                                 shifts=shifts))
+                support = tuple(r.parent for r in self._rdim(subdomain=subdomain,
+                                                             shifts=shifts))
+            implicit_dims += support
 
             # List of indirection indices for all adjacent grid points
             idx_subs, _temps = self._interp_idx(list(g_fields) + variables,
@@ -619,10 +620,13 @@ class WeightedInterpolator(GenericInterpolator):
 
             w = self._weights(subdomain=subdomain, shifts=shifts)
             temps.extend(_temps)
+            dimensions = (self.sfunction._sparse_dim, *support)
             ecls = Inc if increment else Eq
-            eqns.extend([ecls(f.xreplace(idx_subs), (w * e).xreplace(idx_subs),
-                              implicit_dims=implicit_dims)
-                         for f, e in zip(g_fields, g_exprs, strict=True)])
+            for f, e in zip(g_fields, g_exprs, strict=True):
+                rhs = (w * e).xreplace(idx_subs)
+                if increment:
+                    rhs = LocalScatter(rhs, dimensions)
+                eqns.append(ecls(f.xreplace(idx_subs), rhs, implicit_dims=implicit_dims))
 
         return filter_ordered(temps) + eqns
 

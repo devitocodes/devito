@@ -9,7 +9,7 @@ from sympy.core.add import _addsort
 from sympy.core.mul import _mulsort
 
 from devito.finite_differences.differentiable import (
-    EvalDerivative, IndexDerivative, LocalSum
+    EvalDerivative, IndexDerivative, LocalScatter, LocalSum
 )
 from devito.symbolics.extended_dtypes import LONG
 from devito.symbolics.extended_sympy import CallFromPointer, DefFunction, rfunc
@@ -289,6 +289,7 @@ _uxreplace_registry.register(Eq)
 _uxreplace_registry.register(DefFunction)
 _uxreplace_registry.register(ComponentAccess)
 _uxreplace_registry.register(FIndexed)
+_uxreplace_registry.register(LocalScatter)
 _uxreplace_registry.register(LocalSum)
 
 

@@ -1,9 +1,11 @@
 from devito.ir import ClusterizedEq, Interval, IterationSpace
 from devito.symbolics import uxreplace
-from devito.tools import timed_pass
-from devito.types import Eq, Inc, Temp
+from devito.tools import flatten, timed_pass
+from devito.types import Eq, Inc, Symbol, Temp
 
-__all__ = ['lower_local_sum', 'lower_local_sums']
+__all__ = [
+    'lower_local_scatter', 'lower_local_scatters', 'lower_local_sum', 'lower_local_sums'
+]
 
 
 @timed_pass()
@@ -73,3 +75,30 @@ def lower_local_sum(cluster, reduction, sregistry):
     update = cluster.rebuild(exprs=expr, ispace=ispace, properties=properties)
 
     return init, update, value
+
+
+@timed_pass()
+def lower_local_scatters(clusters, sregistry=None, **kwargs):
+    """
+    Lower each LocalScatter to an ordinary indexed increment.
+    """
+    processed = []
+    for c in clusters:
+        if c.local_scatters:
+            exprs = flatten(lower_local_scatter(e, sregistry) for e in c.exprs)
+            c = c.rebuild(exprs=exprs)
+        processed.append(c)
+
+    return processed
+
+
+def lower_local_scatter(eq, sregistry):
+    """
+    Materialize a scatter's contribution and indexed increment.
+    """
+    if not eq.local_scatters:
+        return (eq,)
+
+    scatter, = eq.local_scatters
+    value = Symbol(name=sregistry.make_name(), dtype=eq.dtype)
+    return eq.func(value, scatter.expr, operation=None), eq.func(rhs=value)
