@@ -197,6 +197,17 @@ class TestMulEvalAt:
             'xy': Function(name='fxy', grid=grid, space_order=4, staggered=(x, y)),
         }
 
+    def test_mul_priority_missing_dimension(self):
+        """A product is located at a Function missing the fewest of its Dimensions."""
+        grid = Grid((11, 11))
+        x, y = grid.dimensions
+        h = Function(name='h', grid=grid, dimensions=(y,), shape=(11,))
+        f = Function(name='f', grid=grid, staggered=y)
+
+        assert highest_priority(h * f) is f
+        assert (h * f).indices_ref == f.indices_ref
+        assert (h * f).dx.evaluate.has(f.subs(x, x - x.spacing))
+
     @pytest.mark.parametrize('interp_mode', ['direct', 'symmetric'])
     @pytest.mark.parametrize('targets', [
         ('node', 'x', 'xy'),

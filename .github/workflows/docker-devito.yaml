@@ -297,17 +297,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - tag: 'nvidia-nvc'
-            flag: >-
-              --cpuset-cpus="${AVAILABLE_CPUSET}"
-              --memory="${AVAILABLE_MEM}"
-              --memory-swap="${AVAILABLE_MEM}"
-              --gpus "device=${CUDA_VISIBLE_DEVICES}"
-              --env CUDA_VISIBLE_DEVICES=0
-              --env OMP_NUM_THREADS=4
-              --env PYTEST_XDIST_AUTO_NUM_WORKERS=${PYTEST_XDIST_AUTO_NUM_WORKERS}
-            test: 'tests/test_gpu_openacc.py tests/test_gpu_common.py'
-            runner: ["self-hosted", "NVIDIAGPU"]
+          # 'nvidia-nvc' (CUDA 13) is not tested: the NVIDIAGPU runner is Volta (sm_70)
           - tag: 'nvidia-nvc12'
             flag: >-
               --cpuset-cpus="${AVAILABLE_CPUSET}"

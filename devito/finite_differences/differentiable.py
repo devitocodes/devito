@@ -551,7 +551,11 @@ def highest_priority(diff_op, candidates=None):
     # priority appear
     # `deep_priority`, not `_fd_priority`: an `Add` or `Mul` reports a generic
     # fallback, so operands would tie and `sorted` would pick on argument order
-    prio = lambda x: (deep_priority(x), len(x.dimensions))
+    # An object has no location along the Dimensions it is missing, so those
+    # missing the fewest of the product's come first
+    dims = {d.root for a in args_diff for d in a.dimensions}
+    prio = lambda x: (-len(dims - {d.root for d in x.dimensions}), deep_priority(x),
+                      len(x.dimensions))
     prio_func = sorted(args_diff, key=prio, reverse=True)[0]
 
     # The highest priority must be a Function
