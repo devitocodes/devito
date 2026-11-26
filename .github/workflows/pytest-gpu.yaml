@@ -102,8 +102,6 @@ jobs:
           CODECOV_TOKEN=${{ secrets.CODECOV_TOKEN }}
           DEVITO_LOGGING=DEBUG
           PYTHONFAULTHANDLER=1
-          CUDA_VISIBLE_DEVICES=0
-          HIP_VISIBLE_DEVICES=0
           OMP_NUM_THREADS=4
           PYTEST_XDIST_AUTO_NUM_WORKERS=${PYTEST_XDIST_AUTO_NUM_WORKERS}
         command: |
@@ -129,8 +127,6 @@ jobs:
         tag: ${{ matrix.name }}
         args: ${{ matrix.dockerflags }}
         env: |
-          CUDA_VISIBLE_DEVICES=0
-          HIP_VISIBLE_DEVICES=0
           OMP_NUM_THREADS=4
           PYTEST_XDIST_AUTO_NUM_WORKERS=${PYTEST_XDIST_AUTO_NUM_WORKERS}
         command: |
@@ -150,8 +146,6 @@ jobs:
           CI=true
           DEVITO_LOGGING=DEBUG
           DEVITO_MPI=1
-          CUDA_VISIBLE_DEVICES=0
-          HIP_VISIBLE_DEVICES=0
           OMP_NUM_THREADS=4
         command: |
           mpiexec -n 2 \
