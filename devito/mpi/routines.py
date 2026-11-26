@@ -1369,8 +1369,8 @@ class MPIMsgEnriched(MPIMsg):
 class MPIRegion(Region):
 
     """
-    Runtime records for the CORE, followed by the OWNED regions. OWNED records
-    with an inverted bound are packed last.
+    Runtime records for the CORE, followed by the OWNED regions. Empty OWNED
+    records come last so a remainder loop can stop at the first empty one.
     """
 
     __rargs__ = ('name', 'pname', 'arguments', 'regions')
@@ -1393,16 +1393,14 @@ class MPIRegion(Region):
             if not a.is_Dimension:
                 values.update(a._arg_values(args=args, **kwargs))
 
-        # Match runtime neighbors to compiled dimensions by root name.
-        dims = [d for d in self.arguments if d.is_Dimension]
+        # Overlapped axes inherit the face neighbors of the common runtime Grid
         grid = getattr(args, 'grid', None)
         neighborhood = {}
         if grid is not None:
-            distributor = grid.distributor
-            shifts = distributor._obj_neighborhood.neighborhood
-            neighborhood = {d.root.name: shifts[d] for d in distributor.dimensions}
+            neighborhood = grid.distributor._obj_neighborhood.face_neighbors
 
-        # Bind neighbor flags and retain nominal OWNED widths for unknown faces.
+        # Retain nominal OWNED widths for unknown faces
+        dims = [d for d in self.arguments if d.is_Dimension]
         peers = {}
         for d in dims:
             root = d.root
@@ -1425,7 +1423,7 @@ class MPIRegion(Region):
                 row[name] = value
             records.append(row)
 
-        # Keep CORE in slot zero and move empty OWNED records to the end.
+        # CORE is read directly. The remainder can stop at the first empty row.
         records[1:] = sorted(
             records[1:], key=lambda r: any(r[d.min_name] > r[d.max_name] for d in dims)
         )

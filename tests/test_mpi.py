@@ -3968,6 +3968,33 @@ class TestOperatorAdvanced:
         assert all(x_m > x_M or y_m > y_M for x_m, x_M, y_m, y_M in records[4:])
         np.testing.assert_array_equal(u.data[1], 1)
 
+    @pytest.mark.parallel(mode=[(4, 'overlap2')])
+    def test_function_on_subdomain(self, mode):
+
+        class Band(SubDomain):
+
+            name = 'band'
+
+            def define(self, dimensions):
+                x, y = dimensions
+                return {x: ('middle', 16, 16), y: y}
+
+        grid = Grid(shape=(64, 16), extent=(63., 15.), topology=(4, 1))
+        band = Band(grid=grid)
+        u = TimeFunction(name='u', grid=band, space_order=2)
+        v = TimeFunction(name='v', grid=band, space_order=2)
+        eqn = Eq(u.forward, u + .01*u.laplace + 1)
+
+        with switchconfig(mpi='basic'):
+            reference = Operator(eqn)
+        op = Operator(eqn)
+
+        reference.apply(u=v, time_M=3)
+        op.apply(time_M=3)
+
+        np.testing.assert_allclose(np.asarray(u.data), np.asarray(v.data),
+                                   rtol=1.e-6, atol=1.e-7)
+
     @pytest.mark.parallel(mode=[(2, 'overlap'), (2, 'overlap2'), (4, 'overlap2')])
     def test_region_communicator(self, mode):
         """Pickled COMM_SELF construction uses the runtime Grid's neighbors."""

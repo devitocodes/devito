@@ -962,6 +962,14 @@ class MPINeighborhood(CompositeObject):
         return self._neighborhood
 
     @cached_property
+    def face_neighbors(self):
+        """
+        Face ranks indexed by root dimension name and side.
+        """
+        return {d.root.name: ranks for d, ranks in self.neighborhood.items()
+                if not isinstance(d, tuple)}
+
+    @cached_property
     def _C_typedecl(self):
         # Overriding for better code readability
         #

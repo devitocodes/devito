@@ -265,7 +265,7 @@ class Grid(CartesianDiscretization, ArgProvider):
         """Map between origin symbols and their values."""
         return dict(zip(self.origin_symbols, self.origin, strict=True))
 
-    @property
+    @cached_property
     def origin_isymbols(self):
         """Symbols representing the global index of the rank's first grid point."""
         return DimensionTuple(*self._origin_isymbols, getters=self.dimensions)

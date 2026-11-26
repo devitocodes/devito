@@ -94,7 +94,11 @@ OMapper = namedtuple('OMapper', 'core owned')
 
 class HasNeighbor(sympy.Function):
 
-    """One if the rank can receive across this Grid bound, zero otherwise."""
+    """
+    Flag indicating whether a receive can cross this root bound.
+
+    MPIRegion binds it from the runtime Grid's neighborhood when packing bounds.
+    """
 
     nargs = 1
     is_integer = True
