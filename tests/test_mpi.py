@@ -1416,6 +1416,70 @@ def check_periodic(shape, periodic, so, topology=None, nt=5):
     np.testing.assert_allclose(full[nt % 2], ref, rtol=0, atol=1e-5*np.abs(ref).max())
 
 
+def check_periodic_sparse(periodic, interpolation, topology=None):
+    """
+    Check interpolation and injection at sparse points near the edges and
+    corners of a periodic Grid, and beyond them, against the same operations
+    on a non-periodic Grid padded by wrapped copies of the domain, with the
+    injection into the padding folded back onto the domain.
+    """
+    shape = (16, 16)
+    coords = np.array([(7.3, 5.6), (15.6, 5.2), (0.25, 4.4), (6.5, 15.7),
+                       (15.7, 15.6), (-0.3, 3.3), (23.3, 2.1)])
+    kwargs = {'interpolation': interpolation, 'r': 2} if interpolation == 'sinc' else {}
+
+    def apply(grid, coords):
+        u = Function(name='u', grid=grid, space_order=4)
+        v = Function(name='v', grid=grid, space_order=4)
+        sf = SparseFunction(name='sf', grid=grid, npoint=len(coords),
+                            coordinates=coords, **kwargs)
+        u.data[:] = data if grid.shape == shape else padded
+        Operator(sf.interpolate(u) + sf.inject(v, expr=1.)).apply()
+        return sf, v
+
+    grid = Grid(shape=shape, extent=tuple(n - 1. for n in shape),
+                periodic=periodic, topology=topology)
+    data = np.random.default_rng(0).random(shape, dtype=np.float32)
+
+    # Reference, on each rank: wrapped data and coordinates, offset by the padding
+    M = 3
+    padded = data
+    for a, p in enumerate(periodic):
+        width = [(M, M) if a == j else (0, 0) for j in range(len(shape))]
+        padded = np.pad(padded, width, mode='wrap' if p else 'constant')
+    rshape = tuple(n + 2*M for n in shape)
+    rgrid = Grid(shape=rshape, extent=tuple(n - 1. for n in rshape), comm=MPI.COMM_SELF)
+    rcoords = np.where(periodic, np.mod(coords, shape), coords) + M
+    rsf, rv = apply(rgrid, rcoords)
+
+    sf, v = apply(grid, coords)
+    full = v.data_gather()
+
+    expected = np.array(rsf.data)[sf.local_indices]
+    np.testing.assert_allclose(np.array(sf.data), expected, rtol=0, atol=1e-5)
+
+    if full is None:
+        # Not rank 0
+        return
+    expected = np.array(rv.data)
+    for a, p in enumerate(periodic):
+        expected = np.moveaxis(expected, a, 0)
+        if p:
+            expected[M:2*M] += expected[-M:]
+            expected[-2*M:-M] += expected[:M]
+        expected = np.moveaxis(expected[M:-M], 0, a)
+    np.testing.assert_allclose(full, expected, rtol=0, atol=1e-5)
+
+
+# A rank whose domain only the edge of a 'sinc' support touches reads at most `r`
+# points into its halo, so it computes a partial sum, which the sparse gather may
+# keep over the complete one. This affects non-periodic Grids too
+SPARSE_MPI_INTERPOLATIONS = [
+    'linear',
+    pytest.param('sinc', marks=pytest.mark.xfail(reason="partial sums under MPI"))
+]
+
+
 class TestPeriodic:
 
     @pytest.mark.parallel(mode=9)
@@ -1461,14 +1525,14 @@ class TestPeriodic:
     @pytest.mark.parametrize('so', [4, 8])
     @pytest.mark.parametrize('periodic', [(True, True), (True, False), (False, True)])
     def test_stencil_serial(self, periodic, so):
-        check_periodic((16, 12), periodic, so)
+        check_periodic((24, 16), periodic, so)
 
     @pytest.mark.parametrize('so', [4, 8])
     @pytest.mark.parametrize('periodic', [(True, True), (True, False), (False, True)])
     @pytest.mark.parallel(mode=[(n, m) for n in (1, 2, 4) for m in MPI_MODES] +
                           [(3, 'basic')])
     def test_stencil(self, periodic, so, mode):
-        check_periodic((16, 12), periodic, so)
+        check_periodic((24, 16), periodic, so)
 
     @pytest.mark.parametrize('topology', [(4, 1), (1, 4), ('*', 1)])
     @pytest.mark.parallel(mode=[(4, 'basic'), (4, 'diag2'), (4, 'full')])
@@ -1495,6 +1559,24 @@ class TestPeriodic:
                     for i, o in zip(f.local_indices, f._size_outhalo, strict=True))
         assert np.all(np.array(f.data_with_halo) == expected[idx])
 
+    @pytest.mark.parametrize('interpolation', ['linear', 'sinc'])
+    @pytest.mark.parametrize('periodic', [(True, True), (True, False)])
+    def test_sparse_serial(self, periodic, interpolation):
+        check_periodic_sparse(periodic, interpolation)
+
+    @pytest.mark.parametrize('interpolation', SPARSE_MPI_INTERPOLATIONS)
+    @pytest.mark.parametrize('periodic', [(True, True), (True, False)])
+    @pytest.mark.parallel(mode=[(n, m) for n in (1, 2, 4)
+                                for m in ('basic', 'diag2', 'full')] + [(3, 'basic')])
+    def test_sparse(self, periodic, interpolation, mode):
+        check_periodic_sparse(periodic, interpolation)
+
+    @pytest.mark.parametrize('interpolation', SPARSE_MPI_INTERPOLATIONS)
+    @pytest.mark.parametrize('topology', [(4, 1), (1, 4)])
+    @pytest.mark.parallel(mode=[(4, 'basic'), (4, 'diag2'), (4, 'full')])
+    def test_sparse_topology(self, topology, interpolation, mode):
+        check_periodic_sparse((True, True), interpolation, topology=topology)
+
     def test_unsupported(self):
         class Middle(SubDomain):
             name = 'middle'
@@ -1507,7 +1589,9 @@ class TestPeriodic:
 
         grid = Grid(shape=(4, 4), periodic=(True, False))
         with pytest.raises(NotImplementedError):
-            SparseFunction(name='s', grid=grid, npoint=1)
+            PrecomputedSparseFunction(name='s', grid=grid, npoint=1, r=2,
+                                      gridpoints=[(0, 0)],
+                                      interpolation_coeffs=np.ones((1, 2, 2)))
         with pytest.raises(NotImplementedError):
             SubGrid(grid, factor=2)
         with pytest.raises(NotImplementedError):

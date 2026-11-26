@@ -15,6 +15,7 @@ from devito.finite_differences.differentiable import LocalSum, Mul
 from devito.finite_differences.elementary import floor
 from devito.logger import warning
 from devito.symbolics import INT, retrieve_function_carriers, retrieve_functions
+from devito.symbolics.unevaluation import Mod as UnevalMod
 from devito.tools import (
     Pickable, as_fp64_decimal, as_list, as_tuple, filter_ordered, flatten, memoized_meth
 )
@@ -420,7 +421,8 @@ class WeightedInterpolator(GenericInterpolator):
             shifts = as_list(key)
             gp = self._gridpoints(shifts=key)
 
-            tables = {gp: _cell_indices(coords, grid, shifts, spacing, origin)}
+            indices = _cell_indices(coords, grid, shifts, spacing, origin)
+            tables = {gp: self._periodic_image(indices)}
             tables.update(self._coeff_data(coords, grid, shifts, spacing, origin))
 
             for f, data in tables.items():
@@ -430,6 +432,24 @@ class WeightedInterpolator(GenericInterpolator):
                     args.update(d._arg_defaults(_min=0, size=s))
 
         return args
+
+    def _periodic_image(self, indices):
+        """
+        Move the local base cell `indices` of the sparse points to the periodic
+        image this rank processes. Along a periodic Dimension held entirely by
+        this rank, that is the image within the domain, and the generated code
+        wraps the support (see `_interp_idx`). Along one split over ranks, it is
+        the image whose support touches the local domain, which is the one
+        whose base cell is in `[-r, N - r)`, provided the local domain plus the
+        support span less than a period.
+        """
+        grid = self.grid
+        for i, (p, t, n) in enumerate(zip(grid.periodic, grid.distributor.topology,
+                                          grid.shape, strict=True)):
+            if p:
+                lower = 0 if t == 1 else self.r
+                indices[:, i] = np.mod(indices[:, i] + lower, n) - lower
+        return indices
 
     def _interp_idx(self, variables, implicit_dims=None, subdomain=None,
                     shifts=None):
@@ -453,12 +473,17 @@ class WeightedInterpolator(GenericInterpolator):
         # Substitution mapper for variables
         mapper = self._rdim(subdomain=subdomain, shifts=shifts).getters
 
-        # Index substitution to make in variables
-        subs = {
-            ki: c + p
-            for ((k, c), p) in zip(mapper.items(), pos, strict=True)
-            for ki in {k, k.root}
-        }
+        # Index substitution to make in variables. Along a periodic Dimension
+        # held entirely by this rank, the support wraps around the domain
+        grid = self.grid
+        subs = {}
+        for (k, c), p, w, t, n in zip(mapper.items(), pos, grid.periodic,
+                                      grid.distributor.topology, grid.shape,
+                                      strict=True):
+            idx = c + p
+            if w and t == 1:
+                idx = UnevalMod(idx + n, n)
+            subs.update({ki: idx for ki in {k, k.root}})
 
         idx_subs = {v: v.subs(subs) for v in variables}
 

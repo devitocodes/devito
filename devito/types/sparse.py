@@ -68,11 +68,6 @@ class AbstractSparseFunction(DiscreteFunction):
     def __init_finalize__(self, *args, **kwargs):
         super().__init_finalize__(*args, **kwargs)
 
-        # Sanity check
-        if self.grid is not None and any(self.grid.periodic):
-            raise NotImplementedError("SparseFunctions on a periodic Grid are not "
-                                      "supported yet")
-
         self._npoint = kwargs.get('npoint', kwargs.get('npoint_global'))
         self._space_order = kwargs.get('space_order', 0)
 
@@ -326,9 +321,17 @@ class AbstractSparseFunction(DiscreteFunction):
 
         # Optimization: avoid enumerating the stencil (e.g. 512 points for r=4 in 3D).
         # Keep each staggering's box separate: their union may have gaps.
-        bounds = [(np.clip(index + lower, 0, self.grid.shape),
-                   np.clip(index + upper, 0, self.grid.shape))
-                  for index in self.interpolator._support_indices]
+        # Along periodic Dimensions, the box of every image within one period of
+        # the domain may touch a rank, so these are left unclipped
+        shape = np.array(self.grid.shape)
+        periodic = np.array(self.grid.periodic)
+        clip = lambda arr: np.where(periodic, arr, np.clip(arr, 0, shape))
+        bounds = []
+        for index in self.interpolator._support_indices:
+            index = np.where(periodic, np.mod(index, shape), index)
+            for k in product(*[(-1, 0, 1) if p else (0,) for p in periodic]):
+                shift = np.array(k)*shape
+                bounds.append((clip(index + lower + shift), clip(index + upper + shift)))
         ret = {}
         for rank, ranges in enumerate(self.grid.distributor.all_ranges):
             if any(not r for r in ranges):
@@ -1280,6 +1283,11 @@ class PrecomputedSparseFunction(AbstractSparseFunction):
     def __init_finalize__(self, *args, **kwargs):
         super().__init_finalize__(*args, **kwargs)
 
+        # Sanity check
+        if any(self.grid.periodic):
+            raise NotImplementedError("PrecomputedSparseFunctions on a periodic Grid "
+                                      "are not supported yet")
+
         if not any(k in kwargs for k in ('coordinates', 'gridpoints',
                                          'coordinates_data', 'gridpoints_data')):
             raise ValueError("PrecomputedSparseFunction requires `coordinates`"
@@ -1564,6 +1572,11 @@ class MatrixSparseTimeFunction(AbstractSparseTimeFunction):
         # Rows are locations, columns are source/receivers
         nloc, npoint = self.matrix.shape
         super().__init_finalize__(*args, **kwargs, npoint=npoint)
+
+        # Sanity check
+        if any(self.grid.periodic):
+            raise NotImplementedError("MatrixSparseTimeFunctions on a periodic Grid "
+                                      "are not supported yet")
 
         # Grid points per sparse point
         r = kwargs.get('r')
