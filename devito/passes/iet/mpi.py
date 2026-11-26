@@ -372,7 +372,9 @@ def make_halo_exchanges(iet, mpimode=None, fallback='basic', **kwargs):
                 break
     iet = Transformer(mapper, nested=True).visit(iet)
 
-    return iet, {'includes': ['mpi.h'], 'efuncs': efuncs}
+    includes = [] if mpimode == 'local' else ['mpi.h']
+
+    return iet, {'includes': includes, 'efuncs': efuncs}
 
 
 @iet_pass
@@ -408,6 +410,12 @@ def mpiize(graph, **kwargs):
     mpimode = options['mpi']
     if mpimode:
         make_halo_exchanges(graph, mpimode=mpimode, **kwargs)
+    elif any(any(f.grid.distributor.periodic)
+             for efunc in graph.efuncs.values()
+             for hs in FindNodes(HaloSpot).visit(efunc)
+             for f in hs.fmapper):
+        # Periodic Grids require halo updates even without MPI
+        make_halo_exchanges(graph, mpimode='local', fallback='local', **kwargs)
 
     make_reductions(graph, mpimode=mpimode, **kwargs)
 

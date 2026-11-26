@@ -67,6 +67,12 @@ class AbstractSparseFunction(DiscreteFunction):
 
     def __init_finalize__(self, *args, **kwargs):
         super().__init_finalize__(*args, **kwargs)
+
+        # Sanity check
+        if self.grid is not None and any(self.grid.periodic):
+            raise NotImplementedError("SparseFunctions on a periodic Grid are not "
+                                      "supported yet")
+
         self._npoint = kwargs.get('npoint', kwargs.get('npoint_global'))
         self._space_order = kwargs.get('space_order', 0)
 

@@ -288,6 +288,10 @@ class DenseDistributor(AbstractDistributor):
         return self._topology
 
     @property
+    def periodic(self):
+        return self._periodic
+
+    @property
     def topology_logical(self):
         if isinstance(self.topology, CustomTopology):
             return self.topology.logical
@@ -358,10 +362,18 @@ class Distributor(DenseDistributor):
     comm : MPI communicator, optional
         The set of processes over which the domain is distributed. Defaults to
         MPI.COMM_WORLD.
+    topology : tuple of ints, optional
+        The number of processes along each Dimension.
+    periodic : tuple of bools, optional
+        Whether the domain is periodic along each Dimension. Defaults to False
+        along all Dimensions.
     """
 
-    def __init__(self, shape, dimensions, input_comm=None, topology=None):
+    def __init__(self, shape, dimensions, input_comm=None, topology=None,
+                 periodic=None):
         super().__init__(shape, dimensions)
+
+        self._periodic = tuple(periodic or (False,)*len(shape))
 
         if configuration['mpi']:
             # First time we enter here, we make sure MPI is initialized
@@ -398,7 +410,8 @@ class Distributor(DenseDistributor):
                 # numbering of the ranks, i.e. in a 2x3 Cartesian topology (0,0)
                 # maps to rank 0, (0,1) maps to rank 1, (0,2) maps to rank 2, (1,0)
                 # maps to rank 3, and so on.
-                self._comm = self._input_comm.Create_cart(self._topology)
+                self._comm = self._input_comm.Create_cart(self._topology,
+                                                          periods=self._periodic)
             else:
                 self._comm = input_comm
         else:
@@ -505,9 +518,13 @@ class Distributor(DenseDistributor):
             ret[d][LEFT] = src
             ret[d][RIGHT] = dest
 
-        # Set up diagonal neighbours
+        # Set up diagonal neighbours. Note: the generated code only uses these
+        # entries (see `MPINeighborhood`), including the horizontal ones
         for i in product([LEFT, CENTER, RIGHT], repeat=self.ndim):
-            neighbor = [c + s.val for c, s in zip(self.mycoords, i, strict=True)]
+            # Wrap around along periodic Dimensions
+            neighbor = [(c + s.val) % t if p else c + s.val
+                        for c, s, t, p in zip(self.mycoords, i, self.topology,
+                                              self.periodic, strict=True)]
 
             if any(c < 0 or c >= s for c, s in zip(neighbor, self.topology, strict=True)):
                 ret[i] = MPI.PROC_NULL
@@ -518,7 +535,7 @@ class Distributor(DenseDistributor):
 
     def _rebuild(self, shape=None, dimensions=None, comm=None):
         return Distributor(shape or self.shape, dimensions or self.dimensions,
-                           comm or self.comm)
+                           comm or self.comm, periodic=self.periodic)
 
 
 class SubGridDistributor(Distributor):
@@ -549,6 +566,7 @@ class SubGridDistributor(Distributor):
         # Same processes and topology as the parent, hence the same communicator
         self._comm = parent.comm
         self._topology = parent.topology
+        self._periodic = parent.periodic
 
         self.__decomposition_setup__()
 
@@ -601,6 +619,7 @@ class SubDistributor(DenseDistributor):
         self._parent = subdomain.grid.distributor
         self._comm = self.parent.comm
         self._topology = self.parent.topology
+        self._periodic = self.parent.periodic
 
         self.__decomposition_setup__()
 

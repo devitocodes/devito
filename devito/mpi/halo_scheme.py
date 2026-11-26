@@ -581,13 +581,15 @@ def classify(exprs, ispace):
             continue
 
         # In the case of custom topologies, we ignore the Dimensions that aren't
-        # practically subjected to domain decomposition
+        # practically subjected to domain decomposition, unless periodic (as the
+        # halo then requires a self-exchange)
         dist = f.grid.distributor
         try:
             ignored = [
                 d
-                for i, d in zip(dist.topology_logical, dist.dimensions, strict=True)
-                if i == 1
+                for i, d, p in zip(dist.topology_logical, dist.dimensions,
+                                   dist.periodic, strict=True)
+                if i == 1 and not p
             ]
         except TypeError:
             ignored = []

@@ -76,6 +76,12 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
         # superclass constructor do its job
         super().__init_finalize__(*args, **kwargs)
 
+        # Sanity check
+        if self.grid is not None and self.grid.is_SubDomain and \
+           any(self._distributor.periodic):
+            raise NotImplementedError("Functions defined on a SubDomain of a "
+                                      "periodic Grid are not supported yet")
+
         # Symbolic (finite difference) coefficients
         self._coefficients = self.__coefficients_setup__(**kwargs)
 
@@ -839,11 +845,23 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
 
     def _halo_exchange(self):
         """Perform the halo exchange with the neighboring processes."""
+        if self.grid is None:
+            # Nothing to do
+            return
         if not MPI.Is_initialized() or \
                 MPI.COMM_WORLD.size == 1 or \
-                not configuration['mpi'] or \
-                self.grid is None:
-            # Nothing to do
+                not configuration['mpi']:
+            # No communication, but periodic Dimensions still require the halo
+            # to be filled with the OWNED region on the opposite side
+            dist = self._distributor
+            periodic = dict(zip(dist.dimensions, dist.periodic, strict=True))
+            for d in self._dist_dimensions:
+                if not periodic[d]:
+                    continue
+                for i in [LEFT, RIGHT]:
+                    self._data_in_region(HALO, d, i.flip())[:] = \
+                        self._data_in_region(OWNED, d, i)
+            self._is_halo_dirty = False
             return
         if MPI.COMM_WORLD.size > 1 and self._distributor is None:
             raise RuntimeError(f"`{self.name}` cannot perform a halo exchange as it has "

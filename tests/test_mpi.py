@@ -3,17 +3,18 @@ from functools import cached_property
 
 import numpy as np
 import pytest
+from sympy import finite_diff_weights
 
 from conftest import _R, assert_blocking, assert_structure, body0
 from devito import (
     NODE, Buffer, ConditionalDimension, Constant, CustomDimension, DefaultDimension,
-    Dimension, Eq, Function, Grid, Inc, Ne, Operator, PrecomputedSparseFunction,
-    SparseFunction, SparseTimeFunction, SubDimension, SubDomain, SubGrid,
-    TensorTimeFunction, TimeFunction, VectorTimeFunction, configuration, diag, div,
-    generic_derivative, grad, inner, norm, solve, switchconfig
+    Derivative, Dimension, Eq, Function, Grid, Inc, Ne, Operator,
+    PrecomputedSparseFunction, SparseFunction, SparseTimeFunction, SubDimension,
+    SubDomain, SubGrid, TensorTimeFunction, TimeFunction, VectorTimeFunction,
+    configuration, diag, div, generic_derivative, grad, inner, norm, solve, switchconfig
 )
 from devito.arch.compiler import OneapiCompiler
-from devito.data import LEFT, RIGHT
+from devito.data import CENTER, LEFT, RIGHT
 from devito.exceptions import InvalidArgument, mpi_raise
 from devito.ir import Cluster, Interval, IterationSpace
 from devito.ir.clusters.algorithms import check_halo_writes
@@ -1360,6 +1361,157 @@ class TestHaloWrites:
         Operator(eqn, name='mixed_grid_halo_writes')
 
         assert ('HALO along potentially distributed' in caplog.text) == with_halo
+
+
+MPI_MODES = ('basic', 'diag', 'overlap', 'overlap2', 'diag2', 'full')
+
+
+def check_periodic(shape, periodic, so, topology=None, nt=5):
+    """
+    Check `nt` steps of `u.forward = u + dt*(u.laplace + c*u.d0dn)`, with `d0dn`
+    the cross derivative along the first and last Dimensions, on a periodic Grid
+    against a NumPy reference. Along non-periodic Dimensions the halo is zero.
+    """
+    grid = Grid(shape=shape, extent=tuple(n - 1. for n in shape),
+                periodic=periodic, topology=topology)
+    dims = grid.dimensions
+    dt, c = 0.05, 0.25
+
+    u = TimeFunction(name='u', grid=grid, space_order=so)
+    cross = Derivative(u, dims[0], dims[-1], fd_order=(so, so))
+    op = Operator(Eq(u.forward, u + dt*(u.laplace + c*cross)))
+
+    ic = np.random.default_rng(0).random(shape, dtype=np.float32)
+    u.data[0] = ic
+    op.apply(time_M=nt-1)
+
+    full = u.data_gather()
+    if full is None:
+        # Not rank 0
+        return
+
+    h = so // 2
+    offsets = range(-h, h + 1)
+    w1, w2 = [np.array(finite_diff_weights(n, offsets, 0)[-1][-1], dtype=np.float64)
+              for n in (1, 2)]
+
+    ref = ic.astype(np.float64)
+    for _ in range(nt):
+        p = ref
+        for a, i in enumerate(periodic):
+            width = [(h, h) if a == j else (0, 0) for j in range(len(shape))]
+            p = np.pad(p, width, mode='wrap' if i else 'constant')
+
+        def shifted(s, p=p):
+            return p[tuple(slice(h + s.get(a, 0), h + s.get(a, 0) + n)
+                           for a, n in enumerate(shape))]
+
+        lap = sum(w*shifted({a: k})
+                  for k, w in zip(offsets, w2, strict=True) for a in range(len(shape)))
+        xd = sum(wi*wj*shifted({0: i, len(shape) - 1: j})
+                 for i, wi in zip(offsets, w1, strict=True)
+                 for j, wj in zip(offsets, w1, strict=True))
+        ref = ref + dt*(lap + c*xd)
+
+    np.testing.assert_allclose(full[nt % 2], ref, rtol=0, atol=1e-5*np.abs(ref).max())
+
+
+class TestPeriodic:
+
+    @pytest.mark.parallel(mode=9)
+    def test_neighborhood(self, mode):
+        grid = Grid(shape=(3, 3), periodic=(True, False))
+        x, y = grid.dimensions
+
+        distributor = grid.distributor
+        # Rank map, periodic along `x` only:
+        # ---------------y
+        # | 0 | 1 | 2 |
+        # -------------
+        # | 3 | 4 | 5 |
+        # -------------
+        # | 6 | 7 | 8 |
+        # -------------
+        # |
+        # x
+        PN = MPI.PROC_NULL
+        expected = {
+            0: {x: {LEFT: 6, RIGHT: 3}, y: {LEFT: PN, RIGHT: 1}},
+            1: {x: {LEFT: 7, RIGHT: 4}, y: {LEFT: 0, RIGHT: 2}},
+            2: {x: {LEFT: 8, RIGHT: 5}, y: {LEFT: 1, RIGHT: PN}},
+            3: {x: {LEFT: 0, RIGHT: 6}, y: {LEFT: PN, RIGHT: 4}},
+            4: {x: {LEFT: 1, RIGHT: 7}, y: {LEFT: 3, RIGHT: 5}},
+            5: {x: {LEFT: 2, RIGHT: 8}, y: {LEFT: 4, RIGHT: PN}},
+            6: {x: {LEFT: 3, RIGHT: 0}, y: {LEFT: PN, RIGHT: 7}},
+            7: {x: {LEFT: 4, RIGHT: 1}, y: {LEFT: 6, RIGHT: 8}},
+            8: {x: {LEFT: 5, RIGHT: 2}, y: {LEFT: 7, RIGHT: PN}},
+        }
+        assert expected[distributor.myrank][x] == distributor.neighborhood[x]
+        assert expected[distributor.myrank][y] == distributor.neighborhood[y]
+
+        # The generated code uses these, the horizontal neighbours included
+        if distributor.myrank == 0:
+            expected = {
+                (LEFT, LEFT): PN, (LEFT, CENTER): 6, (LEFT, RIGHT): 7,
+                (CENTER, LEFT): PN, (CENTER, CENTER): 0, (CENTER, RIGHT): 1,
+                (RIGHT, LEFT): PN, (RIGHT, CENTER): 3, (RIGHT, RIGHT): 4,
+            }
+            assert all(distributor.neighborhood[k] == v for k, v in expected.items())
+
+    @pytest.mark.parametrize('so', [4, 8])
+    @pytest.mark.parametrize('periodic', [(True, True), (True, False), (False, True)])
+    def test_stencil_serial(self, periodic, so):
+        check_periodic((16, 12), periodic, so)
+
+    @pytest.mark.parametrize('so', [4, 8])
+    @pytest.mark.parametrize('periodic', [(True, True), (True, False), (False, True)])
+    @pytest.mark.parallel(mode=[(n, m) for n in (1, 2, 4) for m in MPI_MODES] +
+                          [(3, 'basic')])
+    def test_stencil(self, periodic, so, mode):
+        check_periodic((16, 12), periodic, so)
+
+    @pytest.mark.parametrize('topology', [(4, 1), (1, 4), ('*', 1)])
+    @pytest.mark.parallel(mode=[(4, 'basic'), (4, 'diag2'), (4, 'full')])
+    def test_stencil_topology(self, topology, mode):
+        check_periodic((16, 16), (True, True), 4, topology=topology)
+
+    @pytest.mark.parallel(mode=[(8, m) for m in MPI_MODES])
+    def test_stencil_3d(self, mode):
+        check_periodic((8, 8, 8), (True, False, True), 4)
+
+    @pytest.mark.parallel(mode=[1, 2, 4])
+    def test_data_with_halo(self, mode):
+        grid = Grid(shape=(8, 6), periodic=(True, False))
+        f = Function(name='f', grid=grid, space_order=2)
+
+        glb = np.arange(48, dtype=np.float32).reshape(8, 6)
+        f.data[:] = glb
+
+        # Wrapped along `x`, zero along `y`
+        expected = np.pad(np.pad(glb, ((2, 2), (0, 0)), mode='wrap'), ((0, 0), (2, 2)))
+
+        # Only the halo along the domain boundary is visible to each rank
+        idx = tuple(slice(i.start + 2 - o.left, i.stop + 2 + o.right)
+                    for i, o in zip(f.local_indices, f._size_outhalo, strict=True))
+        assert np.all(np.array(f.data_with_halo) == expected[idx])
+
+    def test_unsupported(self):
+        class Middle(SubDomain):
+            name = 'middle'
+
+            def define(self, dimensions):
+                return {d: ('middle', 1, 1) for d in dimensions}
+
+        with pytest.raises(ValueError):
+            Grid(shape=(4, 4), periodic=(True, False, True))
+
+        grid = Grid(shape=(4, 4), periodic=(True, False))
+        with pytest.raises(NotImplementedError):
+            SparseFunction(name='s', grid=grid, npoint=1)
+        with pytest.raises(NotImplementedError):
+            SubGrid(grid, factor=2)
+        with pytest.raises(NotImplementedError):
+            Function(name='f', grid=Middle(grid=grid))
 
 
 class TestCodeGeneration:

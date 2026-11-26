@@ -130,6 +130,14 @@ class TestBasic:
         assert new_sd.shape == sd.shape
         assert all(d.separated is sd.separated for d in new_sd.dimensions if d.is_Sub)
 
+    def test_periodic_grid(self, pickle):
+        grid = Grid(shape=(3, 3), periodic=(True, False))
+
+        new_grid = pickle.loads(pickle.dumps(grid))
+
+        assert new_grid.periodic == (True, False)
+        assert new_grid.distributor.periodic == (True, False)
+
     @pytest.mark.parametrize('on_sd', [False, True])
     def test_function(self, pickle, on_sd):
         grid = Grid(shape=(3, 3, 3))

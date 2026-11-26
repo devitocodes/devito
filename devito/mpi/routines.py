@@ -16,6 +16,7 @@ from devito.ir.iet import (
     Return, Transformer, Uxreplace, make_efunc
 )
 from devito.mpi import MPI
+from devito.mpi.halo_scheme import HaloSchemeEntry
 from devito.symbolics import (
     Byref, CondNe, FieldFromComposite, FieldFromPointer, IndexedPointer, Macro, cast,
     subs_op_args
@@ -40,7 +41,12 @@ class HaloExchangeBuilder:
 
     def __new__(cls, mpimode, generators=None, rcompile=None, sregistry=None,
                 **kwargs):
-        obj = object.__new__(mpi_registry[mpimode])
+        # Note: the `local` builder is not user-selectable (i.e., not in the
+        # `mpi_registry`) as it's only used for periodic Grids without MPI
+        if mpimode == 'local':
+            obj = object.__new__(LocalHaloExchangeBuilder)
+        else:
+            obj = object.__new__(mpi_registry[mpimode])
 
         obj.rcompile = rcompile
         obj.sregistry = sregistry
@@ -457,16 +463,12 @@ class BasicHaloExchangeBuilder(HaloExchangeBuilder):
         args = list(args[0].handles) + flatten(args[1:])
         return Call(name, args)
 
-    def _make_haloupdate(self, f, hse, key, sendrecv, **kwargs):
-        distributor = f.grid.distributor
-        nb = distributor._obj_neighborhood
-        comm = distributor._obj_comm
-
-        fixed = {d: Symbol(name=f"o{d.root}") for d in hse.loc_indices}
-
-        # Build a mapper `(dim, side, region) -> (size, ofs)` for `f`. `size` and
-        # `ofs` are symbolic objects. This mapper tells what data values should be
-        # sent (OWNED) or received (HALO) given dimension and side
+    def _make_regions(self, f, fixed):
+        """
+        Build a mapper `(dim, side, region) -> (size, ofs)` for `f`. `size` and
+        `ofs` are symbolic objects. This mapper tells what data values should be
+        sent (OWNED) or received (HALO) given dimension and side.
+        """
         mapper = {}
         for d0, side, region in product(f.dimensions, (LEFT, RIGHT), (OWNED, HALO)):
             if d0 in fixed:
@@ -481,6 +483,16 @@ class BasicHaloExchangeBuilder(HaloExchangeBuilder):
                     ofs.append(meta.offset)
                     sizes.append(meta.size)
             mapper[(d0, side, region)] = (sizes, ofs)
+        return mapper
+
+    def _make_haloupdate(self, f, hse, key, sendrecv, **kwargs):
+        distributor = f.grid.distributor
+        nb = distributor._obj_neighborhood
+        comm = distributor._obj_comm
+
+        fixed = {d: Symbol(name=f"o{d.root}") for d in hse.loc_indices}
+
+        mapper = self._make_regions(f, fixed)
 
         body = []
         for d in f.dimensions:
@@ -553,6 +565,78 @@ class BasicHaloExchangeBuilder(HaloExchangeBuilder):
             body.append(self._call_remainder(remainder))
 
         return List(body=body)
+
+
+class LocalHaloExchangeBuilder(BasicHaloExchangeBuilder):
+
+    """
+    A HaloExchangeBuilder for periodic Grids in the absence of MPI. Along each
+    periodic Dimension, the OWNED region on one side is copied into the HALO
+    region on the opposite side.
+
+    Generates:
+
+        haloupdate()
+        compute()
+    """
+
+    def make(self, hs):
+        # Only the halos along periodic Dimensions require an update
+        fmapper = {}
+        for f, hse in hs.fmapper.items():
+            dist = f.grid.distributor
+            pdims = {d for d, p in zip(dist.dimensions, dist.periodic, strict=True)
+                     if p}
+            halos = {i for i in hse.halos if i.dim in pdims}
+            if halos:
+                fmapper[f] = HaloSchemeEntry(hse.loc_indices, hse.loc_dirs, halos,
+                                             hse.dims, bundle=hse.bundle)
+        if not fmapper:
+            return hs
+
+        halo_scheme = hs.halo_scheme._rebuild(fmapper=fmapper)
+        return super().make(hs._rebuild(halo_scheme=halo_scheme))
+
+    def _make_sendrecv(self, f, hse, key, **kwargs):
+        dims = [d.root for d in f.dimensions if d not in hse.loc_indices]
+        bdims = [CustomDimension(name='vd', symbolic_size=f.ncomp)] + dims
+
+        buf = Array(name='buf', dimensions=bdims, dtype=f.c0.dtype, liveness='eager')
+
+        ofsg = [Symbol(name=f'og{d.root}') for d in f.dimensions]
+        ofss = [Symbol(name=f'os{d.root}') for d in f.dimensions]
+
+        shape = [d.symbolic_size for d in dims]
+
+        gather = Gather(f'gather{key}', [buf] + shape + list(f.handles) + ofsg)
+        scatter = Scatter(f'scatter{key}', [buf] + shape + list(f.handles) + ofss)
+
+        iet = List(body=[gather, scatter])
+
+        parameters = list(f.handles) + shape + ofsg + ofss
+
+        return SendRecv(f'sendrecv{key}', iet, parameters, buf, buf)
+
+    def _make_haloupdate(self, f, hse, key, sendrecv, **kwargs):
+        fixed = {d: Symbol(name=f"o{d.root}") for d in hse.loc_indices}
+
+        mapper = self._make_regions(f, fixed)
+
+        # Copy the OWNED region along `side` into the HALO on the opposite side
+        body = []
+        for d, side in product(f.dimensions, (LEFT, RIGHT)):
+            if (d, side) in hse.halos:
+                sizes, ofsg = mapper[(d, side, OWNED)]
+                _, ofss = mapper[(d, side.flip(), HALO)]
+                body.append(self._call_sendrecv(sendrecv.name, f, sizes, ofsg, ofss))
+
+        parameters = list(f.handles) + list(fixed.values())
+
+        return HaloUpdate(f'haloupdate{key}', List(body=body), parameters)
+
+    def _call_haloupdate(self, name, f, hse, *args):
+        args = list(f.handles) + list(hse.loc_indices.values())
+        return HaloUpdateCall(name, flatten(args))
 
 
 class DiagHaloExchangeBuilder(BasicHaloExchangeBuilder):

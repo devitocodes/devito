@@ -96,6 +96,11 @@ class Grid(CartesianDiscretization, ArgProvider):
     comm : MPI communicator, optional
         The set of processes over which the grid is distributed. Only relevant in
         case of MPI execution.
+    periodic : bool or tuple of bools, default=False
+        Whether the domain is periodic along each Dimension. A single bool applies
+        to all Dimensions. Along a periodic Dimension, the halo of each Function
+        holds the values from the opposite side of the domain, so the point after
+        the last one is the first one. Hence the period is ``extent + spacing``.
 
     Examples
     --------
@@ -116,6 +121,12 @@ class Grid(CartesianDiscretization, ArgProvider):
 
     >>> f.shape_with_halo
     (6, 6)
+
+    A Grid periodic along `x` only, with period 1 along `x` (4 points spaced 0.25)
+
+    >>> grid = Grid(shape=(4, 4), extent=(0.75, 1.), periodic=(True, False))
+    >>> grid.periodic
+    (True, False)
 
     Notes
     -----
@@ -149,7 +160,7 @@ class Grid(CartesianDiscretization, ArgProvider):
 
     def __init__(self, shape, extent=None, origin=None, dimensions=None,
                  spacing=None, time_dimension=None, dtype=np.float32,
-                 subdomains=None, comm=None, topology=None):
+                 subdomains=None, comm=None, topology=None, periodic=False):
         shape = as_tuple(shape)
 
         # Create or pull the SpaceDimensions
@@ -189,6 +200,15 @@ class Grid(CartesianDiscretization, ArgProvider):
                 self._topology = None
         else:
             self._topology = None
+
+        periodic = as_tuple(periodic)
+        if len(periodic) == 1:
+            periodic = periodic*len(shape)
+        if len(periodic) != len(shape):
+            raise ValueError(f"`periodic={periodic}` is incompatible with the grid "
+                             f"shape `{shape}`")
+        self._periodic = tuple(bool(i) for i in periodic)
+
         self._distributor = self.__distributor_setup__(shape, dimensions, comm)
 
         # The physical extent and grid spacing
@@ -376,6 +396,11 @@ class Grid(CartesianDiscretization, ArgProvider):
         return self._topology
 
     @property
+    def periodic(self):
+        """Whether the domain is periodic along each Dimension."""
+        return DimensionTuple(*self._periodic, getters=self.dimensions)
+
+    @property
     def distributor(self):
         """The Distributor used for decomposing the CartesianDiscretization."""
         return self._distributor
@@ -436,7 +461,8 @@ class Grid(CartesianDiscretization, ArgProvider):
         return values
 
     def __distributor_setup__(self, shape, dimensions, comm):
-        return Distributor(shape, dimensions, comm, self._topology)
+        return Distributor(shape, dimensions, comm, self._topology,
+                           periodic=self._periodic)
 
     def __getstate__(self):
         state = self.__dict__.copy()
@@ -447,7 +473,8 @@ class Grid(CartesianDiscretization, ArgProvider):
     def __setstate__(self, state):
         for k, v in state.items():
             setattr(self, k, v)
-        self._distributor = Distributor(self.shape, self.dimensions, MPI.COMM_SELF)
+        self._distributor = Distributor(self.shape, self.dimensions, MPI.COMM_SELF,
+                                        periodic=self._periodic)
 
 
 class SubGrid(Grid):
@@ -513,6 +540,9 @@ class SubGrid(Grid):
         if not parent.is_Grid:
             raise ValueError("`parent` must be a Grid, got "
                              f"`{type(parent).__name__}`")
+
+        if any(parent.periodic):
+            raise NotImplementedError("Cannot subsample a periodic Grid")
 
         factors = self.__factors_setup__(parent, factor)
 
