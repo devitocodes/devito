@@ -2945,6 +2945,33 @@ class TestOperatorAdvanced:
 
         assert np.allclose(sf.data, [2., 2., 3., 3.][grid.distributor.myrank])
 
+    @pytest.mark.parametrize('r', [2, 4])
+    @pytest.mark.parallel(mode=[2, 4])
+    def test_interpolation_sinc_boundary(self, r, mode):
+        """
+        Points whose support only grazes a neighbouring rank are sent there too,
+        where they are only partially evaluated; the gathered value must be the
+        complete one, computed by the rank owning the point.
+        """
+        shape = (16, 16)
+        coords = np.array([(4.5, 6.5), (5.3, 9.6), (6.5, 4.5), (6.2, 6.2),
+                           (7.5, 12.7), (9.6, 5.3), (12.7, 7.5), (2.2, 2.2)])
+        data = np.random.default_rng(0).random(shape, dtype=np.float32)
+
+        def interpolate(grid):
+            f = Function(name='f', grid=grid, space_order=2*r)
+            f.data[:] = data
+            sf = SparseFunction(name='sf', grid=grid, npoint=len(coords),
+                                coordinates=coords, interpolation='sinc', r=r)
+            Operator(sf.interpolate(expr=f)).apply()
+            return sf
+
+        sf = interpolate(Grid(shape=shape, extent=(15., 15.)))
+        ref = interpolate(Grid(shape=shape, extent=(15., 15.), comm=MPI.COMM_SELF))
+
+        assert np.allclose(np.array(sf.data), np.array(ref.data)[sf.local_indices],
+                           rtol=0, atol=1e-5)
+
     @pytest.mark.parallel(mode=2)
     def test_subsampling(self, mode):
         grid = Grid(shape=(40,))
