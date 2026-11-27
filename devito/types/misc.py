@@ -110,6 +110,11 @@ class FIndexed(Indexed, Pickable):
 
         return obj
 
+    @classmethod
+    def class_key(cls):
+        # Keep arithmetic ordering consistent with unlinearized accesses
+        return Indexed.class_key()
+
     def __repr__(self):
         return "{}({})".format(self.name, ", ".join(str(i) for i in self.indices))
 

@@ -16,7 +16,8 @@ from devito import (
 )
 from devito.ir.iet import Call, FindApplications, FindNodes, FindSymbols, List, Node
 from devito.types import (
-    DeviceID, LocalObject, NPThreads, NThreadsBase, Object, Scalar, Symbol, ThreadID
+    DeviceID, LocalObject, NPThreads, NThreads, NThreadsBase, NThreadsNested,
+    NThreadsNonaffine, Object, Scalar, Symbol, ThreadID
 )
 from devito.types.basic import AbstractSymbol
 
@@ -509,6 +510,15 @@ class TestCaching:
         npt2 = NPThreads(name='npt', size=4)
         assert npt0 is npt1
         assert npt0 is not npt2
+
+    @pytest.mark.parametrize('cls', [NThreads, NThreadsNested, NThreadsNonaffine,
+                                     NPThreads])
+    def test_thread_reconstruction(self, cls):
+        kwargs = {'size': 3} if cls is NPThreads else {}
+        symbol = cls(name='threads0', **kwargs)
+
+        for rebuilt in (symbol._rebuild(), pickle.loads(pickle.dumps(symbol))):
+            assert rebuilt is symbol
 
     def test_symbol_aliasing(self):
         """Test to assert that our aliasing cache isn't defeated by sympys
