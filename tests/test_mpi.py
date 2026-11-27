@@ -1471,6 +1471,61 @@ def check_periodic_sparse(periodic, interpolation, topology=None):
     np.testing.assert_allclose(full, expected, rtol=0, atol=1e-5)
 
 
+def check_periodic_subdomain(spec, periodic, nt=3):
+    """
+    Check a stencil update of a TimeFunction defined on a SubDomain, given by `spec`,
+    against a NumPy reference. The SubDomain is only periodic along the periodic
+    Dimensions it spans entirely, with zero halos elsewhere.
+    """
+    class Strip(SubDomain):
+        name = 'strip'
+
+        def define(self, dimensions):
+            return {d: s or d for d, s in zip(dimensions, spec, strict=True)}
+
+    shape = (16, 16)
+    grid = Grid(shape=shape, extent=(15., 15.), periodic=periodic)
+    sd = Strip(grid=grid)
+    data = np.random.default_rng(0).random(shape, dtype=np.float32)
+    region = tuple(slice(s[1], n - s[2]) if s else slice(None)
+                   for s, n in zip(spec, shape, strict=True))
+
+    u = TimeFunction(name='u', grid=sd, space_order=2)
+    u.data[0] = data[region]
+    x, y = sd.dimensions
+    shifts = [{x: x+1}, {x: x-1}, {y: y+1}, {y: y-1}, {x: x+1, y: y+1}, {x: x-1, y: y-1}]
+    update = u + 0.1*(sum(u.subs(i) for i in shifts) - 6*u)
+    Operator(Eq(u.forward, update, subdomain=sd)).apply(time_M=nt-1)
+
+    wrap = [p and s in (None, ('middle', 0, 0))
+            for s, p in zip(spec, periodic, strict=True)]
+    expected = data[region]
+    for _ in range(nt):
+        v = expected
+        for a, w in enumerate(wrap):
+            width = [(1, 1) if a == j else (0, 0) for j in range(len(shape))]
+            v = np.pad(v, width, mode='wrap' if w else 'constant')
+        c = v[1:-1, 1:-1]
+        expected = c + 0.1*(v[2:, 1:-1] + v[:-2, 1:-1] + v[1:-1, 2:] + v[1:-1, :-2]
+                            + v[2:, 2:] + v[:-2, :-2] - 6*c)
+
+    full = u.data_gather()
+    if full is None:
+        # Not rank 0
+        return
+    np.testing.assert_allclose(full[nt % 2], expected, rtol=0, atol=1e-5)
+
+
+# SubDomains spanning the whole, part of, and none of the periodic Dimensions
+PERIODIC_SUBDOMAINS = [
+    (None, ('middle', 2, 3)),
+    (('middle', 0, 0), ('middle', 2, 3)),
+    (('middle', 2, 3), None),
+    (('middle', 0, 0), ('middle', 0, 0)),
+    (None, None),
+]
+
+
 # A rank whose domain only the edge of a 'sinc' support touches reads at most `r`
 # points into its halo, so it computes a partial sum, which the sparse gather may
 # keep over the complete one. This affects non-periodic Grids too
@@ -1577,13 +1632,20 @@ class TestPeriodic:
     def test_sparse_topology(self, topology, interpolation, mode):
         check_periodic_sparse((True, True), interpolation, topology=topology)
 
+    @pytest.mark.parametrize('periodic', [(True, True), (True, False)])
+    @pytest.mark.parametrize('spec', PERIODIC_SUBDOMAINS)
+    def test_subdomain_serial(self, spec, periodic):
+        check_periodic_subdomain(spec, periodic)
+
+    # The `full` mode is excluded as it does not support SubDomains yet, regardless
+    # of periodicity (see `TestSubDomainFunctionsParallel` in test_subdomains.py)
+    @pytest.mark.parametrize('periodic', [(True, True), (True, False)])
+    @pytest.mark.parametrize('spec', PERIODIC_SUBDOMAINS)
+    @pytest.mark.parallel(mode=[(n, m) for n in (1, 2, 4) for m in ('basic', 'diag2')])
+    def test_subdomain(self, spec, periodic, mode):
+        check_periodic_subdomain(spec, periodic)
+
     def test_unsupported(self):
-        class Middle(SubDomain):
-            name = 'middle'
-
-            def define(self, dimensions):
-                return {d: ('middle', 1, 1) for d in dimensions}
-
         with pytest.raises(ValueError):
             Grid(shape=(4, 4), periodic=(True, False, True))
 
@@ -1594,8 +1656,6 @@ class TestPeriodic:
                                       interpolation_coeffs=np.ones((1, 2, 2)))
         with pytest.raises(NotImplementedError):
             SubGrid(grid, factor=2)
-        with pytest.raises(NotImplementedError):
-            Function(name='f', grid=Middle(grid=grid))
 
 
 class TestCodeGeneration:

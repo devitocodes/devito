@@ -76,12 +76,6 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
         # superclass constructor do its job
         super().__init_finalize__(*args, **kwargs)
 
-        # Sanity check
-        if self.grid is not None and self.grid.is_SubDomain and \
-           any(self._distributor.periodic):
-            raise NotImplementedError("Functions defined on a SubDomain of a "
-                                      "periodic Grid are not supported yet")
-
         # Symbolic (finite difference) coefficients
         self._coefficients = self.__coefficients_setup__(**kwargs)
 

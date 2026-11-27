@@ -619,7 +619,16 @@ class SubDistributor(DenseDistributor):
         self._parent = subdomain.grid.distributor
         self._comm = self.parent.comm
         self._topology = self.parent.topology
-        self._periodic = self.parent.periodic
+
+        # A SubDomain is only periodic along the periodic Dimensions it spans
+        # entirely, unless local (as these never require a halo exchange)
+        self._periodic = tuple(
+            p and d._maybe_distributed and
+            (i is None or _interval_bounds(i) == (0, n - 1))
+            for p, d, i, n in zip(self.parent.periodic, self.dimensions,
+                                  self.subdomain_interval, self.parent.glb_shape,
+                                  strict=True)
+        )
 
         self.__decomposition_setup__()
 
@@ -723,8 +732,8 @@ class SubDistributor(DenseDistributor):
               `d0`, `s1` the DataSide along `d1`, and so on. This can be
               determine whether the SubDomain crosses the edge of the rank on this side.
         """
-        def get_crosses(d, di, si):
-            if not d.is_Sub:
+        def get_crosses(d, di, si, periodic):
+            if not d.is_Sub or periodic:
                 return {LEFT: True, RIGHT: True}
 
             # SubDomain is either fully contained by or not present on this rank
@@ -737,11 +746,12 @@ class SubDistributor(DenseDistributor):
                     RIGHT: si.right > di.right}
 
         crosses = {
-            d: get_crosses(d, di, si)
-            for d, di, si in zip(
+            d: get_crosses(d, di, si, p)
+            for d, di, si, p in zip(
                 self.dimensions,
                 self.domain_interval,
                 self.subdomain_interval,
+                self.periodic,
                 strict=True
             )
         }
@@ -794,9 +804,11 @@ class SubDistributor(DenseDistributor):
             ret[d][LEFT] = MPI.PROC_NULL if not self.crosses[d][LEFT] else src
             ret[d][RIGHT] = MPI.PROC_NULL if not self.crosses[d][RIGHT] else dest
 
-        # Set up diagonal neighbours
+        # Set up diagonal neighbours, wrapping around along periodic Dimensions
         for i in product([LEFT, CENTER, RIGHT], repeat=self.ndim):
-            neighbor = [c + s.val for c, s in zip(self.mycoords, i, strict=True)]
+            neighbor = [(c + s.val) % t if p else c + s.val
+                        for c, s, t, p in zip(self.mycoords, i, self.topology,
+                                              self.periodic, strict=True)]
 
             if any(
                 c < 0 or c >= s for c, s in zip(neighbor, self.topology, strict=True)
