@@ -43,7 +43,6 @@ from devito.tools import (
     split, timed_pass, timed_region
 )
 from devito.types import Buffer, Evaluable, device_layer, disk_layer, host_layer
-from devito.types.args import ArgProvider
 from devito.types.dimension import SubDimension, SubsamplingOffset, Thickness
 from devito.warnings import warn
 
@@ -691,7 +690,9 @@ class Operator(Callable):
 
         # An ArgumentsMap carries additional metadata that may be used by
         # the subsequent phases of the arguments processing
-        args = kwargs['args'] = ArgumentsMap(args, grid, self, discretizations)
+        args = kwargs['args'] = self._make_arguments_map(
+            args, grid, discretizations, estimate_memory=estimate_memory
+        )
 
         if estimate_memory:
             # No need to do anything more if only checking the memory
@@ -740,19 +741,12 @@ class Operator(Callable):
 
         SubDimension._arg_check_thickness(self.dimensions, args)
 
-        # Resolve metadata for every bound argument before any one of them
-        # caches the available memory and allocates its storage.
-        parameters = [(p, kwargs.get(p.name, p)) for p in self.parameters]
-        for _, value in parameters:
-            if isinstance(value, ArgProvider):
-                value._arg_pre_finalize(args)
-
         # Turn arguments into a format suitable for the generated code
         # E.g., instead of NumPy arrays for Functions, the generated code expects
         # pointers to ctypes.Struct
-        for p, value in parameters:
+        for p in self.parameters:
             try:
-                args.update(value._arg_finalize(args, alias=p))
+                args.update(kwargs.get(p.name, p)._arg_finalize(args, alias=p))
             except AttributeError:
                 # User-provided floats/ndarray obviously do not have `_arg_finalize`
                 args.update(p._arg_finalize(args, alias=p))
@@ -761,6 +755,9 @@ class Operator(Callable):
         args.update(self._autotune(args, autotune or configuration['autotuning']))
 
         return args
+
+    def _make_arguments_map(self, args, grid, discretizations, estimate_memory=False):
+        return ArgumentsMap(args, grid, self, discretizations)
 
     def _postprocess_errors(self, retval, comm=None):
         if retval == 0:
@@ -1452,7 +1449,10 @@ class ArgumentsMap(dict):
             # to nbytes, as it is typically zero
             nbytes = obj.nbytes
 
-        # Could nominally have symbolic nbytes at this point
+        return self._evaluate_nbytes(nbytes)
+
+    def _evaluate_nbytes(self, nbytes):
+        """Resolve a symbolic allocation size against the bound arguments."""
         if isinstance(nbytes, sympy.Basic):
             return subs_op_args(nbytes, self)
 
@@ -1590,10 +1590,10 @@ class ArgumentsMap(dict):
                 continue
 
             try:
-                nbytes = i.nbytes if i.is_regular else i._arg_nbytes(self)
+                nbytes = i.nbytes if i.is_regular else i.nbytes_max
             except NotImplementedError:
                 continue
-            v = subs_op_args(nbytes, self) if isinstance(nbytes, sympy.Basic) else nbytes
+            v = self._evaluate_nbytes(nbytes)
             if not is_integer(v):
                 # E.g. the Arrays used to store the MPI halo exchanges
                 continue
