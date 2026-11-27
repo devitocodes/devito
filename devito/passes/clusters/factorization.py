@@ -6,6 +6,8 @@ from devito.ir import cluster_pass
 from devito.symbolics import (
     BasicWrapperMixin, estimate_cost, q_routine, retrieve_symbols, reuse_if_untouched
 )
+from devito.symbolics.unevaluation import Add as UnevalAdd
+from devito.symbolics.unevaluation import Mul as UnevalMul
 from devito.tools import ReducerMap
 from devito.types.object import AbstractObject
 
@@ -209,7 +211,7 @@ def _collect_nested(expr, strategy):
     elif expr.is_Pow:
         return expr, {'pows': expr}
     elif (expr.is_Symbol or expr.is_Indexed or not expr.args or
-          isinstance(expr, (BasicWrapperMixin, AbstractObject))):
+          isinstance(expr, (BasicWrapperMixin, AbstractObject, UnevalAdd, UnevalMul))):
         return expr, {}
     elif expr.is_Add:
         return strategies[strategy](expr, strategy), {}

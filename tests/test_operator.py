@@ -22,7 +22,9 @@ from devito import (  # noqa
     TensorFunction, TensorTimeFunction, TimeFunction, VectorFunction, VectorTimeFunction,
     configuration, dimensions, div, error, exp, grad, sin, switchconfig
 )
+from devito.arch import compiler_registry
 from devito.arch.archinfo import Device
+from devito.arch.compiler import GNUCompiler
 from devito.exceptions import InvalidOperator
 from devito.finite_differences.differentiable import diff2sympy
 from devito.ir.clusters import Cluster
@@ -42,6 +44,17 @@ from devito.types import (
     Symbol
 )
 from devito.warnings import DevitoWarning
+
+
+class AbiCompiler(GNUCompiler):
+
+    """Give identically configured compilers distinct ABIs through their names."""
+
+    def abi_id(self):
+        return (super().abi_id(), self.name)
+
+
+compiler_registry.update(dict.fromkeys(('abi-test-0', 'abi-test-1'), AbiCompiler))
 
 
 def dimify(dimensions):
@@ -149,6 +162,24 @@ class TestOperatorSetup:
                 Operator(Eq(u, u + 1),
                          opt=('advanced', {'buf-async-degree': async_degree}))
 
+        for mode in (False, 'float16'):
+            with pytest.raises(InvalidOperator, match='arithm-mode.*default.*fp16'):
+                Operator(Eq(u, u + 1), sym_opt={'arithm-mode': mode})
+
+    @pytest.mark.parametrize('mode', ['default', 'fp16'])
+    def test_arithmetic_mode(self, mode):
+        grid = Grid(shape=(4, 4))
+
+        f = Function(name='f', grid=grid, dtype=np.float16)
+
+        eq = Eq(f, f + 1)
+
+        options = {'arithm-mode': mode}
+        op = Operator(eq, sym_opt=options)
+
+        assert op._sym_options['arithm-mode'] == mode
+        assert options == {'arithm-mode': mode}
+
     def test_compiler_uniqueness(self):
         grid = Grid(shape=(3, 3, 3))
 
@@ -200,6 +231,22 @@ class TestOperatorSetup:
         assert str(op0) == str(op1) == str(op2)
         assert op0._soname != op1._soname
         assert op1._soname == op2._soname
+
+    @pytest.mark.parametrize('mode', ['default', 'fp16'])
+    def test_jit_compiler_abi(self, mode):
+        grid = Grid(shape=(4, 4))
+
+        f = Function(name='f', grid=grid)
+
+        eq = Eq(f, f + 1)
+
+        first, second = [Operator(eq, sym_opt={'arithm-mode': mode},
+                                  platform='cpu64', language='C', compiler=name)
+                         for name in ('abi-test-0', 'abi-test-1')]
+
+        assert str(first.ccode) == str(second.ccode)
+        assert first._compiler._signature_items() == second._compiler._signature_items()
+        assert first._soname != second._soname
 
     @pytest.mark.parametrize('name', ['r0', 'r1'])
     def test_generated_names_avoid_inputs(self, name):
@@ -2412,6 +2459,18 @@ class TestLoopScheduling:
         op = Operator(eq)
 
         assert_structure(op, ['t,x,y', 't', 't,x,y'], 't,x,y,x,y')
+
+    def test_topofuse_weak_keys(self):
+        """Different shared-read preferences must not suppress topological sorting."""
+        grid = Grid(shape=(4, 4))
+        a, b, p, q = [Function(name=n, grid=grid, space_order=0) for n in 'abpq']
+        shared = Array(name='shared', dimensions=grid.dimensions, scope='shared')
+        r0, r1 = [Symbol(name=n) for n in ('r0', 'r1')]
+        equations = [Eq(r0, 2*a), Eq(p, r0*shared),
+                     Eq(r1, 3*b), Eq(q, r1*shared)]
+        op = Operator(equations, opt=('topofuse', {'openmp': False}))
+        writes = [e.expr.lhs for e in FindNodes(Expression).visit(op)]
+        assert writes == [r0, r1, p.indexify(), q.indexify()]
 
 
 class TestInternals:

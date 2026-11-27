@@ -21,16 +21,20 @@ from devito.passes.iet.languages.CXX import CXXPrinter
 from devito.passes.iet.languages.openacc import AccPrinter
 from devito.symbolics import (  # noqa
     INT, BaseCast, CallFromComposite, CallFromPointer, Cast, DefFunction,
-    FieldFromComposite, FieldFromPointer, IntDiv, ListInitializer, Namespace,
-    ReservedWord, RoundUp, Rvalue, SizeOf, VectorAccess, evalrel, pow_to_mul, q_negative,
-    q_positive, retrieve_derivatives, retrieve_functions, retrieve_indexed,
-    subs_if_composite, unevaluate, uxreplace, xreplace_indices
+    FieldFromComposite, FieldFromPointer, IndexedPointer, IntDiv, ListInitializer,
+    Namespace, ReservedWord, RoundUp, Rvalue, SizeOf, VectorAccess, cast, evalrel,
+    has_integer_args, pow_to_mul, q_negative, q_positive, retrieve_derivatives,
+    retrieve_functions, retrieve_indexed, subs_if_composite, unevaluate, uxreplace,
+    xreplace_indices
 )
 from devito.symbolics.unevaluation import Add as UnevalAdd
 from devito.symbolics.unevaluation import Mul as UnevalMul
-from devito.tools import CustomDtype, as_tuple, dtypes_vector_mapper, frozendict
+from devito.tools import (
+    CustomDtype, as_tuple, dtypes_vector_mapper, extract_dtype, frozendict
+)
 from devito.types import (
-    Array, Bundle, ComponentAccess, FIndexed, LocalObject, Object, StencilDimension
+    Array, Bundle, ComponentAccess, CustomDimension, FIndexed, LocalObject, Object,
+    StencilDimension
 )
 from devito.types import Symbol as dSymbol
 from devito.types import Temp
@@ -278,6 +282,15 @@ def test_bundle():
     assert fg._rebuild().components == fg.components
 
 
+def test_pointer_cast_dtype():
+    dimension = CustomDimension(name='d', symbolic_size=4)
+    table = Array(name='table', dimensions=dimension, dtype=np.uint32)
+    dtype = dtypes_vector_mapper[np.float32, 2]
+    pointer = cast(dtype, '*')(table.indexed, reinterpret=True)
+    access = IndexedPointer(pointer, dimension)
+    assert access.dtype == extract_dtype(access) == dtype
+
+
 def test_call_from_pointer():
     s = Symbol('s')
 
@@ -351,6 +364,17 @@ def test_field_from_composite():
 
     # Free symbols
     assert ffc1.free_symbols == {s}
+
+
+@pytest.mark.parametrize('dtype, expected', [
+    (np.int32, True), (c_uint64, True), (np.float32, False),
+    (CustomDtype('size_t'), False)
+])
+def test_integer_args(dtype, expected):
+    s = dSymbol('s', dtype=dtype)
+
+    assert has_integer_args(s) == expected
+    assert has_integer_args(s, 1) == expected
 
 
 def test_extended_sympy_arithmetic():
@@ -461,6 +485,16 @@ def test_freeze_grouping(cls, lowered):
     assert unevaluate(frozen) is frozen
 
 
+def test_freeze_derivative():
+    grid = Grid(shape=(8, 8))
+
+    f = Function(name='f', grid=grid, space_order=4)
+
+    derivative = f.dx._evaluate(expand=False)
+
+    assert unevaluate(derivative) is derivative
+
+
 def test_freeze_equal_instances():
     a = Symbol.__xnew__(Symbol, 'equal_frozen_operand')
     b = Symbol.__xnew__(Symbol, 'equal_frozen_operand')
@@ -481,7 +515,7 @@ def test_lowered_integer_offset(dtype, offset, expected):
 
     expr = size + offset
     lowered = unevaluate(expr)
-    assert lowered.args == expr.args
+    assert lowered.args == (size, offset)
     assert ccode(lowered) == 'bx_size' + expected
 
     # Renaming preserves the tree, while printing remains canonical
@@ -663,6 +697,8 @@ def test_roundup():
     with switchconfig(platform='bdw', language='openmp'):
         op = Operator(Eq(u, u + expr))
 
+    assert expr.is_integer is True
+    assert (16*expr) % 16 == 0
     assert ccode(expr) == 'ROUND_UP(a, 16)'
     assert '#define ROUND_UP(a,b)' in str(op)
     assert 'ROUND_UP(a, 16)' in str(op)
@@ -1343,6 +1379,60 @@ class TestUxreplace:
 
         assert rebuilt.strides == (b,)
         assert expr.strides == (a,)
+
+    @pytest.mark.parametrize('op, separator', [(UnevalAdd, ' + '), (UnevalMul, '*')])
+    @pytest.mark.parametrize('dtype', [np.float16, np.float32])
+    def test_uxreplace_order(self, op, separator, dtype):
+        a, b, c, z = [dSymbol(name=n, dtype=dtype) for n in 'abcz']
+        expr = op(c, b, a)
+        assert expr.args == (c, b, a)
+        assert ccode(expr) == separator.join(('a', 'b', 'c'))
+
+        rebuilt = uxreplace(expr, {a: z})
+
+        assert rebuilt.args == (c, b, z)
+        assert ccode(rebuilt) == separator.join(('b', 'c', 'z'))
+        assert uxreplace(rebuilt, {z: a, b: z, c: b}).args == (b, z, a)
+        assert uxreplace(expr, {z: a}) is expr
+
+    @pytest.mark.parametrize('op, result', [(UnevalAdd, 5), (UnevalMul, 6)])
+    def test_uxreplace_reconstruction(self, op, result):
+        a, b, c, z = [dSymbol(name=n) for n in 'abcz']
+        nested = op(b, c)
+        expr = op(a, nested)
+
+        assert uxreplace(expr, {a: z}).args == (z, nested)
+        assert uxreplace(op(a, b), {a: Number(2), b: Number(3)}) == result
+
+    @pytest.mark.parametrize('op', [UnevalAdd, UnevalMul])
+    def test_uxreplace_compound_order(self, op):
+        a, b, c, d, t, z = [dSymbol(name=n) for n in 'abcdtz']
+        expr = op(a, b, c, d)
+
+        rebuilt = uxreplace(expr, {expr: {c: t, d: None}, b: z})
+
+        assert rebuilt.args == (a, z, t)
+
+    def test_unevaluated_factorization(self):
+        grid = Grid(shape=(8,))
+
+        a, b, c, z, out, ref = [Function(name=n, grid=grid, space_order=0)
+                                for n in ('a', 'b', 'c', 'z', 'out', 'ref')]
+
+        eq = uxreplace(Eq(out, UnevalAdd(UnevalMul(a, b), UnevalMul(a, c))), {a: z})
+        eq0 = Eq(ref, z*b + z*c)
+
+        reference = Operator(eq0, opt='noop')
+        candidate = Operator(eq, opt='advanced')
+
+        z.data[:] = (np.arange(8) + 1)*.125
+        b.data[:] = np.arange(8) + 1
+        c.data[:] = -np.arange(8)*.03125
+
+        assert 'b[x]*z[x] + c[x]*z[x]' in str(candidate)
+        reference.apply()
+        candidate.apply()
+        assert np.allclose(out.data, ref.data)
 
 
 def test_minmax():

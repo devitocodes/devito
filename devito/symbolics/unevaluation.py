@@ -11,6 +11,9 @@ class UnevaluableMixin:
 
 
 class Add(sympy.Add, UnevaluableMixin):
+
+    """An unevaluated sum whose terms retain their order after replacement."""
+
     __new__ = UnevaluableMixin.__new__
 
 
@@ -19,6 +22,9 @@ class Mod(sympy.Mod, UnevaluableMixin):
 
 
 class Mul(sympy.Mul, UnevaluableMixin):
+
+    """An unevaluated product retaining factor order and grouping."""
+
     def __new__(cls, *args, evaluate=None, **kwargs):
         # A Mul will always be zero if any of its arguments are zero
         if any(sympify(arg).is_zero for arg in args):

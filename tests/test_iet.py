@@ -725,7 +725,7 @@ def test_list_inline():
 
 
 def test_dereference_base_plus_off():
-    ptr = Pointer(name='p', dtype=np.float32)
+    ptr = Pointer(name='p', dtype_base=np.float32)
     off = Symbol(name='offs', dtype=np.int32)
 
     dim0 = CustomDimension(name='d0', symbolic_size=2)

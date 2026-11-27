@@ -700,7 +700,8 @@ class ComponentAccess(Expr, Pickable):
     @property
     def dtype(self):
         try:
-            return self.function.c0.dtype
+            dtype = self.function.c0.dtype
+            return dtypes_vector_mapper.get_base_dtype(dtype, dtype)
         except AttributeError:
             # Vector-component access over a scalar symbol, e.g. a float4 register.
             if self.function.is_Symbol:

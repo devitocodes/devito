@@ -17,6 +17,8 @@ from devito.symbolics import (
     DefFunction, IndexedPointer, Reserved, estimate_cost, q_leaf, q_terminal, search
 )
 from devito.symbolics.manipulation import _uxreplace
+from devito.symbolics.unevaluation import Add as UnevalAdd
+from devito.symbolics.unevaluation import Mul as UnevalMul
 from devito.tools import DAG, as_list, as_tuple, extract_dtype, frozendict
 from devito.types import Eq, Symbol, Temp
 
@@ -463,9 +465,12 @@ def _(expr):
     return mapper
 
 
+@_catch.register(UnevalAdd)
+@_catch.register(UnevalMul)
 @_catch.register(Pow)
 @_catch.register(Function)
 def _(expr):
+    # Reuse frozen arithmetic only as complete subexpressions
     mapper = _catch(expr.args)
 
     mapper[Candidate(expr)].append(expr)

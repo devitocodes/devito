@@ -20,7 +20,6 @@ from devito.symbolics.search import (
 from devito.symbolics.unevaluation import Add as UnevalAdd
 from devito.symbolics.unevaluation import Mul as UnevalMul
 from devito.symbolics.unevaluation import Pow as UnevalPow
-from devito.symbolics.unevaluation import UnevaluableMixin
 from devito.symbolics.unevaluation import ceiling as UnevalCeil
 from devito.symbolics.unevaluation import floor as UnevalFloor
 from devito.tools import (
@@ -56,9 +55,9 @@ def uxreplace(expr, rule):
     be avoided at all costs (e.g., to prevent SymPy from unpicking Devito
     transformations, such as factorization).
 
-    Evaluated expressions retain canonical argument ordering. Lowered,
-    unevaluated arithmetic retains its operand order and grouping unless
-    substitution makes it completely numeric.
+    Ordinary sums and products retain canonical argument ordering. Unevaluated
+    Add/Mul instead preserve operand order and grouping, e.g. replacing `a` in
+    `c*(b*a)` retains `c*(b*z)`. Fully numeric replacements may be evaluated.
 
     By avoiding re-evaluations, this function is typically much quicker than
     SymPy's xreplace.
@@ -85,43 +84,40 @@ def _uxreplace(expr, rule):
 
 
 def _uxreplace_default(expr, rule):
+    if not rule:
+        return expr, False
+
     if expr in rule:
-        v = rule[expr]
-        if not isinstance(v, dict):
-            return v, True
-        args, eargs = split(expr.args, lambda i: i in v)
-        args = [v[i] for i in args if v[i] is not None]
-        changed = True
-    elif expr.__class__ in rule:
-        # Exact type -> type substitution
-        cls = rule[expr.__class__]
-        expr = cls(*expr.args)
-        args, eargs = [], expr.args
+        replacement = rule[expr]
+        if not isinstance(replacement, dict):
+            return replacement, True
+
+        # Apply compound overrides to the immediate operands in place
+        args = []
+        for a in expr.args:
+            if a not in replacement:
+                args.append(_uxreplace(a, rule)[0])
+            elif replacement[a] is not None:
+                args.append(replacement[a])
         changed = True
     else:
-        try:
-            args, eargs = [], expr.args
-        except AttributeError:
-            # E.g., unsympified `int`
-            args, eargs = [], []
-        changed = False
-
-    if rule:
-        eargs, flag = _uxreplace_dispatch(eargs, rule)
-        args.extend(eargs)
-        changed |= flag
-
-        # If a Reconstructable object, we need to parse the kwargs as well
-        if _uxreplace_registry.dispatchable(expr):
-            v = {i: getattr(expr, i) for i in expr.__rkwargs__}
-            kwargs, flag = _uxreplace_dispatch(v, rule)
-        else:
-            kwargs, flag = {}, False
-        changed |= flag
-
+        changed = expr.__class__ in rule
         if changed:
-            return _uxreplace_handle(expr, args, kwargs), True
+            cls = rule[expr.__class__]
+            expr = cls(*expr.args)
 
+        args, flag = _uxreplace_dispatch(getattr(expr, 'args', ()), rule)
+        changed |= flag
+
+    kwargs = {}
+    if _uxreplace_registry.dispatchable(expr):
+        # A Reconstructable can carry symbolic arguments in its kwargs
+        kwargs = {i: getattr(expr, i) for i in expr.__rkwargs__}
+        kwargs, flag = _uxreplace_dispatch(kwargs, rule)
+        changed |= flag
+
+    if changed:
+        return _uxreplace_handle(expr, list(args), kwargs), True
     return expr, False
 
 
@@ -217,11 +213,10 @@ def _(expr, args, kwargs):
     return expr.func(*args, evaluate=evaluate)
 
 
-# The SymPy bases precede UnevaluableMixin in these classes' dispatch MRO
 @_uxreplace_handle.register(UnevalAdd)
 @_uxreplace_handle.register(UnevalMul)
 def _(expr, args, kwargs):
-    # Lowered arithmetic must survive substitutions without reassociation
+    # Preserve grouping and rounding points, e.g. `c*(w*u)`
     if all(i.is_Number for i in args):
         return expr.func.__base__(*args)
     return expr.func(*args)
@@ -354,7 +349,9 @@ def subs_if_composite(expr, subs):
         return reuse_if_untouched(expr, (subs_if_composite(e, subs) for e in expr))
     elif type(expr) is list:
         return reuse_if_untouched(expr, [subs_if_composite(e, subs) for e in expr])
-    elif all(isinstance(i, (Indexed, IndexDerivative)) for i in subs):
+    elif all(isinstance(i, (Indexed, IndexDerivative, UnevalAdd, UnevalMul))
+             for i in subs):
+        # Frozen arithmetic only permits exact matches, never partial reassociation
         return uxreplace(expr, subs)
     else:
         processed = expr.subs(subs)
@@ -405,8 +402,7 @@ def _eval_numbers(expr, args):
     """
     numbers, others = split(args, lambda i: i.is_Number)
     if len(numbers) > 1:
-        cls = expr.func.__base__ if isinstance(expr, UnevaluableMixin) else expr.func
-        args[:] = [cls(*numbers)] + others
+        args[:] = [expr.func(*numbers)] + others
 
 
 def flatten_args(args, op, ignore=None):
@@ -630,10 +626,18 @@ uneval_mapper = {Add: UnevalAdd, Mul: UnevalMul, Pow: UnevalPow,
 
 def unevaluate(expr):
     """Protect lowered arithmetic from reevaluation during reconstruction."""
-    if q_leaf(expr):
+    # Derivatives still need their own lowering, e.g. removing a unit weight
+    if q_leaf(expr) or isinstance(expr, IndexDerivative):
         return expr
 
-    args = [unevaluate(a) for a in expr.args]
+    # Freeze the scalar printer's order before replacing its operands
+    if expr.func is Add:
+        args = expr.as_ordered_terms()
+    elif expr.func is Mul:
+        args = expr.as_ordered_factors()
+    else:
+        args = expr.args
+    args = [unevaluate(a) for a in args]
 
     try:
         return uneval_mapper[expr.func](*args)
