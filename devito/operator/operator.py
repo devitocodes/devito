@@ -1415,8 +1415,8 @@ class ArgumentsMap(dict):
 
     @cached_property
     def _op_symbols(self):
-        """Symbols in the Operator which may or may not carry data"""
-        return FindSymbols().visit(self.op)
+        """Symbols referenced by the Operator entry body."""
+        return FindSymbols().visit(self.op.body)
 
     @cached_property
     def _op_functions(self):
@@ -1527,7 +1527,7 @@ class ArgumentsMap(dict):
 
     @cached_property
     def nbytes_consumed(self):
-        """Memory consumed by all objects in the Operator"""
+        """Memory consumed by Operator arguments and entry allocations."""
         mem_locations = (
             self.nbytes_consumed_functions,
             self.nbytes_consumed_arrays,
@@ -1537,7 +1537,7 @@ class ArgumentsMap(dict):
 
     @cached_property
     def nbytes_consumed_operator(self):
-        """Memory consumed by objects allocated within the Operator"""
+        """Memory allocated at Operator entry."""
         mem_locations = (
             self.nbytes_consumed_arrays,
             self.nbytes_consumed_memmapped
@@ -1570,17 +1570,11 @@ class ArgumentsMap(dict):
     @cached_property
     def nbytes_consumed_arrays(self):
         """
-        Memory consumed on both device and host by C-land Arrays
-        in the corresponding Operator.
+        Host and device memory consumed by C-land Arrays at Operator entry.
         """
         host = 0
         device = 0
-        # Count the allocation sites. Helpers can contain renamed views of
-        # the same heap Array.
-        allocs = [self.op.body.allocs]
-        allocs.extend(i.root.body.allocs for i in self.op._func_table.values()
-                      if i.local)
-        for i in FindSymbols('defines-aliases').visit(allocs):
+        for i in self._op_symbols:
             if not i.is_Array or not i._mem_heap or i.alias:
                 continue
 
