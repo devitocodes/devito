@@ -1,13 +1,14 @@
 from itertools import groupby
 
 from devito.ir.iet import (
-    BusyWait, BusyWaitCall, EntryFunction, FindNodes, FindSymbols, Iteration, MapNodes,
-    Section, TimedList, Transformer
+    BusyWait, BusyWaitCall, EntryFunction, FindNodes, FindSymbols, Iteration, List,
+    MapNodes, ParallelBlock, ParallelTree, Section, TimedList, Transformer
 )
 from devito.mpi.routines import (
     ComputeCall, HaloUpdateCall, HaloUpdateList, HaloWaitCall, HaloWaitList, MPICall,
     MPIList, RemainderCall
 )
+from devito.operator.profiling import TimeLoopTimer
 from devito.passes.iet.engine import iet_pass
 from devito.types import TempArray, TempFunction, Timer
 
@@ -21,11 +22,64 @@ def instrument(graph, **kwargs):
 
     track_subsections(graph, **kwargs)
 
-    # Construct a fresh Timer object
-    timer = Timer(profiler.name, list(profiler.all_sections))
+    # The time loop, if any, has a special relevance when it gets to profiling
+    time_loop = None
+    if profiler._track_time_loop:
+        body = graph.root.body.body
+        time_loops = [i for i in FindNodes(Iteration).visit(body) if i.dim.is_Time]
+        if len(time_loops) == 1:
+            time_loop = time_loops[0]
+
+    fields = profiler.all_sections
+    if time_loop is None:
+        timer = Timer(profiler.name, fields)
+    else:
+        timer = TimeLoopTimer(profiler.name, [*fields, 'time_loop'])
+        instrument_time_loop(graph, time_loop=time_loop, timer=timer, **kwargs)
 
     instrument_sections(graph, timer=timer, **kwargs)
     sync_sections(graph, **kwargs)
+
+
+@iet_pass
+def instrument_time_loop(iet, time_loop, timer, langbb, **kwargs):
+    """
+    Time the Operator's sole time loop.
+    On asynchronous backends, wait for device work at both boundaries.
+
+    For example, a CUDA Operator contains::
+
+        setup(); cudaDeviceSynchronize(); START(time_loop)
+        for (time = time_m; time <= time_M; ++time) { ... }
+        cudaDeviceSynchronize(); STOP(time_loop, timers); teardown();
+    """
+    if not isinstance(iet, EntryFunction):
+        return iet, {}
+
+    # Keep the loop attached to its parallel directives
+    target = time_loop
+    for region in FindNodes((ParallelBlock, ParallelTree)).visit(iet):
+        if time_loop in FindNodes(Iteration).visit(region):
+            target = region
+            break
+
+    # Synchronize before the START/STOP
+    wait = langbb.get('device-wait')
+    sync = langbb.get('map-wait')
+    if wait is not None:
+        waits = [wait]
+    elif sync is not None:
+        waits = [sync(q) for q in FindSymbols().visit(target)
+                 if isinstance(q, langbb.AsyncQueue)]
+    else:
+        waits = []
+
+    timed = TimedList(timer=timer, lname='time_loop', body=[target, *waits])
+    body = List(body=[*waits, timed]) if waits else timed
+
+    piet = Transformer({target: body}).visit(iet)
+
+    return piet, {'headers': _timer_headers()}
 
 
 @iet_pass
@@ -113,21 +167,20 @@ def track_subsections(iet, **kwargs):
 
 
 @iet_pass
-def instrument_sections(iet, **kwargs):
+def instrument_sections(iet, profiler, timer, **kwargs):
     """
     Instrument the Sections of the input IET based on `profiler.sections`.
     """
-    profiler = kwargs['profiler']
-    timer = kwargs['timer']
-
     piet = profiler.instrument(iet, timer)
 
     if piet is iet:
         return piet, {}
 
-    headers = [TimedList._start_timer_header(), TimedList._stop_timer_header()]
+    return piet, {'headers': _timer_headers()}
 
-    return piet, {'headers': headers}
+
+def _timer_headers():
+    return [TimedList._start_timer_header(), TimedList._stop_timer_header()]
 
 
 @iet_pass
@@ -143,8 +196,10 @@ def sync_sections(iet, langbb=None, profiler=None, **kwargs):
     if not profiler._supports_async_sections:
         return iet, {}
 
+    sections = FindNodes(Section).visit(iet)
+    timed_sections = [n for s in sections for n in s.body if isinstance(n, TimedList)]
     mapper = {}
-    for tl in FindNodes(TimedList).visit(iet):
+    for tl in timed_sections:
         symbols = FindSymbols().visit(tl)
 
         queues = [i for i in symbols if isinstance(i, langbb.AsyncQueue)]

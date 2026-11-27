@@ -33,8 +33,8 @@ from devito.operator.registry import operator_selector
 from devito.parameters import configuration
 from devito.passes import (
     Graph, error_mapper, finalize_args, generate_implicit, generate_macros, is_on_device,
-    lower_dtypes, lower_index_derivatives, lower_local_sums, minimize_symbols,
-    optimize_pows, subsampling, unevaluate
+    lower_dtypes, lower_index_derivatives, lower_local_scatters, lower_local_sums,
+    minimize_symbols, optimize_pows, subsampling, unevaluate
 )
 from devito.symbolics import estimate_cost, subs_op_args
 from devito.tools import (
@@ -432,6 +432,7 @@ class Operator(Callable):
 
         # Lower all remaining high order symbolic objects
         clusters = lower_local_sums(clusters, **kwargs)
+        clusters = lower_local_scatters(clusters, **kwargs)
         clusters = lower_index_derivatives(clusters, **kwargs)
 
         # Turn pows into multiplications. This must happen as late as possible
@@ -1414,8 +1415,8 @@ class ArgumentsMap(dict):
 
     @cached_property
     def _op_symbols(self):
-        """Symbols in the Operator which may or may not carry data"""
-        return FindSymbols().visit(self.op)
+        """Symbols referenced by the Operator entry body."""
+        return FindSymbols().visit(self.op.body)
 
     @cached_property
     def _op_functions(self):
@@ -1526,7 +1527,7 @@ class ArgumentsMap(dict):
 
     @cached_property
     def nbytes_consumed(self):
-        """Memory consumed by all objects in the Operator"""
+        """Memory consumed by Operator arguments and entry allocations."""
         mem_locations = (
             self.nbytes_consumed_functions,
             self.nbytes_consumed_arrays,
@@ -1536,7 +1537,7 @@ class ArgumentsMap(dict):
 
     @cached_property
     def nbytes_consumed_operator(self):
-        """Memory consumed by objects allocated within the Operator"""
+        """Memory allocated at Operator entry."""
         mem_locations = (
             self.nbytes_consumed_arrays,
             self.nbytes_consumed_memmapped
@@ -1569,20 +1570,19 @@ class ArgumentsMap(dict):
     @cached_property
     def nbytes_consumed_arrays(self):
         """
-        Memory consumed on both device and host by C-land Arrays
-        in the corresponding Operator.
+        Host and device memory consumed by C-land Arrays at Operator entry.
         """
         host = 0
         device = 0
-        # Temporaries such as Arrays are allocated and deallocated on-the-fly
-        # while in C land, so they need to be accounted for as well
         for i in self._op_symbols:
-            if not i.is_Array or not i._mem_heap or i.alias \
-               or not i.is_regular:
+            if not i.is_Array or not i._mem_heap or i.alias:
                 continue
 
-            nbytes = i.nbytes if i.is_regular else i.nbytes_max
-            v = subs_op_args(nbytes, self)
+            try:
+                nbytes = i.nbytes if i.is_regular else i.nbytes_max
+            except NotImplementedError:
+                continue
+            v = subs_op_args(nbytes, self) if isinstance(nbytes, sympy.Basic) else nbytes
             if not is_integer(v):
                 # E.g. the Arrays used to store the MPI halo exchanges
                 continue

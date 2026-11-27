@@ -17,15 +17,18 @@ from devito.data import LEFT, RIGHT
 from devito.exceptions import InvalidArgument, mpi_raise
 from devito.ir import Cluster, Interval, IterationSpace
 from devito.ir.clusters.algorithms import check_halo_writes
+from devito.ir.equations import LoweredEq
 from devito.ir.iet import (
     Call, Conditional, FindNodes, FindSymbols, Iteration, retrieve_iteration_tree
 )
 from devito.ir.support.space import Backward, Forward
 from devito.mpi import MPI
 from devito.mpi.distributed import CustomTopology
+from devito.mpi.halo_scheme import HaloScheme
 from devito.mpi.routines import (
     ComputeCall, ComputeFunction, HaloUpdateCall, HaloUpdateList, MPICall, MPIRegion
 )
+from devito.operator.operator import ArgumentsMap
 from devito.tools import Bunch
 from devito.types import Bundle
 from devito.types.dimension import ModuloDimension, RankOffset
@@ -3901,6 +3904,23 @@ class TestOperatorAdvanced:
         g.data[inside] = 1
         assert np.all(f.data == g.data)
 
+    @pytest.mark.parallel(mode=[(3, 'overlap2')])
+    def test_alignment_empty_core(self, mode):
+        grid = Grid(shape=(24,), topology=('*',))
+        x, = grid.dimensions
+        f = Function(name='f', grid=grid, space_order=2)
+        eq = LoweredEq(Eq(f[x], f[x-2] + f[x+2]))
+        hs = HaloScheme([eq], eq.ispace)._rebuild(alignment=4)
+
+        regions = (hs.omapper.core,) + tuple(r for _, r in hs.omapper.owned)
+        region = MPIRegion('reg', 'region', (x,), regions)
+        args = ArgumentsMap({'x_m': 0, 'x_M': 3}, grid, None)
+        region._arg_values(args=args)
+
+        # On the middle rank the requested range [0, 3] leaves an empty CORE [2, 1].
+        if grid.distributor.myrank == 1:
+            assert region.value[0].x_m > region.value[0].x_M
+
     @pytest.mark.parallel(mode=[(2, 'overlap2')])
     def test_region_arguments(self, mode):
         """Packed regions preserve runtime overrides of distributed bounds."""
@@ -3926,6 +3946,85 @@ class TestOperatorAdvanced:
 
             np.testing.assert_allclose(np.asarray(u.data), np.asarray(v.data),
                                        rtol=1.e-6, atol=1.e-7)
+
+    @pytest.mark.parallel(mode=[(4, 'overlap')])
+    def test_empty_owned_regions(self, mode):
+        grid = Grid(shape=(32, 32, 16), topology=(2, 2, 1))
+        u = TimeFunction(name='u', grid=grid, space_order=2)
+        op = Operator(Eq(u.forward, u.dx + u.dy + 1), name='EmptyOwned')
+
+        op.apply(time_M=0)
+
+        region, = [p for p in op.parameters if isinstance(p, MPIRegion)]
+        records = [(r.x_m, r.x_M, r.y_m, r.y_M) for r in region.value]
+
+        # Each rank has one receive neighbor per axis and three active OWNED rows.
+        px, py, _ = grid.distributor.mycoords
+        core = [(0, 13), (2, 15)]
+        edge = [(14, 15), (0, 1)]
+        assert len(records) == 9
+        assert records[:4] == [core[px] + core[py], core[px] + edge[py],
+                               edge[px] + core[py], edge[px] + edge[py]]
+        assert all(x_m > x_M or y_m > y_M for x_m, x_M, y_m, y_M in records[4:])
+        np.testing.assert_array_equal(u.data[1], 1)
+
+    @pytest.mark.parallel(mode=[(4, 'overlap2')])
+    def test_function_on_subdomain(self, mode):
+
+        class Band(SubDomain):
+
+            name = 'band'
+
+            def define(self, dimensions):
+                x, y = dimensions
+                return {x: ('middle', 16, 16), y: y}
+
+        grid = Grid(shape=(64, 16), extent=(63., 15.), topology=(4, 1))
+        band = Band(grid=grid)
+        u = TimeFunction(name='u', grid=band, space_order=2)
+        v = TimeFunction(name='v', grid=band, space_order=2)
+        eqn = Eq(u.forward, u + .01*u.laplace + 1)
+
+        with switchconfig(mpi='basic'):
+            reference = Operator(eqn)
+        op = Operator(eqn)
+
+        reference.apply(u=v, time_M=3)
+        op.apply(time_M=3)
+
+        np.testing.assert_allclose(np.asarray(u.data), np.asarray(v.data),
+                                   rtol=1.e-6, atol=1.e-7)
+
+    @pytest.mark.parallel(mode=[(2, 'overlap'), (2, 'overlap2'), (4, 'overlap2')])
+    def test_region_communicator(self, mode):
+        """Pickled COMM_SELF construction uses the runtime Grid's neighbors."""
+        construction_grid = Grid(shape=(32, 32), extent=(31., 31.),
+                                 topology=('*', '*'), comm=MPI.COMM_SELF)
+        u = TimeFunction(name='u', grid=construction_grid, space_order=2)
+        op = Operator(Eq(u.forward, u + .01*u.laplace + 1), name='RegionCommunicator')
+        _ = op.cfunction
+        op = pickle.loads(pickle.dumps(op))
+
+        grid = Grid(shape=(32, 32), extent=(31., 31.), topology=('*', '*'))
+        u = TimeFunction(name='u', grid=grid, space_order=2)
+        v = TimeFunction(name='v', grid=grid, space_order=2)
+        with switchconfig(mpi='basic'):
+            reference = Operator(Eq(v.forward, v + .01*v.laplace + 1))
+        for f in (u, v):
+            f.data_with_halo.fill(0)
+        reference.apply(time_M=3)
+        op.apply(u=u, time_M=3)
+        np.testing.assert_allclose(np.asarray(u.data), np.asarray(v.data),
+                                   rtol=1.e-6, atol=1.e-7)
+
+        region, = [i for i in op.parameters if isinstance(i, MPIRegion)]
+        core = region.value[0]
+        for d, size in zip(grid.dimensions, grid.shape_local, strict=True):
+            neighbors = grid.distributor.neighborhood[d]
+            left = 0 if neighbors[LEFT] == MPI.PROC_NULL else 2
+            right = 0 if neighbors[RIGHT] == MPI.PROC_NULL else 2
+            assert getattr(core, d.min_name) == left
+            assert getattr(core, d.max_name) == size - right - 1
 
 
 def gen_serial_norms(shape, so):

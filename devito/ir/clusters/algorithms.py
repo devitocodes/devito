@@ -864,22 +864,18 @@ def _normalize_reductions_dense(cluster, mapper, sregistry, platform):
 @cluster_pass(mode='sparse')
 def normalize_reductions_sparse(cluster, sregistry):
     """
-    Extract the right-hand sides of reduction Eq's in to temporaries.
+    Compute each indexed reduction's contribution in a scalar temporary.
+
+    Local scatters materialize the temporary when their layout is lowered.
     """
     processed = []
     for e in cluster.exprs:
-        if e.is_Reduction and e.lhs.is_Indexed:
-            # Transform `e` such that we reduce into a scalar (ultimately via
-            # atomic ops, though this part is carried out by a much later pass)
-            # For example, given `i = m[p_src]` (i.e., indirection array), turn:
-            # `u[t, i] += f(u[t, i], src, ...)`
-            # into
-            # `s = f(u[t, i], src, ...)`
-            # `u[t, i] += s`
-            name = sregistry.make_name()
-            v = Symbol(name=name, dtype=e.dtype)
-            processed.extend([e.func(v, e.rhs, operation=None),
-                              e.func(e.lhs, v)])
+        if e.is_Reduction and \
+           e.lhs.is_Indexed and \
+           not e.local_scatters:
+            temp = Symbol(name=sregistry.make_name(), dtype=e.dtype)
+            processed.extend([e.func(temp, e.rhs, operation=None),
+                              e.func(e.lhs, temp)])
         else:
             processed.append(e)
 

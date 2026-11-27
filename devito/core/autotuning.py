@@ -90,7 +90,11 @@ def autotune(operator, args, level, mode):
         return args, {}
 
     # Use a fresh Timer for auto-tuning
-    timer = Timer('timers', list(operator._profiler.all_sections))
+    timer = next((p for p in operator.parameters if isinstance(p, Timer)), None)
+    if timer is None:
+        return args, {}
+
+    timer = timer._rebuild()
     at_args.update(timer._arg_values())
 
     # Perform autotuning

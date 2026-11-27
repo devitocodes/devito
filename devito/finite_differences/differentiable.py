@@ -35,6 +35,7 @@ __all__ = [
     'Imag',
     'IndexDerivative',
     'IndexDerivativeProperty',
+    'LocalScatter',
     'LocalSum',
     'Real',
     'Weights',
@@ -1106,6 +1107,44 @@ class LocalSum(IndexSum, Pickable):
     def _evaluate(self, **kwargs):
         return self._rebuild(*self._evaluate_args(**kwargs))
 
+    __reduce_ex__ = Pickable.__reduce_ex__
+
+
+class LocalScatter(sympy.Expr, Evaluable, Pickable):
+
+    """
+    A contribution to an indexed increment over a sparse footprint.
+
+    `dimensions` lists the sparse point axis followed by the support axes.
+    The enclosing increment provides the destination, iteration space and guards.
+    """
+
+    __rargs__ = ('expr',)
+    __rkwargs__ = ('dimensions',)
+
+    is_commutative = True
+
+    def __new__(cls, expr, dimensions, **kwargs):
+        obj = sympy.Expr.__new__(cls, expr)
+        obj._dimensions = as_tuple(dimensions)
+        return obj
+
+    @property
+    def expr(self):
+        return self.args[0]
+
+    @property
+    def dimensions(self):
+        return self._dimensions
+
+    @cached_property
+    def dtype(self):
+        return extract_dtype(self.expr)
+
+    def _hashable_content(self):
+        return super()._hashable_content() + (self.dimensions,)
+
+    func = Evaluable._rebuild
     __reduce_ex__ = Pickable.__reduce_ex__
 
 

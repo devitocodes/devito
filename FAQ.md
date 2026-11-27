@@ -844,6 +844,9 @@ Notes:
 * The first line shows the total runtime of the Operator, including Python overhead, transition into executing the JIT-compiled binary, and any CPU-GPU data transfers.
 
 * The two "Global performance" lines differ as follows: the <w/o setup> version excludes overhead (e.g., CPU-GPU data transfers) and better reflects actual compute performance, since such overheads are easily amortized way in production-grade runs when a simulation is executed over hundreds/thousands of timesteps.
+  With the native advanced profiler, a timer spans the time loop and MPI uses the longest
+  elapsed time across ranks. For Operators without a time loop, Devito adds the longest
+  rank time for each section.
 
 * The "Local performance" section provides a breakdown by code section. These sections are determined by the Devito compiler based on internal heuristics. Typically, loops related to finite-difference evaluation are grouped together, while operations such as source injection or receiver interpolation are placed in separate sections.
 

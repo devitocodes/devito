@@ -91,6 +91,7 @@ class AccBB(PragmaLangBB):
             Pragma('acc serial present(%s) copyout(%s)', arguments=(i, j)),
         'map-wait': lambda i:
             Pragma('acc wait(%s)', arguments=i),
+        'device-wait': Pragma('acc wait'),
         'map-update': lambda f, imask:
             PragmaTransfer('acc exit data copyout(%s%s)', f, imask=imask),
         'map-update-host': lambda f, imask:

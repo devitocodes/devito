@@ -352,7 +352,13 @@ def make_halo_exchanges(iet, mpimode=None, fallback='basic', **kwargs):
     user_heb = HaloExchangeBuilder(mpimode, generators, **kwargs)
     mapper = {}
     for hs in FindNodes(HaloSpot).visit(iet):
-        heb = user_heb if isinstance(hs, OverlappableHaloSpot) else sync_heb
+        # Functions on SubDomains can have expression-valued bounds
+        if isinstance(hs, OverlappableHaloSpot) and \
+           not any(f.grid.is_SubDomain for f in hs.functions):
+            heb = user_heb
+        else:
+            heb = sync_heb
+
         mapper[hs] = heb.make(hs)
 
     efuncs = sync_heb.efuncs + user_heb.efuncs
@@ -372,7 +378,7 @@ def make_halo_exchanges(iet, mpimode=None, fallback='basic', **kwargs):
                 break
     iet = Transformer(mapper, nested=True).visit(iet)
 
-    return iet, {'includes': ['mpi.h'], 'efuncs': efuncs}
+    return user_heb.finalize(iet, {'includes': ['mpi.h'], 'efuncs': efuncs})
 
 
 @iet_pass

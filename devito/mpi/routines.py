@@ -16,6 +16,7 @@ from devito.ir.iet import (
     Return, Transformer, Uxreplace, make_efunc
 )
 from devito.mpi import MPI
+from devito.mpi.halo_scheme import HasNeighbor
 from devito.symbolics import (
     Byref, CondNe, FieldFromComposite, FieldFromPointer, IndexedPointer, Macro, cast,
     subs_op_args
@@ -56,6 +57,10 @@ class HaloExchangeBuilder:
         obj._efuncs = []
 
         return obj
+
+    def finalize(self, iet, metadata):
+        """Place any entry-level lifetime operations for the built exchanges."""
+        return iet, metadata
 
     @property
     def efuncs(self):
@@ -638,8 +643,8 @@ class OverlapHaloExchangeBuilder(DiagHaloExchangeBuilder):
             mapper = frozendict({r.pfields: r.pname for r in reversed(self.regions)})
             pname = mapper.get(Region.__pfields_setup__(arguments), f'region{key}')
 
-        # Record zero is the CORE, followed by one record per OWNED region
-        regions = (hs.omapper.core,) + tuple(i for _, i in hs.omapper.owned)
+        omapper = hs.omapper
+        regions = (omapper.core, *(r for _, r in omapper.owned))
         return MPIRegion(f'reg{key}', pname, arguments, regions)
 
     def _make_msg(self, f, hse, key):
@@ -928,13 +933,17 @@ class Overlap2HaloExchangeBuilder(OverlapHaloExchangeBuilder):
         assert callcompute.is_Call
 
         dim = Dimension(name='i')
-        region_i = Byref(IndexedPointer(region, dim + 1))
-        iet = Uxreplace({callcompute.region: region_i}).visit(callcompute)
+        record = IndexedPointer(region, dim + 1)
+        call = Uxreplace({callcompute.region: Byref(record)}).visit(callcompute)
+        body = self._make_remainder_body(call, region, record)
 
         # Skip the CORE record, retaining a zero-based loop over OWNED regions
-        iet = Iteration(iet, dim, region.nregions - 2)
+        iet = Iteration(body, dim, region.nregions - 2)
 
         return Remainder.make(f'remainder{key}', iet)
+
+    def _make_remainder_body(self, call, region, record):
+        return call
 
 
 class Diag2HaloExchangeBuilder(Overlap2HaloExchangeBuilder):
@@ -1033,6 +1042,7 @@ mpi_registry = {
     'diag2': Diag2HaloExchangeBuilder,
     'overlap': OverlapHaloExchangeBuilder,
     'overlap2': Overlap2HaloExchangeBuilder,
+    'overlap3': Overlap2HaloExchangeBuilder,
     'full': FullHaloExchangeBuilder,
 }
 
@@ -1359,7 +1369,8 @@ class MPIMsgEnriched(MPIMsg):
 class MPIRegion(Region):
 
     """
-    Runtime records for the CORE, followed by the OWNED regions.
+    Runtime records for the CORE, followed by the OWNED regions. Empty OWNED
+    records come last so a remainder loop can stop at the first empty one.
     """
 
     __rargs__ = ('name', 'pname', 'arguments', 'regions')
@@ -1376,21 +1387,49 @@ class MPIRegion(Region):
         return len(self.regions)
 
     def _arg_values(self, args=None, **kwargs):
+        # Localize scalar controls such as SubDomain thicknesses.
         values = self._arg_defaults()
-
-        # Scalar controls still need runtime localization, e.g. SubDomain thicknesses
         for a in self.arguments:
             if not a.is_Dimension:
                 values.update(a._arg_values(args=args, **kwargs))
-        args = {**args, **values}
 
-        for entry, mapper in zip(self.value, self.regions, strict=True):
-            data = flatten(mapper[a] for a in self.arguments)
-            for symbol, value in zip(self.symbols, data, strict=True):
+        # Overlapped axes inherit the face neighbors of the common runtime Grid
+        grid = getattr(args, 'grid', None)
+        neighborhood = {}
+        if grid is not None:
+            neighborhood = grid.distributor._obj_neighborhood.face_neighbors
+
+        # Retain nominal OWNED widths for unknown faces
+        dims = [d for d in self.arguments if d.is_Dimension]
+        peers = {}
+        for d in dims:
+            root = d.root
+            neighbors = neighborhood.get(root.name, {})
+            for bound, side in ((root.symbolic_min, LEFT), (root.symbolic_max, RIGHT)):
+                peers[HasNeighbor(bound)] = int(
+                    side not in neighbors or neighbors[side] != MPI.PROC_NULL
+                )
+
+        # Evaluate the symbolic bounds and scalar controls in each record.
+        bounds = {**args, **values}
+        names = self.fields
+        records = []
+        for region in self.regions:
+            row = {}
+            fields = flatten(region[a] for a in self.arguments)
+            for name, value in zip(names, fields, strict=True):
                 with suppress(AttributeError):
-                    value = subs_op_args(value, args)
-                setattr(entry, symbol.name, value)
+                    value = subs_op_args(value.xreplace(peers), bounds)
+                row[name] = value
+            records.append(row)
 
+        # CORE is read directly. The remainder can stop at the first empty row.
+        records[1:] = sorted(
+            records[1:], key=lambda r: any(r[d.min_name] > r[d.max_name] for d in dims)
+        )
+
+        # Pack the records in C struct field order.
+        self.value[:] = [tuple(r.values()) for r in records]
         return values
 
     def _arg_check(self, args, *_args, **kwargs):

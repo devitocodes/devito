@@ -6,12 +6,12 @@ from sympy import Float, Integer
 
 from conftest import assert_structure
 from devito import (
-    NODE, DefaultDimension, Dimension, Eq, Function, Grid, MatrixSparseTimeFunction,
+    NODE, DefaultDimension, Dimension, Eq, Function, Grid, Inc, MatrixSparseTimeFunction,
     Operator, PrecomputedSparseFunction, PrecomputedSparseTimeFunction, Real,
     SparseFunction, SparseTimeFunction, SubDomain, TimeFunction, VectorFunction,
     switchconfig
 )
-from devito.finite_differences import LocalSum
+from devito.finite_differences import LocalScatter, LocalSum
 from devito.ir import FindSymbols, LoweredEq
 from devito.operations.interpolators import (
     LinearInterpolator, SincInterpolator, _cell_indices
@@ -28,6 +28,25 @@ from examples.seismic.acoustic import AcousticWaveSolver, acoustic_setup
 class SparseFirst(SparseFunction):
     """ Custom sparse class with the sparse dimension as the first one"""
     _sparse_position = 0
+
+
+def test_local_scatter_axes():
+    grid = Grid(shape=(17, 19))
+    f = Function(name='f', grid=grid, space_order=8)
+    src = SparseFunction(name='src', grid=grid, npoint=1,
+                         interpolation='sinc', r=4)
+
+    update = src.inject(f, expr=src).evaluate[-1]
+    dimensions = (src._sparse_dim, *(src._crdim(d) for d in grid.dimensions))
+    assert isinstance(update, Inc)
+    assert isinstance(update.rhs, LocalScatter)
+    assert update.rhs.dimensions == dimensions
+
+    lowered = LoweredEq(update)
+    assert lowered.is_Increment
+    assert isinstance(lowered.rhs, LocalScatter)
+    assert lowered.rhs.dimensions == dimensions
+    assert lowered.ispace.itdims == dimensions
 
 
 class TestLocalSum:

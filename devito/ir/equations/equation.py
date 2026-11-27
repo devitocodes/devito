@@ -4,7 +4,7 @@ from functools import cached_property
 import numpy as np
 import sympy
 
-from devito.finite_differences.differentiable import LocalSum, diff2sympy
+from devito.finite_differences.differentiable import LocalScatter, LocalSum, diff2sympy
 from devito.ir.equations.algorithms import dimension_sort, generate_conditionals
 from devito.ir.support import (
     Interval, IntervalGroup, IterationSpace, Stencil, bounded, detect_accesses
@@ -55,6 +55,11 @@ class IREq(sympy.Eq, Pickable):
     def local_sums(self):
         """The local sums in dependency order, with nested sums first."""
         return tuple(filter_ordered(search(self, LocalSum, mode='all')))
+
+    @cached_property
+    def local_scatters(self):
+        """The local scatter carried by this indexed update, if any."""
+        return (self.rhs,) if isinstance(self.rhs, LocalScatter) else ()
 
     @property
     def implicit_dims(self):

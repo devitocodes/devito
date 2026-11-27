@@ -286,8 +286,8 @@ class CGen(Visitor):
                issubclass(ctype, NoDeclStruct):
                 return None
         except TypeError:
-            # E.g., `ctype` is of type `dtypes_lowering.CustomDtype`
-            return None
+            # A backend-defined aggregate may provide its own declaration.
+            return getattr(obj, '_C_typedecl', None)
 
         try:
             return obj._C_typedecl

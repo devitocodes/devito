@@ -8,7 +8,7 @@ from conftest import assert_structure, opts_tiling
 from devito import (
     Border, Buffer, ConditionalDimension, Constant, Derivative, Eq, Function, Grid, Lt,
     Operator, SparseFunction, SparseTimeFunction, SubDimension, SubDomain, SubDomainSet,
-    TensorFunction, TimeFunction, VectorFunction, solve
+    TensorFunction, TimeFunction, VectorFunction, solve, switchconfig
 )
 from devito.exceptions import InvalidArgument
 from devito.ir import (
@@ -1865,22 +1865,10 @@ class TestSubDomainFunctionsParallel:
                 f.data_with_halo.size - f.data.size)
         assert np.all(gx.data[1:-1] == 0)
 
-    @pytest.mark.parallel(mode=[
-        (2, 'basic'), (2, 'diag'), (2, 'diag2'),
-        # The overlap builders (overlap, overlap2, full) key the CORE/OWNED
-        # regions on the user-level SubDimensions of `u` rather than the
-        # concretized ones in the IET, and override the SubDomain thickness
-        # symbols, which double as index offsets into `u`. Compilation fails
-        # with `ValueError: x_m + x_ltkn is not in list`; fixed separately
-        pytest.param((2, 'full'), marks=pytest.mark.xfail(
-            reason="comp/comm overlap broken for Functions on SubDomains"
-        ))
-    ])
+    @pytest.mark.parallel(mode=[(2, 'basic'), (2, 'diag'), (2, 'diag2'), (2, 'full')])
     def test_halo_empty_neighbor_timeloop_mpi(self, mode):
         """
-        As `test_halo_empty_neighbor_mpi`, but with the halo exchange within the
-        time loop, hence overlappable, such that the diag2 and full modes are
-        used rather than falling back to basic.
+        Exercise the empty-neighbor case with halo exchanges inside the time loop.
         """
         grid = Grid(shape=(11, 11), extent=(10., 10.), topology=(2, 1))
         # Only held by rank 0
@@ -2517,7 +2505,15 @@ class TestSubDomainArguments:
         args = op.arguments(time_M=3, **bounds)
         records = args[compute.region.name]
 
-        # CORE, left OWNED and right OWNED thicknesses after rank localization
-        expected = ([(0, 0), (2, 0), (0, 0)],
-                    [(0, 0), (0, 0), (0, 3)])[grid.distributor.myrank]
-        assert [(r.y_ltkn0, r.y_rtkn0) for r in records] == expected
+        # CORE, neighbor-facing OWNED and empty physical-face OWNED.
+        expected = ([(0, 27, 2, 0), (28, 31, 0, 0), (0, -1, 2, 0)],
+                    [(4, 31, 0, 3), (0, 3, 0, 0), (32, 31, 0, 3)])
+        rank = grid.distributor.myrank
+        assert [(r.y_m, r.y_M, r.y_ltkn0, r.y_rtkn0) for r in records] == expected[rank]
+
+        v = u.func(name='v')
+        with switchconfig(mpi='basic'):
+            reference = Operator(eq)
+        reference.apply(u=v, time_M=3, **bounds)
+        op.apply(time_M=3, **bounds)
+        np.testing.assert_allclose(u.data._local, v.data._local, rtol=1.e-6, atol=1.e-7)
