@@ -706,9 +706,22 @@ class AbstractSparseFunction(DiscreteFunction):
         self._comm.Alltoallv([data, rcount, rdisp, self._mpitype],
                              [gathered, scount, sdisp, self._mpitype])
 
+        # A point is sent to every rank its support touches, but a rank only
+        # grazed by the support reads up to `r` points into its halo, and so it
+        # may compute a partial value. Keep the value computed by the rank owning
+        # the point, whose reads all fall within that range
+        shape = np.array(self.grid.shape)
+        index = np.clip(self._coords_indices, 0, shape - 1)
+        owners = self.grid.distributor.glb_to_rank(index) or {}
+        keep = np.array(flatten(np.isin(dmap[r], owners.get(r, ())).tolist()
+                                for r in sorted(dmap)), dtype=bool)
+        mask = list(mask)
+        mask[self._sparse_position] = mask[self._sparse_position][keep]
+
         # Unpack data values so that they follow the expected storage layout
         gathered = np.ascontiguousarray(np.transpose(gathered, self._dist_reorder_mask))
-        self._data[mask] = gathered[:]
+        self._data[tuple(mask)] = np.take(gathered, np.flatnonzero(keep),
+                                          axis=self._sparse_position)
 
     def _dist_subfunc_gather(self, sfuncd, subfunc):
         with suppress(AttributeError):
