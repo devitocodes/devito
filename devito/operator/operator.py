@@ -43,6 +43,7 @@ from devito.tools import (
     split, timed_pass, timed_region
 )
 from devito.types import Buffer, Evaluable, device_layer, disk_layer, host_layer
+from devito.types.args import ArgProvider
 from devito.types.dimension import SubDimension, SubsamplingOffset, Thickness
 from devito.warnings import warn
 
@@ -739,12 +740,19 @@ class Operator(Callable):
 
         SubDimension._arg_check_thickness(self.dimensions, args)
 
+        # Resolve metadata for every bound argument before any one of them
+        # caches the available memory and allocates its storage.
+        parameters = [(p, kwargs.get(p.name, p)) for p in self.parameters]
+        for _, value in parameters:
+            if isinstance(value, ArgProvider):
+                value._arg_pre_finalize(args)
+
         # Turn arguments into a format suitable for the generated code
         # E.g., instead of NumPy arrays for Functions, the generated code expects
         # pointers to ctypes.Struct
-        for p in self.parameters:
+        for p, value in parameters:
             try:
-                args.update(kwargs.get(p.name, p)._arg_finalize(args, alias=p))
+                args.update(value._arg_finalize(args, alias=p))
             except AttributeError:
                 # User-provided floats/ndarray obviously do not have `_arg_finalize`
                 args.update(p._arg_finalize(args, alias=p))
@@ -1578,12 +1586,14 @@ class ArgumentsMap(dict):
         # Temporaries such as Arrays are allocated and deallocated on-the-fly
         # while in C land, so they need to be accounted for as well
         for i in self._op_symbols:
-            if not i.is_Array or not i._mem_heap or i.alias \
-               or not i.is_regular:
+            if not i.is_Array or not i._mem_heap or i.alias:
                 continue
 
-            nbytes = i.nbytes if i.is_regular else i.nbytes_max
-            v = subs_op_args(nbytes, self)
+            try:
+                nbytes = i.nbytes if i.is_regular else i._arg_nbytes(self)
+            except NotImplementedError:
+                continue
+            v = subs_op_args(nbytes, self) if isinstance(nbytes, sympy.Basic) else nbytes
             if not is_integer(v):
                 # E.g. the Arrays used to store the MPI halo exchanges
                 continue

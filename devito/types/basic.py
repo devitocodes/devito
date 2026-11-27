@@ -2032,6 +2032,10 @@ class IrregularFunctionInterface:
     def nbytes_max(self):
         raise NotImplementedError
 
+    def _arg_nbytes(self, args):
+        """Provide the byte bound, optionally using bound argument metadata."""
+        return self.nbytes_max
+
 
 class LocalType(Basic):
     """

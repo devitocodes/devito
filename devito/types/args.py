@@ -58,6 +58,10 @@ class ArgProvider:
         # By default, this is a no-op
         return
 
+    def _arg_pre_finalize(self, args):
+        """Prepare runtime metadata needed to estimate allocation sizes."""
+        return
+
     def _arg_finalize(self, args, **kwargs):
         """
         Finalize the arguments produced by self, eventually turning them into ctypes.
