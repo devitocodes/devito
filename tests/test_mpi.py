@@ -2264,6 +2264,29 @@ class TestCodeGeneration:
         assert calls[0].arguments[0] is v1
         assert calls[1].arguments[0] is v2
 
+    @pytest.mark.parallel(mode=2)
+    def test_haloupdate_if_increment_reads_elsewhere(self, mode):
+        """
+        An increment that reads the incremented Function at other points than
+        those it updates needs the halo of the Function.
+        """
+        grid = Grid(shape=(11, 11))
+        x, y = grid.dimensions
+
+        g = Function(name='g', grid=grid, space_order=2)
+
+        op = Operator([Eq(g, 1),
+                       Inc(g.subs(y, 0), g.subs({x: x + x.spacing, y: 1}))])
+        op.apply()
+
+        assert len(FindNodes(HaloUpdateCall).visit(op)) == 1
+        # The last node reads past the domain, in the zero halo
+        expected = np.full(11, 2.)
+        expected[-1] = 1
+        data = g.data_gather(rank=0)
+        if grid.distributor.myrank == 0:
+            assert np.all(data[:, 0] == expected)
+
     @pytest.mark.parallel(mode=1)
     def test_hoist_haloupdate_if_in_the_middle(self, mode):
         grid = Grid(shape=(65, 65, 65))
@@ -3720,6 +3743,34 @@ class TestOperatorAdvanced:
                  opt=('advanced', {'expand': expand})).apply()
 
         assert np.allclose(out.data, ref.data)
+
+    @pytest.mark.parametrize('mode', [
+        pytest.param(None, id='serial'),
+        pytest.param(4, marks=pytest.mark.parallel, id='basic')
+    ])
+    def test_inc_subdomain_halo(self, mode):
+        """
+        An `Inc` on a SubDomain reading its target Function with a stencil, at the
+        previous time step, exchanges the halo of that Function.
+        """
+        class Core(SubDomain):
+            name = 'core'
+
+            def define(self, dimensions):
+                x, y = dimensions
+                return {x: ('middle', 6, 0), y: y}
+
+        grid = Grid(shape=(64, 8), dtype=np.float64)
+        core = Core(grid=grid)
+        u, ref = (TimeFunction(name=n, grid=grid, space_order=4) for n in ('u', 'ref'))
+
+        u.data[:] = ref.data[:] = np.random.default_rng(0).normal(size=u.shape_global)
+
+        Operator([Eq(u.forward, u), Inc(u.forward, 0.1*u.dx, subdomain=core),
+                  Eq(ref.forward, ref),
+                  Eq(ref.forward, ref + 0.1*ref.dx, subdomain=core)]).apply(time_M=1)
+
+        assert np.allclose(u.data, ref.data)
 
     @pytest.mark.parallel(mode=4)
     def test_rank_offset_empty(self, mode):

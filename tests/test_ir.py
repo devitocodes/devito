@@ -1433,6 +1433,23 @@ class TestDependenceAnalysis:
         assert bool(scope.d_flow) is flow
         assert bool(scope.d_anti) is anti
 
+    def test_read_reduction(self):
+        """
+        A reduction reads the point it updates as part of the reduction, but not
+        another point of the same Function
+        """
+        grid = Grid(shape=(32,))
+        x, = grid.dimensions
+        f = Function(name='f', grid=grid)
+        ispace = IterationSpace([Interval(x)])
+
+        scope = Cluster(Inc(f[x], f[x] + f[x + 1]), ispace).scope
+
+        assert {(r.access, r.mode) for r in scope.reads[f]} == \
+            {(f[x], 'RR'), (f[x + 1], 'R')}
+        assert {(d.source.access, d.is_reduction) for d in scope.d_all} == \
+            {(f[x], True), (f[x + 1], False)}
+
     def test_stencil_multidimensional_distance(self):
         grid = Grid(shape=(32, 32))
         x, y = grid.dimensions
