@@ -690,9 +690,7 @@ class Operator(Callable):
 
         # An ArgumentsMap carries additional metadata that may be used by
         # the subsequent phases of the arguments processing
-        args = kwargs['args'] = self._make_arguments_map(
-            args, grid, discretizations, estimate_memory=estimate_memory
-        )
+        args = kwargs['args'] = ArgumentsMap(args, grid, self, discretizations)
 
         if estimate_memory:
             # No need to do anything more if only checking the memory
@@ -755,9 +753,6 @@ class Operator(Callable):
         args.update(self._autotune(args, autotune or configuration['autotuning']))
 
         return args
-
-    def _make_arguments_map(self, args, grid, discretizations, estimate_memory=False):
-        return ArgumentsMap(args, grid, self, discretizations)
 
     def _postprocess_errors(self, retval, comm=None):
         if retval == 0:
@@ -1449,10 +1444,7 @@ class ArgumentsMap(dict):
             # to nbytes, as it is typically zero
             nbytes = obj.nbytes
 
-        return self._evaluate_nbytes(nbytes)
-
-    def _evaluate_nbytes(self, nbytes):
-        """Resolve a symbolic allocation size against the bound arguments."""
+        # Could nominally have symbolic nbytes at this point
         if isinstance(nbytes, sympy.Basic):
             return subs_op_args(nbytes, self)
 
@@ -1593,7 +1585,7 @@ class ArgumentsMap(dict):
                 nbytes = i.nbytes if i.is_regular else i.nbytes_max
             except NotImplementedError:
                 continue
-            v = self._evaluate_nbytes(nbytes)
+            v = subs_op_args(nbytes, self) if isinstance(nbytes, sympy.Basic) else nbytes
             if not is_integer(v):
                 # E.g. the Arrays used to store the MPI halo exchanges
                 continue
