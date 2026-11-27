@@ -1575,9 +1575,12 @@ class ArgumentsMap(dict):
         """
         host = 0
         device = 0
-        # Temporaries such as Arrays are allocated and deallocated on-the-fly
-        # while in C land, so they need to be accounted for as well
-        for i in self._op_symbols:
+        # Count the allocation sites. Helpers can contain renamed views of
+        # the same heap Array.
+        allocs = [self.op.body.allocs]
+        allocs.extend(i.root.body.allocs for i in self.op._func_table.values()
+                      if i.local)
+        for i in FindSymbols('defines-aliases').visit(allocs):
             if not i.is_Array or not i._mem_heap or i.alias:
                 continue
 
