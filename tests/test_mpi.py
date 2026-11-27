@@ -1471,11 +1471,13 @@ def check_periodic_sparse(periodic, interpolation, topology=None):
     np.testing.assert_allclose(full, expected, rtol=0, atol=1e-5)
 
 
-def check_periodic_subdomain(spec, periodic, nt=3):
+def check_periodic_view(periodic, spec=(None, None), factor=1, shape=(16, 16),
+                        topology=None, nt=3):
     """
-    Check a stencil update of a TimeFunction defined on a SubDomain, given by `spec`,
-    against a NumPy reference. The SubDomain is only periodic along the periodic
-    Dimensions it spans entirely, with zero halos elsewhere.
+    Check a stencil update, diagonal neighbours included, of a TimeFunction defined
+    on a view of a periodic Grid against a NumPy reference. The view is either a
+    SubDomain, given by `spec`, or a SubGrid, given by `factor`. It is only periodic
+    along the periodic Dimensions it spans entirely, with zero halos elsewhere.
     """
     class Strip(SubDomain):
         name = 'strip'
@@ -1483,16 +1485,20 @@ def check_periodic_subdomain(spec, periodic, nt=3):
         def define(self, dimensions):
             return {d: s or d for d, s in zip(dimensions, spec, strict=True)}
 
-    shape = (16, 16)
-    grid = Grid(shape=shape, extent=(15., 15.), periodic=periodic)
-    sd = Strip(grid=grid)
+    grid = Grid(shape=shape, extent=tuple(n - 1. for n in shape), periodic=periodic,
+                topology=topology)
+    if factor != 1:
+        grid = SubGrid(grid, factor=factor)
+        assert grid.periodic == grid.parent.periodic == grid.distributor.periodic
+    sd = Strip(grid=grid) if any(spec) else None
     data = np.random.default_rng(0).random(shape, dtype=np.float32)
-    region = tuple(slice(s[1], n - s[2]) if s else slice(None)
-                   for s, n in zip(spec, shape, strict=True))
+    region = tuple(slice(s[1], n - s[2]) if s else slice(None, None, f)
+                   for s, n, f in zip(spec, shape, np.broadcast_to(factor, len(shape)),
+                                      strict=True))
 
-    u = TimeFunction(name='u', grid=sd, space_order=2)
+    u = TimeFunction(name='u', grid=sd or grid, space_order=2)
     u.data[0] = data[region]
-    x, y = sd.dimensions
+    x, y = u.space_dimensions
     shifts = [{x: x+1}, {x: x-1}, {y: y+1}, {y: y-1}, {x: x+1, y: y+1}, {x: x-1, y: y-1}]
     update = u + 0.1*(sum(u.subs(i) for i in shifts) - 6*u)
     Operator(Eq(u.forward, update, subdomain=sd)).apply(time_M=nt-1)
@@ -1533,6 +1539,10 @@ SPARSE_MPI_INTERPOLATIONS = [
     'linear',
     pytest.param('sinc', marks=pytest.mark.xfail(reason="partial sums under MPI"))
 ]
+
+
+# All divide `(42, 30)`, though not the local sizes over 2 and 4 ranks
+SUBGRID_FACTORS = [2, 3, (3, 2), (2, 1)]
 
 
 class TestPeriodic:
@@ -1635,7 +1645,7 @@ class TestPeriodic:
     @pytest.mark.parametrize('periodic', [(True, True), (True, False)])
     @pytest.mark.parametrize('spec', PERIODIC_SUBDOMAINS)
     def test_subdomain_serial(self, spec, periodic):
-        check_periodic_subdomain(spec, periodic)
+        check_periodic_view(periodic, spec=spec)
 
     # The `full` mode is excluded as it does not support SubDomains yet, regardless
     # of periodicity (see `TestSubDomainFunctionsParallel` in test_subdomains.py)
@@ -1643,7 +1653,54 @@ class TestPeriodic:
     @pytest.mark.parametrize('spec', PERIODIC_SUBDOMAINS)
     @pytest.mark.parallel(mode=[(n, m) for n in (1, 2, 4) for m in ('basic', 'diag2')])
     def test_subdomain(self, spec, periodic, mode):
-        check_periodic_subdomain(spec, periodic)
+        check_periodic_view(periodic, spec=spec)
+
+    @pytest.mark.parametrize('factor', SUBGRID_FACTORS)
+    @pytest.mark.parametrize('periodic', [(True, True), (True, False)])
+    def test_subgrid_serial(self, periodic, factor):
+        check_periodic_view(periodic, factor=factor, shape=(42, 30))
+
+    @pytest.mark.parametrize('factor', SUBGRID_FACTORS)
+    @pytest.mark.parametrize('periodic', [(True, True), (True, False)])
+    @pytest.mark.parallel(mode=[(n, m) for n in (1, 2, 4)
+                                for m in ('basic', 'diag2', 'full')])
+    def test_subgrid(self, periodic, factor, mode):
+        check_periodic_view(periodic, factor=factor, shape=(42, 30))
+
+    @pytest.mark.parametrize('factor', [3, (3, 2)])
+    @pytest.mark.parametrize('topology', [(4, 1), (1, 4)])
+    @pytest.mark.parallel(mode=[(4, 'basic'), (4, 'diag2'), (4, 'full')])
+    def test_subgrid_topology(self, topology, factor, mode):
+        check_periodic_view((True, True), factor=factor, shape=(42, 30),
+                            topology=topology)
+
+    @pytest.mark.parametrize('factor', SUBGRID_FACTORS)
+    @pytest.mark.parallel(mode=[1, (2, 'basic'), (2, 'diag2'), (4, 'basic'),
+                                (4, 'diag2')])
+    def test_subgrid_sampled(self, factor, mode):
+        """
+        A parent stencil sampled onto a SubGrid reads across the seam through the
+        parent's halo.
+        """
+        shape = (42, 30)
+        grid = Grid(shape=shape, extent=tuple(n - 1. for n in shape), periodic=True)
+        sub = SubGrid(grid, factor=factor)
+        f = Function(name='f', grid=grid, space_order=2)
+        g = Function(name='g', grid=sub)
+
+        data = np.random.default_rng(0).random(shape, dtype=np.float32)
+        f.data[:] = data
+        Operator(Eq(g, f.dx2 + f.dy2)).apply()
+
+        full = g.data_gather()
+        if full is None:
+            # Not rank 0
+            return
+        p = np.pad(data, 1, mode='wrap')
+        lap = (p[2:, 1:-1] + p[:-2, 1:-1] + p[1:-1, 2:] + p[1:-1, :-2]
+               - 4*p[1:-1, 1:-1])
+        fx, fy = sub.factor
+        np.testing.assert_allclose(full, lap[::fx, ::fy], rtol=0, atol=1e-5)
 
     def test_unsupported(self):
         with pytest.raises(ValueError):
@@ -1655,7 +1712,14 @@ class TestPeriodic:
                                       gridpoints=[(0, 0)],
                                       interpolation_coeffs=np.ones((1, 2, 2)))
         with pytest.raises(NotImplementedError):
-            SubGrid(grid, factor=2)
+            SparseFunction(name='s', grid=SubGrid(grid, factor=2), npoint=1)
+
+        # The factor must divide the size of the periodic Dimensions only
+        with pytest.raises(ValueError):
+            SubGrid(grid, factor=3)
+        with pytest.raises(ValueError):
+            SubGrid(Grid(shape=(4, 5), periodic=(False, True)), factor=2)
+        SubGrid(Grid(shape=(4, 5), periodic=(True, False)), factor=2)
 
 
 class TestCodeGeneration:

@@ -534,15 +534,15 @@ class SubGrid(Grid):
     Because the subsampled points coincide with parent points, no interpolation
     is involved: an `Eq` writing a SubGrid Function from a parent Function is a
     strided copy, and the compiler emits a strided loop for it.
+
+    A SubGrid of a periodic Grid is periodic along the same Dimensions, with the
+    same period. Along these, the factor must divide the number of points.
     """
 
     def __init__(self, parent, factor, name='s', **kwargs):
         if not parent.is_Grid:
             raise ValueError("`parent` must be a Grid, got "
                              f"`{type(parent).__name__}`")
-
-        if any(parent.periodic):
-            raise NotImplementedError("Cannot subsample a periodic Grid")
 
         factors = self.__factors_setup__(parent, factor)
 
@@ -558,6 +558,14 @@ class SubGrid(Grid):
                 f"`{combined}` applied to its parent Grid directly, so use "
                 f"`SubGrid(parent.parent, factor={combined})`"
             )
+
+        # A subsampled periodic axis is periodic only if the factor divides its
+        # size, so that the point after the last one is the first one
+        for d, n, f, p in zip(parent.dimensions, parent.shape, factors,
+                              parent.periodic, strict=True):
+            if p and n % f:
+                raise ValueError(f"Subsampling factor `{f}` must divide the size "
+                                 f"`{n}` of the periodic Dimension `{d}`")
 
         dimensions = tuple(
             d if f == 1 else ConditionalDimension(f'{d.name}{name}', parent=d, factor=f)
@@ -579,7 +587,8 @@ class SubGrid(Grid):
         super().__init__(shape=shape, extent=extent, origin=parent.origin,
                          dimensions=dimensions, dtype=parent.dtype,
                          time_dimension=parent.time_dim,
-                         comm=parent.distributor.comm, **kwargs)
+                         comm=parent.distributor.comm, periodic=parent.periodic,
+                         **kwargs)
 
         # Share the parent's stepping Dimension rather than the fresh
         # `{time}_s` that Grid derives for a supplied `time_dimension`: a

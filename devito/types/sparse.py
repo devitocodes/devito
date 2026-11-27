@@ -23,6 +23,7 @@ from devito.types.dimension import (
 )
 from devito.types.dimension import dimensions as mkdims
 from devito.types.equation import Eq, Inc
+from devito.types.grid import SubGrid
 from devito.types.utils import DimensionTuple, IgnoreDimSort
 
 __all__ = [
@@ -67,6 +68,11 @@ class AbstractSparseFunction(DiscreteFunction):
 
     def __init_finalize__(self, *args, **kwargs):
         super().__init_finalize__(*args, **kwargs)
+
+        # Sanity check
+        if isinstance(self.grid, SubGrid) and any(self.grid.periodic):
+            raise NotImplementedError("SparseFunctions on a SubGrid of a periodic "
+                                      "Grid are not supported yet")
 
         self._npoint = kwargs.get('npoint', kwargs.get('npoint_global'))
         self._space_order = kwargs.get('space_order', 0)
