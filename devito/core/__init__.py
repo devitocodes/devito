@@ -31,6 +31,10 @@ from devito.core.gpu import (
     DeviceCustomCXXOmpOperator, DeviceNoopCXXOmpOperator,
     DeviceAdvCXXOmpOperator, DeviceFsgCXXOmpOperator
 )
+from devito.core.torch import (
+    Cpu64AdvTorchOperator, Cpu64CustomTorchOperator, Cpu64FsgTorchOperator,
+    Cpu64NoopTorchOperator
+)
 from devito.operator.registry import operator_registry
 
 # Register CPU Operators
@@ -81,6 +85,11 @@ operator_registry.add(PowerAdvOmpOperator, Power, 'advanced', 'openmp')
 operator_registry.add(PowerAdvOmpOperator, Power, 'advanced', 'Copenmp')
 operator_registry.add(PowerCXXAdvCOperator, Power, 'advanced', 'CXX')
 operator_registry.add(PowerAdvCXXOmpOperator, Power, 'advanced', 'CXXopenmp')
+
+operator_registry.add(Cpu64NoopTorchOperator, Cpu64, 'noop', 'torch')
+operator_registry.add(Cpu64AdvTorchOperator, Cpu64, 'advanced', 'torch')
+operator_registry.add(Cpu64FsgTorchOperator, Cpu64, 'advanced-fsg', 'torch')
+operator_registry.add(Cpu64CustomTorchOperator, Cpu64, 'custom', 'torch')
 
 # Register Device Operators
 operator_registry.add(DeviceCustomOmpOperator, Device, 'custom', 'C')

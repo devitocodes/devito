@@ -9,12 +9,25 @@ __all__ = [
     'convert_index',
     'flip_idx',
     'index_apply_modulo',
+    'index_axis_span',
     'index_dist_to_repl',
     'index_handle_oob',
     'index_is_basic',
     'is_windowed',
     'loc_data_idx',
 ]
+
+
+def index_axis_span(item):
+    """Number of array axes consumed by one raw index component."""
+    if item is np.newaxis:
+        return 0
+    elif isinstance(item, np.ndarray) and item.dtype == np.bool_:
+        return item.ndim
+    elif isinstance(item, (list, tuple)):
+        arr = np.asarray(item)
+        return arr.ndim if arr.dtype == np.bool_ else 1
+    return 1
 
 
 def is_windowed(val):

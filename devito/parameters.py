@@ -141,6 +141,7 @@ class Parameters(OrderedDict, Signer):
 
 
 env_vars_mapper = {
+    'DEVITO_ALLOCATOR': 'allocator',
     'DEVITO_ARCH': 'compiler',
     'DEVITO_AUTOPADDING_MODE': 'autopadding-mode',
     'DEVITO_AUTOTUNING': 'autotuning',

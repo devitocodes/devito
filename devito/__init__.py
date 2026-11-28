@@ -88,6 +88,10 @@ preprocessor = lambda i: CustomTopology._shortcuts.get(i)
 configuration.add('topology', None, [None] + list(CustomTopology._shortcuts),
                   preprocessor=preprocessor)
 
+# Select a registered allocator, or retain architecture-dependent selection
+configuration.add('allocator', 'auto',
+                  preprocessor=lambda i: 'auto' if i is None else i, impacts_jit=False)
+
 # Should Devito run a first-touch Operator upon data allocation?
 configuration.add('first-touch', 0, [0, 1], preprocessor=bool, impacts_jit=False)
 

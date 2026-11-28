@@ -99,6 +99,9 @@ have seen in the past.
 
 ## Resources
 
+For PyTorch-owned tensors, generated C++ CPU loops, and CUDA tensor pointers
+with OpenACC, see the optional [PyTorch backend](docs/torch.md).
+
 To learn how to use Devito,
 [here](https://github.com/devitocodes/devito/blob/main/examples) is a good
 place to start, with lots of examples and tutorials.

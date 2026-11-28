@@ -61,7 +61,9 @@ def redistribute_set(data, glb_idx, other):
         return False
 
     layout, gcoords, values = spec
-    _push(layout, gcoords, values, np.asarray(data))
+    local = data._host_array()
+    _push(layout, gcoords, values, local)
+    data._setitem_local(Ellipsis, local)
     return True
 
 
@@ -110,7 +112,7 @@ def _structured_spec(data, glb_idx, other):
 
     mesh = np.meshgrid(*coords_per_axis, indexing='ij')
     gcoords = {axis: m.reshape(-1) for axis, m in enumerate(mesh)}
-    values = np.ascontiguousarray(np.asarray(other)).reshape(-1)
+    values = np.ascontiguousarray(other._host_array()).reshape(-1)
 
     layout = Layout(data._distributor, decomposition, global_shape)
     return layout, gcoords, values
